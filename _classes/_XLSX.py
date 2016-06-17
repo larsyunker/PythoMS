@@ -14,7 +14,8 @@ new:
     added pullmultispectrum function to read multiple spectra from sheet
     consolidated createwb into loadwb
     fixed workbook creation to not return a write-only workbood (this would break cell calls)
-    ---1.1 building
+    ---1.1---
+    ---1.2
 
 to add:
     dynamic creation of workbook (if it's there, load it, if not create)

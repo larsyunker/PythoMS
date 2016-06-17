@@ -14,6 +14,8 @@ new:
     removed timepoint function (now redundant with profiling capability)
     updated print profile data function to be more detailed and easier to read
     ---1.1---
+    ---1.2
+
 to add:
     use time.time() in unix and time.clock() in windows
 """

@@ -11,13 +11,10 @@ new:
     ---03---
     removed save spectra function (now in XLSX)
     cleaned up calls
-    
     ---4.0---
+    ---4.1
+
 to add:
-    convert to use XLSX class
-    fix calls to mzml and tome
-    default outname for savemassspectrum (and iterates if a duplicate is found)
-    move functions into tome and rewrite to call those
     output for more than one spectrum (MSMS ramping functionality)
 """
 

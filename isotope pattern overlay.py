@@ -7,33 +7,35 @@ new/changed:
     added overrides for figure size and output type
     new small function to import wb (the script may no longer require the loading of openpyxl outside of this function)
     removed import of os (this appears to not be used anymore)
-    ---009---
+    ---09---
     switched to tome_v02
     converted simdict entries to be dictionaries
-    ---010.0---
+    ---10.0---
     reworked settings dictionaries to be easier to read (and changed script/tome code to work with the new keys)
-    ---010.1---
+    ---10.1---
     rewrittten to work with MolecularFormula class
     removed functionality that loads isotope patterns from excel file
     converted into a standalone function
     cleaned up code to use exp (experimental) instead of realmz,realint (also got rid of a few extraneous variables)
-    ---011.0---
+    ---11.0---
     added mass delta calculator
     fixed formula interpreter in _MolecularFormula
     fixed normalization to max with close isotope patterns
     added bar stacking of intensities if there is pattern overlap (assumes m/z spacing is equal between patterns)
     added 'detailed' setting for more verbose isotope pattern checks
-    ---011.1---
+    ---11.1---
     updated to work with NoneSpectrum 2.1 functionality
     fixed snipping (should now work at either end of the spectrum)
     updated to work with Molecule 2.3
-    ---011.2---
+    ---11.2---
     added standard error output (using the compare function in Molecule)
     consolidated multiple loops into one
     Molecule objects are stored in simdict
-    ---011.3---
+    ---11.3---
     updated to work with the latest functionality of Molecule
-    ---011.4 building
+    ---11.4---
+    
+    ---11.5---
 
 to add:
     convert to use XLSX class

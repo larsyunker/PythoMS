@@ -19,7 +19,8 @@ new:
     cleaned up and fixed checkforfile (I think most exceptions and eventualities have been accounted for now)
     added trimspectrum() method
     added sumscans() method (sums all scans together)
-    ---1.3 building
+    ---1.3---
+    ---1.4
 
 to add:
     add keyword initiated full spectrum bin in pullspeciesdata (maybe as a decorator?)

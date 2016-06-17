@@ -8,11 +8,11 @@
     species output into excel is now sorted alphabetically
     restructured sp in dictionary to be a dictionary with keys for bounds, nsum, nnorm, etc
     now can do any number of n sums/norms in a single execution
-    ---026.2---
+    ---26.2---
     spectrum summing is incorporated into pullMSdata
     isotope patterns of each species are summed and saved in a separate sheet
     plot output changed to plot all summed traces (ignores norm traces)
-    ---026.3---
+    ---26.3---
     changed pullparams
     affinity of species (positive mode, negative mode, UV) is now set in the excel file in a new column
     all species to interpret are now given in the parameters sheet (no extra sheet required for UV-Vis data)
@@ -23,7 +23,7 @@
     can now process positive, negative mode as well as UV-Vis simultaneously
     excel output now groups species according to their affinity
     separated UV-Vis spec summing script from bulk script (will now have to be run separately)
-    ---026.4---
+    ---26.4---
     updated pullparams to be more efficient
     changed xml.dom.minidom import to be as xdm
     fixed plots function to only plot MS species (plots all + and - species on the same plot)
@@ -31,22 +31,22 @@
     new scantype function determines what type of scan each spectrum is (MS+,MS-,UV,MSMS)
     fixed output functions to work when one MS mode is not present
     validated with TQD functions (extracts and outputs in the function chromatograms sheet)
-    ---026.5---
+    ---26.5---
     pullchromdata now outputs a dictionary of dictionaries (keys for x, y, xunit, and yunit)
     rewrote chromatogram output to work with dictionary
     chromatogram output is now sorted
     set up preliminary coding for dealing with MSMS spectra
-    ---026.6---
+    ---26.6---
     switched to use of mzML class and tome_v02
     updated and enabled command line initiation (it should work)
     added strtolist to handle list input from command line
-    ---027.0---
+    ---27.0---
     pwconvert now checks operating system
     switched to use of ScriptTime class
-    ---027.1---
+    ---27.1---
     switched import away from * (split up classes into separate files, etc.)
     switched to use of NoneSpectrum class for spectrum building
-    ---027.2---
+    ---27.2---
     renamed to PyRSIM
     updated input parameters
     pulls parameters from XLSX object
@@ -58,14 +58,15 @@
     outputs standard error of the regression to the excel file if the pattern was compared
     updated to work with the latest versions of Spectrum, ScriptTime, and mzML
     moved rsim output to XLSX
-    ---027.3---
+    ---27.3---
     updated call to Molecule.bounds()
     moved imports into the function
     updated command line calling (has not been tested)
     moved all excel writing to the XLSX class
     added a pull for previously calculated isotope patterns
     validated and fixed the isotope pattern pull, isotope pattern output, and chromatogram output
-    ---027.4 building
+    ---27.4---
+    ---27.5 building
 
 to add/fix:
     update mzml to work with calibration

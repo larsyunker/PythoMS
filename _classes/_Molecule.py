@@ -60,7 +60,8 @@ CHANGELOG:
     removed __pow__ method because it's just so farfetched that someone might use it
     changed print calls to sys.stdout.write calls
     corrected generation of the formula if the class is added/subtracted/multiplied/divided
-    ---2.6 building
+    ---2.6---
+    ---2.7
 
 to add:
     
