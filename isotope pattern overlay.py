@@ -32,8 +32,6 @@ new/changed:
     consolidated multiple loops into one
     Molecule objects are stored in simdict
     ---011.3---
-    updated to work with the latest functionality of Molecule
-    ---011.4 building
 
 to add:
     convert to use XLSX class
@@ -43,7 +41,7 @@ to add:
 """
 # provide the experimental spectrum xlsx
 # the script will automatically use the first sheet
-spectrum = '2016-06-13 09 Pd cation with boronic acid'
+spectrum = '2016-05-25 10.xlsx'
 
 # supply simulated spectrum in dictionary format
 # 'molecular formula':['colour','alpha','charge']
@@ -51,7 +49,7 @@ simdict = {
 #'L2PdAr+OMe':{'colour':'#fc8d59','alpha':0.75,'charge':1},
 #'L2PdAr+':{'colour':'#e41a1c','alpha':0.75,'charge':2}
 #'(MeOC6H4BO)2OH':{'colour':'#e41a1c','alpha':0.75,'charge':1}
-'L2PdPh':{'colour':'#4f81bd','alpha':0.75}
+'MeOC6H4BF3':{'colour':'#4f81bd','alpha':0.75,'charge':1}
 }
 
 # choose the desired m/z range for the figure
@@ -76,7 +74,7 @@ tovr = None
 # specify bar plot ('bar') or predicted gaussian ('gaussian') distribution
 otype = 'gaussian'
 
-def ipoverlay(specfile,simdict,mz='Auto',setting='user',sovr=None,tovr=None,otype='bar',outname='ipoverlay'):
+def ipoverlay(exp,simdict,mz='Auto',setting='user',sovr=None,tovr=None,otype='bar',outname='ipoverlay'):
     """
     Function for overlaying one or more predicted isotope patterns over an experimental mass spectrum
     
@@ -172,6 +170,7 @@ def ipoverlay(specfile,simdict,mz='Auto',setting='user',sovr=None,tovr=None,otyp
         'detailed':{'ymax':'counts','norm':'max','axlabels':[True,True],'axvalues':[True,True],'axshow':[True,True],'fs':10,'lw':1.5,'axwidth':1.0,'simlabels':True,'bw':2,'res':[True,None],'specfont':'Arial','size':[5,3],'dpiout':300,'exten':'png','delta':[True,None],'stats':True},
         'user':{'ymax':'counts','norm':'max','axlabels':[True,True],'axvalues':[True,True],'axshow':[True,True],'fs':10,'lw':1.5,'axwidth':1.0,'simlabels':False,'bw':2,'res':[False,None],'specfont':'Arial','size':[6.5,4.0],'dpiout':300,'exten':'png','delta':[True,None],'stats':False}
         }
+        import sys
         try:
             sys.stdout.write('Using figure preset "%s"\n' %(setting))
             sys.stdout.flush()
@@ -190,11 +189,6 @@ def ipoverlay(specfile,simdict,mz='Auto',setting='user',sovr=None,tovr=None,otyp
     from tome_v02 import resolution,normalize,msipoverlay
     from _Molecule import Molecule
     from bisect import bisect_left,bisect_right
-    from _XLSX import XLSX
-    
-    xlfile = XLSX(specfile)
-    
-    exp = xlfile.pullspectrum(xlfile.wb.get_sheet_names()[0])[0] # pull first sheet in workbook
     
     sets = figuresetting(setting) # pull settings for specified preset
     
@@ -206,7 +200,7 @@ def ipoverlay(specfile,simdict,mz='Auto',setting='user',sovr=None,tovr=None,otyp
         sets['exten'] = tovr
     
     for species in simdict: # generate Molecule objects for each species
-        simdict[species]['mf'] = Molecule(species)
+        simdict[species]['mf'] = Molecule(species,simdict[species]['charge'])
         
     if mz == 'Auto': # automatically determine m/z range
         mz = [50000,0]
@@ -219,7 +213,7 @@ def ipoverlay(specfile,simdict,mz='Auto',setting='user',sovr=None,tovr=None,otyp
         sys.stdout.write('Automatically determining m/z window: %i - %i\n' %(int(mz[0]),int(mz[1])))
         sys.stdout.flush()
     
-    snipleft,snipright = bisect_left(exp[0],mz[0]),bisect_right(exp[0],mz[1]) # find indicies of mz window in real spectrum
+    snipleft,snipright = bisect_left(exp[0],mz[0]-1),bisect_right(exp[0],mz[1]+1) # find indicies of mz window in real spectrum
     exp = [exp[0][snipleft:snipright],exp[1][snipleft:snipright]] #trim to mz range
     
     try:
@@ -235,12 +229,11 @@ def ipoverlay(specfile,simdict,mz='Auto',setting='user',sovr=None,tovr=None,otyp
     
     deltas = [[],[]] # list for  mass deltas
     for species in simdict: # calculate attributes of each species
-        simdict[species]['mf'].res = sets['res'][1]
         if otype == 'bar':
             simdict[species]['x'] = simdict[species]['mf'].barip[0]
             simdict[species]['y'] = simdict[species]['mf'].barip[1]
         elif otype == 'gaussian':
-            simdict[species]['mf'].gaussianisotopepattern()
+            simdict[species]['mf'].gaussianisotopepattern(simdict[species]['mf'].barip,simdict[species]['mf'].em,res=sets['res'][1])
             simdict[species]['x'] = simdict[species]['mf'].gausip[0]
             simdict[species]['y'] = simdict[species]['mf'].gausip[1]
         simdict[species]['em'] = simdict[species]['mf'].em # append exact mass of predicted species
@@ -270,6 +263,19 @@ def ipoverlay(specfile,simdict,mz='Auto',setting='user',sovr=None,tovr=None,otyp
 
 
 if __name__ == '__main__':
-    ipoverlay(spectrum,simdict,mz,setting,sovr,tovr,otype,spectrum)
+    from tome_v02 import openpyxlcheck,loadwb
+    import sys
+    openpyxlcheck() # checks for presence of openpyxl and lxml packages
+    sys.stdout.write('Loading experimental spectrum into memory ')
+    wb = loadwb(spectrum)
+    ps = wb.get_sheet_by_name(wb.get_sheet_names()[0]) #load the first sheet in the excel document
+    exp = [[],[]] # list for experimental spectrum
+    for row in ps.rows: # for each row append the mz and int values to their respective lists
+        exp[0].append(row[0].value)
+        exp[1].append(row[1].value)
+    exp[0].pop(0) # remove header rows
+    exp[1].pop(0)
+    sys.stdout.write(' DONE.\n')
+    ipoverlay(exp,simdict,mz=mz,setting=setting,sovr=sovr,tovr=tovr,otype=otype,outname=spectrum)
     import gc
     gc.collect()

@@ -55,7 +55,6 @@ abbrvs = {
 'Val':{'C':5,'H':9,'N':1,'O':1}, # valine
 }
 
-# use of the aminoacids dictionary is not recommended (some duplicates of element symbols which will lead with unexpected behaviour)
 aminoacids = { # dictionary for converting one letter amino acid codes to three letter codes used by the Molecule class
 'A':'Ala',
 'C':'Cys',

@@ -16,13 +16,8 @@ new:
     changed sys.exit to exceptions in pwconvert
     created pullmsmsspectra which searches for and pulls spectra with MS level >=2
     ---1.2---
-    cleaned up and fixed checkforfile (I think most exceptions and eventualities have been accounted for now)
-    added trimspectrum() method
-    added sumscans() method (sums all scans together)
-    ---1.3 building
 
 to add:
-    add keyword initiated full spectrum bin in pullspeciesdata (maybe as a decorator?)
     remove pwconvert and filepresent from tome (or generalize filepresent)
     update pullspeciesdata docstring to better represent the newest version of the supplied dictionary
 """
@@ -45,10 +40,7 @@ class mzML(object):
             self.sys.stdout.write('Loading %s into memory' %self.filename)
             self.sys.stdout.flush()
         import xml.dom.minidom
-        try:
-            self.tree = xml.dom.minidom.parse(self.filename) # full mzML file
-        except:
-            raise IOError('The mzML file "%s" could not be loaded. The file is either corrupt or incomplete.' %self.filename)
+        self.tree = xml.dom.minidom.parse(self.filename) # full mzML file
         if self.v is True:
             self.sys.stdout.write(' DONE\n')
         
@@ -71,25 +63,17 @@ class mzML(object):
     
     def checkforfile(self,fn):
         """checks for file and converts if necessary"""
-        if fn.endswith('.raw') is True:
-            if self.filepresent(fn[:-4]+'.mzML') is False:
-                if self.filepresent(fn,'dir') is True:
-                    self.pwconvert(fn)
-                    return fn[:-4]+'.mzML'
-                else:
-                    raise IOError('The raw file "%s" is not in the current working directory. Please check your input' %fn)
-            else:
-                return fn[:-4]+'.mzML'
-        elif fn.lower().endswith('.mzml') is True:
-            if self.filepresent(fn) is True:
-                return fn
-            else:
-                raise IOError('The mzML file "%s" is not in the current working directory. Please check your input' %fn)
-        else:
-            fn = self.fixextension(fn)
+        if fn.lower().endswith('.mzml') is False:
             if fn.endswith('.raw') is True:
-                self.pwconvert(fn)
+                self.filepresent(fn,ty='dir')
+                if self.filepresent(fn[:-4]+'.mzML') is False:
+                    self.pwconvert(fn) # generate mzml if false
                 return fn[:-4]+'.mzML'
+            else:
+                fn = self.fixextension(fn) # try to fix extension
+            
+        else:
+            self.filepresent(fn)
             return fn
    
     def decode(self,line,extension='.mzML'):
@@ -133,11 +117,11 @@ class mzML(object):
         oopsr = {'.ra':'w','.r':'aw','.':'raw'} # incomplete raw extionsions
         for key in oopsx: # tries to complete mzml shortenings
             if fn.lower().endswith(key) is True:
-                if self.filepresent(fn+oopsx[key],'file') is True:
+                if self.filepresent(fn+oopsx[key],ty='file') is True:
                     return fn+oopsx[key]
         for key in oopsr: # tries to complete raw shortenings
             if fn.lower().endswith(key) is True:
-                if self.filepresent(fn+oopsr[key],'dir') is True:
+                if self.filepresent(fn+oopsr[key],ty='dir') is True:
                     return fn+oopsr[key]
         if self.filepresent(fn+'.mzml') is True: # tries to add the extension
             return fn+'.mzml'
@@ -261,11 +245,15 @@ class mzML(object):
                     for key in sp: # integrate each peak
                         if sp[key]['affin'] == mode: # if species has affinity to this spectrum type
                             if mode in ['+','-']: # if mass spectrum
-                                sp[key]['raw'].append(self.integ(sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)) # integrate
-                                xt,yt = self.trimspectrum(x,y,sp[key]['bounds'][0],sp[key]['bounds'][1]) # trim spectrum
-                                sp[key]['spectrum'].addspectrum(xt,yt) # add spectrum
+                                sp[key]['raw'].append(self.integ(sp[key]['bounds'][0],sp[key]['bounds'][1],x,y))
+                                # change this to bisect and .addspectrum()
+                                for ind,mz in enumerate(x): # for each mz
+                                    if mz >= sp[key]['bounds'][0] and mz <= sp[key]['bounds'][1]: # skips mz not in desired range
+                                        sp[key]['spectrum'].addvalue(mz,y[ind])
                             if mode in ['UV']: # if UV spectrum
                                 sp[key]['raw'].append(self.integ(sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)/1000000.) # integrates and divides by 1 million bring it into au
+                
+
         for key in sp: #remove mz/int values in spectrum that are None
             if sp[key]['affin'] in ['+','-']:
                 sp[key]['spectrum'] = sp[key]['spectrum'].trim() # trim spectrum to remove Nonetypes        
@@ -311,7 +299,9 @@ class mzML(object):
                             B64.append(self.getText(binary.getElementsByTagName('binary')[0].childNodes))
                         x,y = self.decode(B64[0]),self.decode(B64[1]) #decode binary data to a list of values
                         if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
-                            x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
+                            l,r = self.bl(x,mzrange[0]),self.br(x,mzrange[1])
+                            x = x[l:r]
+                            y = y[l:r]
                         speclist[t] = {'x':x,'y':y,'scan':curspec}
         if mzrange is None: # determine m/z range if not specified
             minx = 1000000.
@@ -497,39 +487,6 @@ class mzML(object):
         else: # type that is not interpretable
             return None,None        
 
-    def sumscans(self,sr='all',mzrange=[50.,2000.]):
-        """
-        sums all ms1 full scan scans together
-        this function has a lower memory overhead than pullscans()
-        
-        sr: scan range to sum
-        mzrange: mz range to sum between
-        """
-        from _Spectrum import Spectrum
-        spec = Spectrum(3,startmz=mzrange[0], endmz=mzrange[1])
-        for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            nscans = int(spectrumList.getAttribute('count')) # pull total number of scans
-            if sr == 'all':
-                sr = [1,nscans]
-            for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                mode,level = self.scantype(spectrum)
-                curspec = int(spectrum.getAttribute('index'))+1 #get current spectrum number
-                if self.v is True:
-                    self.sys.stdout.write('\rCombining mass spectrum #%i/%i  %.1f%%' %(curspec,nscans,float(curspec)/float(nscans)*100.))
-                if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
-                    if curspec >= sr[0] and curspec <= sr[1]:
-                        B64 = []
-                        for binary in spectrum.getElementsByTagName('binaryDataArray'): #pull array data for mz and intensity
-                            B64.append(self.getText(binary.getElementsByTagName('binary')[0].childNodes))
-                        x,y = self.decode(B64[0]),self.decode(B64[1]) #decode binary data to a list of values
-                        if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
-                            x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
-                        spec.addspectrum(x,y)
-        out = spec.trim()
-        if self.v is True:
-            self.sys.stdout.write(' DONE\n')
-        return out,sr
-
     def takeclosest(self,lst, value):
         """
         Finds index in a sorted list of the value closest to a given value
@@ -554,18 +511,13 @@ class mzML(object):
                 return pos-1
             else:
                 return pos
-    
-    def trimspectrum(self,x,y,left,right):
-        """trims a spectrum to the left and right bounds"""
-        l,r = self.bl(x,left),self.br(x,right) # find indicies
-        return x[l:r],y[l:r] # trim spectrum
 
 if __name__ == '__main__':
-    filename = 'LY-2016-06-13 09.raw'
+    filename = 'EJ-UVTQ-056-MRM-NL.m'
     mzml = mzML(filename,verbose=True)
-    #from _Spectrum import Spectrum
-    #sp = {
-    #'pos':{'bounds':[325,327],'affin':'+','spectrum':Spectrum(3),'raw':[]},
-    #'neg':{'bounds':[348,350],'affin':'-','spectrum':Spectrum(3),'raw':[]},
-    #'uv':{'bounds':[378,None],'affin':'UV','raw':[]}
-    #}
+    from _Spectrum import Spectrum
+    sp = {
+    'pos':{'bounds':[325,327],'affin':'+','spectrum':Spectrum(3),'raw':[]},
+    'neg':{'bounds':[348,350],'affin':'-','spectrum':Spectrum(3),'raw':[]},
+    'uv':{'bounds':[378,None],'affin':'UV','raw':[]}
+    }
