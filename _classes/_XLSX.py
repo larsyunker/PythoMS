@@ -9,20 +9,23 @@ new:
     saves spectra
     pulls rsim parameters for use with summing program
     ---1.0---
+    generalized and added rsim output
+    generalized and created output for multiple spectra in a single sheet
+    added pullmultispectrum function to read multiple spectra from sheet
+    consolidated createwb into loadwb
+    fixed workbook creation to not return a write-only workbood (this would break cell calls)
+    ---1.1 building
 
 to add:
-    incorporate soapyoutput
+    dynamic creation of workbook (if it's there, load it, if not create)
     pull from pyrsim output sheets
 """
 
 class XLSX(object):
-    def __init__(self,bookname,create=False,interact=False):
+    def __init__(self,bookname,create=False):
         self.bookname = bookname
         self.loadop()
-        if create is True:
-            self.wb,self.bookname = self.createwb(self.bookname)
-        if create is False:
-            self.wb,self.bookname = self.loadwb(self.bookname,interact=interact)
+        self.wb,self.bookname = self.loadwb(self.bookname,create=create)
 
     def __str__(self):
         return 'Loaded excel file "%s"' %self.bookname
@@ -37,15 +40,9 @@ class XLSX(object):
             i += 1
         return sheet+' ('+`i`+')'
     
-    def createwb(self,bookname):
-        """creates a workbook with the appropriate name"""
-        if bookname.endswith('.xlsx') is False: # check file extension
-            bookname =self.correctextension(bookname)
-        return self.op.Workbook(bookname),bookname
-    
     def correctextension(self,bookname):
         """attempts to correct the extension of the supplied filename"""
-        oops = {'.xls':'x','.xl':'sx','.x':'lsx','.':'xlsx'} # incomplete extensions
+        oops = {'.xls':'x','.xl':'sx','.x':'lsx','.':'xlsx','.xlsx':''} # incomplete extensions
         for key in oops:
             if bookname.endswith(key) is True:
                 bookname += oops[key]
@@ -63,7 +60,7 @@ class XLSX(object):
         except ImportError:
             raise ImportError('lxml does not appear to be installed.\nThe XLSX class requires this package to function, please install it.')
     
-    def loadwb(self,bookname,interact=False):
+    def loadwb(self,bookname,create=False):
         """loads specified workbook into class"""
         try:
             wb = self.op.load_workbook(bookname) #try loading specified excel workbook
@@ -72,15 +69,31 @@ class XLSX(object):
             try:
                 wb = self.op.load_workbook(bookname)
             except IOError:
-                if interact is True:
-                    if raw_input('The excel file "%s" could not be found in the current working directory, would you like to create it? (Y/N) '%bookname).lower() == 'y':
-                        wb = self.createwb(bookname)[0]
-                    else:
-                        raise IOError('\nThe excel file "%s" could not be found in the current working directory.' %(self.bookname))
+                if create is True:
+                    """
+                    Due to write-only mode, creating and using that book breaks the cell calls
+                    The workbook is therefore created, saved, and reloaded
+                    The remove sheet call is to remove the default sheet
+                    """
                 else:
                     raise IOError('\nThe excel file "%s" could not be found in the current working directory.' %(self.bookname))
         return wb,bookname
     
+    def pullmultispectrum(self,sheetname):
+        """reads multispectrum output back into dictionary format"""
+        cs = self.wb.get_sheet_by_name(sheetname)
+        out = {}
+        loc = 1
+        while loc < len(cs.rows[0]):
+            out[cs.cell(row=1,column=loc).value] = {'xunit':cs.cell(row=1,column=loc+1).value,'yunit':cs.cell(row=1,column=loc+2).value,'x':[],'y':[]}
+            ind = 1
+            while cs.cell(row=ind,column=loc+1).value is not None:
+                out[cs.cell(row=1,column=loc).value]['x'].append(cs.cell(row=ind+1,column=loc+1).value)
+                out[cs.cell(row=1,column=loc).value]['y'].append(cs.cell(row=ind+1,column=loc+2).value)
+                ind += 1
+            loc += 4
+        return out
+        
     def pullspectrum(self,sheet='spectrum'):
         """extracts a spectrum from the specified sheet"""
         specsheet = self.wb.get_sheet_by_name(sheet)
@@ -214,6 +227,36 @@ The start value (col#4) is expected to be less than the end value (col#5)
                     s.cell(row=1,column=6).value = 'std err of reg'
                 s.cell(row=ind+1,column=6).value = sp[key]['match']
         
+    def writemultispectrum(self,xlist,ylist,xunit,yunit,sheetname,specname):
+        """
+        writes multiple spectra to a single sheet
+        can be called multiple times and it will retain the placement
+        
+        output will be:
+        specname|xunit   |yunit   | blank |...repeated
+        blank   |xvalues |yvalues | blank |...repeated
+        ...     |...     |...     | blank |...repeated
+        
+        """
+        if self.__dict__.has_key('wms') is False: # check for dictionary in self
+            self.wms = {sheetname:1}
+        if self.wms.has_key(sheetname) is False: # check for preexisting key
+            self.wms[sheetname] = 1
+        
+        if sheetname not in self.wb.get_sheet_names(): # if sheet does not exist
+            cs = self.wb.create_sheet()
+            cs.title = sheetname
+        else:
+            cs = self.wb.get_sheet_by_name(sheetname) # load existing sheet
+        
+        cs.cell(row = 1,column = self.wms[sheetname]).value = specname
+        cs.cell(row = 1,column = self.wms[sheetname]+1).value = xunit
+        cs.cell(row = 1,column = self.wms[sheetname]+2).value = yunit
+        for ind,val in enumerate(xlist):
+            cs.cell(row = ind+2,column = self.wms[sheetname]+1).value = val # write x value
+            cs.cell(row = ind+2,column = self.wms[sheetname]+2).value = ylist[ind] # write y value
+        self.wms[sheetname] += 4 # shift location over 4
+    
     def writersim(self,sp,time,key,sheetname,mode,tic=None):
         """
         writes reconstructed single ion monitoring data to sheet
@@ -246,9 +289,6 @@ The start value (col#4) is expected to be less than the end value (col#5)
                     for ind,val in enumerate(sp[species][key]):
                         cs.cell(row = (ind+2),column = col).value = sp[species][key][ind]
             
-            
-          
-    
     def writespectrum(self,x,y,sheet='spectrum',xunit='m/z',yunit='counts'):
         """
         writes a provided spectrum to the specified sheet in the workbook
@@ -258,13 +298,12 @@ The start value (col#4) is expected to be less than the end value (col#5)
             sheet = self.checkduplicatesheet(sheet)
         ws = self.wb.create_sheet()
         ws.title = sheet
-        ws.cell(row = 1,column = 1).value = xunit
-        ws.cell(row = 1,column = 2).value = yunit
+        ws['A1'] = xunit
+        ws['B1'] = yunit
         for ind,val in enumerate(x):
             ws.cell(row = ind+2,column = 1).value = x[ind]
             ws.cell(row = ind+2,column = 2).value = y[ind]
-        self.save()
         
 if __name__ == '__main__':
     name = 'useless delete this'
-    xl = XLSX(name)
+    xl = XLSX(name,True)
