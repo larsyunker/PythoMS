@@ -1,5 +1,5 @@
 """
-Molecule class v2.4 (previously "isotope pattern generator" and "MolecularFormula")
+Molecule class (previously "isotope pattern generator" and "MolecularFormula")
 
 The output of this builder has been validated against values calculated by ChemCalc (www.chemcalc.org)
 Negligable differences are attributed to different low value discarding techniques
@@ -54,10 +54,16 @@ CHANGELOG:
     added plotraw() in case a raw check is desired
     fixed isotope handling in molecularweight()
     ---2.5---
+    added charge interpreter into both the charge input and the string input (the string input will override the charge input)
+    added a catch for not closing a bracket
+    exactmass() can account for the mass of an electron, but this is commented out because of the extremely minute difference this makes
+    removed __pow__ method because it's just so farfetched that someone might use it
+    changed print calls to sys.stdout.write calls
+    corrected generation of the formula if the class is added/subtracted/multiplied/divided
+    ---2.6 building
 
 to add:
-    account for the mass of an electron
-    add functionality for one-letter amino acid keys (less critical)
+    
 """
 
 #from _ScriptTime import ScriptTime
@@ -69,21 +75,21 @@ class Molecule(object):
         Determines many properties of a given molecule
         
         string: (string) the molecule to interpret
-        charge: (int) the charge of the molecule (for mass spectrometric applications)
+        charge: (int or string) the charge of the molecule (for mass spectrometric applications)
         res: (int) the resolution of the mass spectrometer
         
         supported input:
-        common abbreviations predefined in _formabbrvs
+        common abbreviations can be predefined in _formabbrvs.py
         brackets to signify multiples of a given component (nested brackets are supported)
         specification of isotopes (e.g. carbon 13 could be specified as "(13C)" )
+        charge can be specified either in the string by enclosing it in brackets (e.g. "(2+)" or in the charge kwarg)
         """
         from _nist_mass import nist_mass as mass # masses from the NIST database
         #from _crc_mass import crc_mass as mass # masses from the CRC Handbook of Chemistry and Physics
         self.md = mass # mass dictionary that the script will use
         self.formula = string # input formula
-        self.charge = charge # charge
+        self.charge,self.sign = self.interpretcharge(charge) # charge
         self.res = res # the resolution of the mass spectrometer
-        #self.aminoacid = aminoacid # triggers search for one letter amino acid keys (currently broken)
         self.comp = self.composition(self.formula) # determine composition from formula
         self.checkinnist(self.comp) # checks that all the composition keys are valid
         self.calculate()
@@ -102,13 +108,14 @@ class Molecule(object):
             if isinstance(x,self.__class__) is True:
                 addition = x.comp
             else:
-                raise ValueError('Addition of {} to MolecularFormula object {} is invalid'.format(x,self.formula))
+                raise ValueError('Addition of {} to Molecule object {} is invalid'.format(x,self.formula))
         for key in addition:
             try:
                 self.comp[key] += addition[key]
             except KeyError:
                 self.comp[key] = addition[key]
         self.calculate() # recalculates mass and isotope patterns
+        self.formula = self.sf
         return self.sf
     
     def __sub__(self,x):
@@ -118,7 +125,7 @@ class Molecule(object):
             if isinstance(x,self.__class__) is True:
                 addition = x.comp
             else:
-                raise ValueError('Subtraction of {} from MolecularFormula object {} is invalid'.format(x,self.formula))
+                raise ValueError('Subtraction of {} from Molecule object {} is invalid'.format(x,self.formula))
         for key in addition:
             try:
                 if self.comp[key] - addition[key] >0:
@@ -130,33 +137,29 @@ class Molecule(object):
             except KeyError:
                 return 'The molecular formula {} does not have an element in {}'.format(self.formula,x)
         self.calculate() # recalculates mass and isotope patterns
+        self.formula = self.sf
         return self.sf
     
     def __mul__(self,x):
         if type(x) != int:
-            raise ValueError('Non-integer multiplication of a molecular formula object is unsupported')
+            raise ValueError('Non-integer multiplication of a Molecule object is unsupported')
         for key in self.comp:
             self.comp[key] = self.comp[key]*x
-        self.calculate() # recalculate
+        self.calculate() # recalculates mass and isotope patterns
+        self.formula = self.sf
         return self.sf
     
     def __div__(self,x):
         if type(x) != int:
-            raise ValueError('Non-integer division of a molecular formula object is unsupported')
+            raise ValueError('Non-integer division of a Molecule object is unsupported')
         for key in self.comp:
             tempval  = float(self.comp[key])/float(x)
             if tempval.is_integer() is False:
                 raise ValueError('Division of %s (%s) by %d yielded a non-integer number of element %s' %(self.formula,self.sf,x,key))
             else:
                 self.comp[key] = int(tempval)
-        self.calculate() # recalculate
-        return self.sf
-    
-    def __pow__(self,x):
-        """I have no idea why someone would ever want to do this"""
-        for key in self.comp:
-            self.comp[key] = self.comp[key]**x
-        self.calculate()
+        self.calculate() # recalculates mass and isotope patterns
+        self.formula = self.sf
         return self.sf
     
     def barisotopepattern(self,rawip,charge,dec=3):
@@ -322,7 +325,7 @@ class Molecule(object):
             bnum = '' # number of things indicated in the bracket
             block = '' # element block
             nest = 1 # counter for nesting brackets
-            for loc in range(len(form)):
+            for loc in range(len(form)): # look for close bracket
                 if loc == 0:
                     continue
                 elif form[loc] == sbrack[bracktype]: # if a nested bracket is encountered
@@ -337,12 +340,16 @@ class Molecule(object):
                         block += form[loc]
                 else:
                     block += form[loc]
-            try:
-                while form[i].isdigit() is True: # look for digits outside of the bracket
+            
+            try: # look for digits outside of the bracket
+                while form[i].isdigit() is True: 
                     bnum += form[i]
                     i+=1
-            except IndexError:
+            except IndexError: # if i extends past the length of the formula
                 pass
+            except UnboundLocalError: # if a close bracket was not found, i will not be defined
+                raise ValueError('A close bracket was not encountered for the "%s" bracket in the formula segment "%s". Please check your input molecular formula.' %(form[0],form))
+            
             lblock = len(block)+len(bnum)+2 # length of the internal block + the length of the number + 2 for the brackets
             if bnum == '': # if no number is specified
                 bnum = 1
@@ -377,8 +384,13 @@ class Molecule(object):
                 return formula[len(block):],interpret(block) # return remaining formula and the interpreted block
             elif formula[0] in sbrack:
                 return bracket(formula)
-            elif formula[0].isdigit() is True: # if isotope encountered, return that isotope with n=1
-                return '',{formula:1}
+            elif formula[0].isdigit() is True: # either isotope or charge
+                for ind,val in enumerate(formula):
+                    if formula[ind].isalpha() is True: # if isotope encountered, return that isotope with n=1
+                        return '',{formula:1}
+                self.charge,self.sign = self.interpretcharge(formula) # otherwise, interpret as charge and return empty dict
+                return '',{}
+                
         
         def abbreviations(dic):
             """looks for predefined common abbreviations"""
@@ -399,8 +411,12 @@ class Molecule(object):
             return comptemp
         
         def aas(dic):
-            """looks for one-letter amino acid keys in the formula and converts them to three letter keys"""
-            # this function is currently unused and broken (and also likely not useful)
+            """
+            looks for one-letter amino acid keys in the formula and converts them to three letter keys
+            this function is currently unused and broken (and also likely not useful)
+            there are some one-letter keys which are the same as element symbols, which will lead to unexpected behaviour
+            The author recommend generating a separate class to handle amino acids (or use pyteomics)
+            """
             from _formabbrvs import aminoacids # import dictionary of one-letter amino acid abbreviations
             comptemp = {}
             for key in dic:
@@ -419,9 +435,6 @@ class Molecule(object):
                 except KeyError:
                     comp[ele] = nomdict[ele]
             formula = ftemp
-        ## look for one-letter amino acid abbreviations (currently broken and likely not useful)
-        #if aminoacid == True:
-        #    comp = aas(comp)
         comp = abbreviations(comp) # look for common abbreviations    
         return comp
     
@@ -441,7 +454,12 @@ class Molecule(object):
             except KeyError:
                 ele,iso = self.isotope(key)
                 em += self.md[ele][iso][0]*comp[key]
-        return em/abs(charge)
+        ## accounts for the mass of an electron (barely affects the mass)
+        #if self.sign == '+': 
+        #    em -= (9.10938356*10**-28)*charge
+        #if self.sign == '_':
+        #    em += (9.10938356*10**-28)*charge
+        return em/charge
     
     def gaussianisotopepattern(self,verbose=False):
         """
@@ -477,6 +495,20 @@ class Molecule(object):
         self.nsp.normalize() # normalize
         self.gausip = self.nsp.trim() # trim None values and output
         return self.gausip 
+    
+    def interpretcharge(self,string):
+        """interprets a charge string and sets values"""
+        modes = ['+','-']
+        value = ''
+        sign = '+' # default value for sign
+        if type(string) is int:
+            return string,sign
+        for ind,val in enumerate(string):
+            if val in modes: # if val sets mode
+                sign = val
+            else: # number
+                value += val
+        return int(value),sign
     
     def isotope(self,string):
         """tries to interpret an undefined key as an isotope and raises an error if it fails"""
@@ -528,17 +560,21 @@ class Molecule(object):
     
     def printdetails(self):
         """prints the details of the generated molecule"""
-        print self
-        print 'exact mass: %.5f' %round(self.em,5)
-        print 'molecular weight: %.6f' %round(self.mw,6)
-        print 'formula: %s' %self.sf
+        if self.__dict__.has_key('sys') is False:
+            self.sys = __import__('sys')
+        self.sys.stdout.write('%s\n' %self)
+        self.sys.stdout.write('exact mass: %.5f\n' %round(self.em,5))
+        self.sys.stdout.write('molecular weight: %.6f\n' %round(self.mw,6))
+        self.sys.stdout.write('formula: %s\n' %self.sf)
         self.printpercentcomposition()
     
     def printpercentcomposition(self):
         """prints the percent composition in a readable format"""
-        print '\nelemental percent composition:'
+        if self.__dict__.has_key('sys') is False:
+            self.sys = __import__('sys')
+        self.sys.stdout.write('\nelemental percent composition:\n')
         for key,val in sorted(self.pcomp.items()):
-            print '%3s: %7.3f%%' %(key,self.pcomp[key]*100)
+            self.sys.stdout.write('%3s: %7.3f %%\n' %(key,self.pcomp[key]*100))
     
     def plotbar(self):
         """quickly plots a bar plot of the isotope bar pattern"""
@@ -641,19 +677,9 @@ class Molecule(object):
         return fwhm,sigma
     
     
-        
-        
-
-if __name__ == '__main__':
-    string = 'L2(106Pd)Ar+I'
+if __name__ == '__main__': # for testing and troubleshooting
+    string = 'L2PdAr+I'
     charge = 1
     res = 5000
-    mol = Molecule(string,charge=charge)
+    mol = Molecule(string,charge=charge,res=res)
     mol.printdetails()
-    import os,sys
-    sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/_classes')
-    from _Colour import Colour
-    print os.path.isdir(os.path.dirname(os.path.realpath(__file__))+'/_classes')
-    
-    
-    
