@@ -75,6 +75,10 @@ class XLSX(object):
                     The workbook is therefore created, saved, and reloaded
                     The remove sheet call is to remove the default sheet
                     """
+                    wb = self.op.Workbook(bookname,write_only=False) # create workbook
+                    wb.save(bookname) # save it
+                    wb = self.op.load_workbook(bookname) # load it
+                    wb.remove_sheet(wb.worksheets[0]) # remove the old "Sheet"
                 else:
                     raise IOError('\nThe excel file "%s" could not be found in the current working directory.' %(self.bookname))
         return wb,bookname
