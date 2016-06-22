@@ -61,6 +61,7 @@ CHANGELOG:
     changed print calls to sys.stdout.write calls
     corrected generation of the formula if the class is added/subtracted/multiplied/divided
     ---2.6---
+    simplified sigmafwhm() for ease of calling within the Molecule object (also generalized it and copied it to tome)
     ---2.7
 
 to add:
@@ -240,7 +241,7 @@ class Molecule(object):
         """calls the calculation functions"""
         self.sf = self.molecularformula() # generates a string version of the molecular formula
         self.em = self.exactmass(self.comp,charge=self.charge) # monoisotopic mass (will not work for large number of carbons)
-        self.fwhm,self.sigma = self.sigmafwhm(self.res,self.em)
+        self.fwhm,self.sigma = self.sigmafwhm()
         self.mw,self.pcomp = self.molecularweight() # molecular weight and elemental percent composition
         self.rawip = self.rawisotopepattern(self.comp,dec=2,verbose=False) # generates a raw isotope pattern (charge of 1)
         self.barip = self.barisotopepattern(self.rawip,self.charge) # bar isotope pattern based on the generated raw pattern
@@ -670,17 +671,17 @@ class Molecule(object):
         """resets values to when the instance was created"""
         self.__dict__ = self.original
     
-    def sigmafwhm(self,res,em):
+    def sigmafwhm(self):
         """determines the full width at half max and sigma for a normal distribution"""
         import math
-        fwhm = em/res
+        fwhm = self.em/self.res
         sigma = fwhm/(2*math.sqrt(2*math.log(2))) # based on the equation FWHM = 2*sqrt(2ln2)*sigma
         return fwhm,sigma
     
     
 if __name__ == '__main__': # for testing and troubleshooting
-    string = 'L2PdAr+I'
+    string = 'Ar+I'
     charge = 1
-    res = 5000
+    res = 774
     mol = Molecule(string,charge=charge,res=res)
     mol.printdetails()

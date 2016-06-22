@@ -1,7 +1,9 @@
 """
  Processes a .raw masslynx MS file or previously processed excel file with the parameters provided
  
- PyRSIM (Python Reconstructed Single Ion Monitoring) (previously SOAPy)
+ PyRSIR (Python Reconstructed Single Ion Recording; previously SOAPy/PyRSIM)
+ pronounced "piercer"
+ 
  version 027
  new:
     switched wb loading to function definition
@@ -66,9 +68,12 @@
     added a pull for previously calculated isotope patterns
     validated and fixed the isotope pattern pull, isotope pattern output, and chromatogram output
     ---27.4---
+    now automatically determines the resolution of the instrument
+    now sums all spectra together and outputs a full spectrum to the excel file (takes 3x as long, but probably worth it)
     ---27.5 building
 
 to add/fix:
+    try to clean up script (e.g. so auto res is only called in one place)
     update mzml to work with calibration
     create functionality for per-peak summing (create daughter dictionary?)
         if peaks overlap, combine
@@ -106,13 +111,13 @@ Column #5: end value (m/z or wavelength)
 """
 
 # input *.raw filename
-filename = 'LY-2016-06-13 09.raw'
+filename = 'DY-06-21-2016 03.raw'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = '2016-06-13 09 Pd cation and boronic acid MeCN'
+xlsx = 'DY-2016-06-21 03'
 
 # set number of scans to sum (integer or list of integers)
-n = [3,5,10,15]
+n = [3,5]
 
 # ----------------------------------------------------------
 # -------------------FUNCTION DEFINITIONS-------------------
@@ -233,10 +238,21 @@ def pyrsim(filename,xlsx,n):
             for ind,val in enumerate(TIC['rawUV']): # normalize the UV intensities
                 TIC['rawUV'][ind] = val/1000000.
             xlfile.writersim(sp,rtime['rawUV'],'raw','UV-Vis','UV',TIC['rawUV']) # write UV-Vis data to sheet
+        
+        if sumspec is not None:
+            xlfile.writespectrum(sumspec[0],sumspec[1],'Summed Spectrum','m/z','counts')
             
         sys.stdout.write(' DONE\n')        
            
-
+    def prepformula(dct,res):
+        """looks for formulas in a dictionary and prepares them for pullspeciesdata"""
+        for species in dct:
+            if dct[species]['formula'] is not None:
+                dct[species]['mol'].res = res # sets resolution in Molecule object
+                dct[species]['mol'].sigma = dct[species]['mol'].sigmafwhm()[1] # recalculates sigma with new resolution
+                dct[species]['bounds'] = dct[species]['mol'].bounds(0.95) # caclulates bounds
+                dct[species]['spectrum'] = Spectrum(3,dct[species]['bounds'][0],dct[species]['bounds'][1]) # generates a Spectrum object with those bounds
+        return dct
     
     # ----------------------------------------------------------
     # -------------------PROGRAM BEGINS-------------------------
@@ -266,9 +282,9 @@ def pyrsim(filename,xlsx,n):
         sp[key]['raw'] = []
         if sp[key]['formula'] is not None: # if formula is specified
             sp[key]['mol'] = Molecule(sp[key]['formula']) # create Molecule object
-            sp[key]['bounds'] = sp[key]['mol'].bounds(0.99) # generate bounds from molecule object with this confidence interval
+            #sp[key]['bounds'] = sp[key]['mol'].bounds(0.99) # generate bounds from molecule object with this confidence interval
         if sp[key]['affin'] in mskeys:
-            sp[key]['spectrum'] = Spectrum(3,startmz=sp[key]['bounds'][0],endmz=sp[key]['bounds'][1])
+            #sp[key]['spectrum'] = Spectrum(3,startmz=sp[key]['bounds'][0],endmz=sp[key]['bounds'][1])
             for num in n:
                 sp[key]['%s' %(str(num)+'sum')] = []
                 sp[key]['%s' %(str(num)+'norm')] = []
@@ -301,33 +317,41 @@ def pyrsim(filename,xlsx,n):
                 if colval[0].value not in ['Time','TIC']: # define affinity of species
                     sp['%s' %str(colval[0].value)]['affin'] = mode
             sys.stdout.write(' DONE\n')
+            
     
     newpeaks = False
     if rd is not None:
         newsp = {}
+        sumspec = None
         for key in sp: # checks whether there is a MS species that does not have raw data
             if len(sp[key]['raw']) is 0 and sp[key]['affin'] is not 'UV': #!!!!!! check whether the not UV if is needed
                 newsp[key] = sp[key] # create references in the namespace
-        if len(newsp.keys()) is not 0:
+        if len(newsp) is not 0:
             newpeaks = True
             sys.stdout.write('Some peaks are not in the raw data, extracting these from raw file.\n')
             ips = xlfile.pullmultispectrum('Isotope Patterns') # pull predefined isotope patterns and add them to species
-            for species in ips:
-                sp[species]['spectrum'].addspectrum(ips[species]['x'],ips[species]['y'])
-                sp[species]['spectrum'] = sp[species]['spectrum'].trim()
+            for species in ips: # set spectrum list
+                sp[species]['spectrum'] = [ips[species]['x'],ips[species]['y']]
             mzml = mzML(filename) # load mzML class
+            res = int(mzml.autoresolution()) # calculate resolution
+            newsp = prepformula(newsp,res) # prep formula species for summing
+            for species in newsp:
+                if newsp[species].has_key('spectrum') is False:
+                    newsp[species]['spectrum'] = Spectrum(3,newsp[species]['bounds'][0],newsp[species]['bounds'][1])
             newsp,TIC,rtime = mzml.pullspeciesdata(newsp) # pull data
         else:
             sys.stdout.write('No new peaks were specified. Proceeding directly to summing and normalization.\n')
         
     if rd is None: # if no raw data is present, process mzML file
         mzml = mzML(filename) # load mzML class
-        sp,TIC,rtime = mzml.pullspeciesdata(sp) # pull relevant data from mzML
+        res = mzml.autoresolution()
+        sp = prepformula(sp,res)
+        sp,TIC,rtime,sumspec = mzml.pullspeciesdata(sp,True) # pull relevant data from mzML
         chroms = mzml.pullchromdata() # pull chromatograms from mzML
         for key in sp: # compare predicted isotope patterns to the real spectrum and save standard error of the regression
             if sp[key]['formula'] is not None:
                 sp[key]['match'] = sp[key]['mol'].compare(sp[key]['spectrum'])
-                sp[key]['mol'].plotgaus()
+                #sp[key]['mol'].plotgaus()
     
     if max(n) > 1: # run combine functions if n > 1
         for num in n: # for each n to sum

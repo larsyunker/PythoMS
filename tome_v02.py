@@ -15,6 +15,7 @@ functions:
     msipoverlay (generates a figure overlaying predicted isotope patterns on top of experimental data)
     normalize (normalizes a list to a given value)
     resolution (calculates the resolution of a spectrum peak)
+    sigmafwhm (cacluates sigma and fwhm from a resolution and a mass)
     strtolist (converts a string to a list)        
 
 changelog:
@@ -29,6 +30,7 @@ changelog:
     removed loadwb, openpyxlcheck, pullparams (now included in XLSX class)
     generalized filepresent
     removed pwconvert (now included in mzML class)
+    completely rewrote resolution
     ---v02---
 
 
@@ -379,31 +381,71 @@ def normalize(lst,maxval):
         lst[ind] = float(val)/float(listmax)*maxval
     return lst
 
-def resolution(x,y,maxindex,realmax):
+def resolution(x,y,index=None):
     """
-    Function for finding the resolution of a peak given its index in a list and the maximum value
+    Finds the resolution and full width at half max of a spectrum
     x: list of mz values
     y: corresponding list of intensity values
-    maxindex: index of maximum intensity
-    realmax: value of maximum intensity
+    index: index of maximum intensity (optional; used if the resolution of a specific peak is desired)
     
-    returns: [halfmax,halfleft,leftmz,halfright,rightmz,delta mz, resolution]
+    returns resolution
     """
-    out = []
-    out.append(realmax/2) #0 halfmax
-    for i in range(maxindex):
-        if y[maxindex-i] <= out[0]:
-            out.append(y[maxindex-i]) #1 halfleft
-            out.append(x[maxindex-i]) #2 leftmz
-            break
-    for i in range(len(x)-maxindex):
-        if y[maxindex+i] <= out[0]:
-            out.append(y[maxindex+i]) #3 halfright
-            out.append(x[maxindex+i]) #4 rightmz
-            break
-    out.append(out[4]-out[2]) #5 dmz
-    out.append(x[maxindex]/out[-1]) #6 resolution
-    return out
+    import scipy as sp
+    y = sp.asarray(y) # convert to array for efficiency
+    if index is None: # find index and value of maximum
+        maxy = max(y)
+        index = sp.where(y==maxy)[0][0]
+    else:
+        maxy = y[index]
+    halfmax = maxy/2
+    indleft = int(index)-1 # generate index counters for left and right walking
+    indright = int(index)+1
+    while y[indleft] > halfmax: # while intensity is still above halfmax
+        #if y[indleft] > y[indleft]+1: # if intensity start increasing (half max was not reached)
+        #    raise ValueError('Half max for the left side of the peak could not be determined')
+        indleft -= 1
+    while y[indright] > halfmax:
+        #if y[indright] > y[indright]-1:
+        #    raise ValueError('Half max for the right side of the peak could not be determined')
+        indright += 1
+    return x[index]/(x[indright]-x[indleft]) # return resolution (mz over full width at half max)
+
+#def resolution(x,y,maxindex,realmax):
+#    """
+#    Function for finding the resolution of a peak given its index in a list and the maximum value
+#    x: list of mz values
+#    y: corresponding list of intensity values
+#    maxindex: index of maximum intensity
+#    realmax: value of maximum intensity
+#    
+#    returns: [halfmax,halfleft,leftmz,halfright,rightmz,delta mz, resolution]
+#    """
+#    out = []
+#    out.append(realmax/2) #0 halfmax
+#    for i in range(maxindex):
+#        if y[maxindex-i] <= out[0]:
+#            out.append(y[maxindex-i]) #1 halfleft
+#            out.append(x[maxindex-i]) #2 leftmz
+#            break
+#    for i in range(len(x)-maxindex):
+#        if y[maxindex+i] <= out[0]:
+#            out.append(y[maxindex+i]) #3 halfright
+#            out.append(x[maxindex+i]) #4 rightmz
+#            break
+#    out.append(out[4]-out[2]) #5 dmz
+#    out.append(x[maxindex]/out[-1]) #6 resolution
+#    return out
+
+def sigmafwhm(res,em):
+    """
+    determines the full width at half max and sigma for a normal distribution
+    res is the resolution of the instrument
+    em is the mass being calculated
+    """
+    import math
+    fwhm = em/res
+    sigma = fwhm/(2*math.sqrt(2*math.log(2))) # based on the equation FWHM = 2*sqrt(2ln2)*sigma
+    return fwhm,sigma
 
 def strtolist(string):
     """

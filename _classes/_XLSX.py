@@ -15,9 +15,12 @@ new:
     consolidated createwb into loadwb
     fixed workbook creation to not return a write-only workbood (this would break cell calls)
     ---1.1---
-    ---1.2
+    added skiplines function to pullspectrum
+    added pause for user input if the file is open (no longer requires rerunning entire script after closing)
+    ---1.2 building
 
 to add:
+    pull rsim raw data
     dynamic creation of workbook (if it's there, load it, if not create)
     pull from pyrsim output sheets
 """
@@ -91,25 +94,31 @@ class XLSX(object):
         loc = 1
         while loc < len(cs.rows[0]):
             out[cs.cell(row=1,column=loc).value] = {'xunit':cs.cell(row=1,column=loc+1).value,'yunit':cs.cell(row=1,column=loc+2).value,'x':[],'y':[]}
-            ind = 1
+            ind = 2
             while cs.cell(row=ind,column=loc+1).value is not None:
-                out[cs.cell(row=1,column=loc).value]['x'].append(cs.cell(row=ind+1,column=loc+1).value)
-                out[cs.cell(row=1,column=loc).value]['y'].append(cs.cell(row=ind+1,column=loc+2).value)
+                out[cs.cell(row=1,column=loc).value]['x'].append(cs.cell(row=ind,column=loc+1).value)
+                out[cs.cell(row=1,column=loc).value]['y'].append(cs.cell(row=ind,column=loc+2).value)
                 ind += 1
             loc += 4
         return out
         
-    def pullspectrum(self,sheet='spectrum'):
-        """extracts a spectrum from the specified sheet"""
+    def pullspectrum(self,sheet='spectrum',skiplines=0):
+        """
+        extracts a spectrum from the specified sheet
+        skiplines allows that number of lines to be ignored
+        """
+        skiplines -= 1
         specsheet = self.wb.get_sheet_by_name(sheet)
         spectrum = [[],[]]
         for ind,row in enumerate(specsheet.rows): # for each row append the mz and int values to their respective lists
-            if ind == 0: # header row
-                xunit = row[0].value
-                yunit = row[1].value
-                continue
-            spectrum[0].append(row[0].value) # append values
-            spectrum[1].append(row[1].value)
+            if ind > skiplines: # skip specified number of lines
+                if ind == skiplines+1: # header row
+                    xunit = row[0].value
+                    yunit = row[1].value
+                    continue
+                if row[0].value is not None and row[1].value is not None:
+                    spectrum[0].append(row[0].value) # append values
+                    spectrum[1].append(row[1].value)
         return spectrum,xunit,yunit
     
     def pullrsimparams(self,sheet='parameters'):
@@ -202,7 +211,15 @@ The start value (col#4) is expected to be less than the end value (col#5)
         try:
             self.wb.save(self.bookname)
         except IOError:
-            raise IOError('\nThe excel file could not be written. Please close %s .' %self.bookname)
+            import sys
+            if sys.version.startswith('2.7'):
+                raw_input('\nThe excel file could not be written. Please close "%s" and press any key to retry save.' %self.bookname)
+            if sys.version.startswith('3.'):
+                input('\nThe excel file could not be written. Please close "%s" and press any key.' %self.bookname)
+            try:
+                self.wb.save(self.bookname)
+            except IOError:
+                raise IOError('\nThe excel file "%s" could not be written.' %self.bookname)
     
     def updatersimparams(self,sp,sheet='parameters'):
         """
