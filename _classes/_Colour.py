@@ -62,7 +62,7 @@ class Colour(object):
         'dp': (64,49,82),
         'do': (33,89,104),
         'da': (152,72,7),
-        'bl': (0,0,0)} 
+        'k': (0,0,0)} 
         if coldict.has_key(string) is True:
             return coldict[string]
         else:
