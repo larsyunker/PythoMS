@@ -25,6 +25,7 @@ new:
     added functionality to add a spectrum using the + operator
     added normalize method
     ---2.3---
+    ---2.4
 """
 
 #from _ScriptTime import ScriptTime

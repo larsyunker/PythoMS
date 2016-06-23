@@ -6,23 +6,17 @@ functions:
     bindata (bins a list of values)
     binnspectra (bins n mass spectra together into a single mass spectrum)
     bincidspectra (bins mass spectra together based on their collision voltage)
+    filepresent (checks for a file or directory in the current working directory)
     find_all (finds all locations of files of a given name in a provided directory)
     linmag (generates a list of values which is linear in magnification)
     linramp (generates a list of values which is linear from start to finish)
-    loadwb (loads a specified excel workbook)
     lyround (rounds a number given a particular base number)
     mag (calculates and returns the magnification of a given y value relative to the start)
     msipoverlay (generates a figure overlaying predicted isotope patterns on top of experimental data)
     normalize (normalizes a list to a given value)
-    openpyxlcheck (checks for openpyxl and lxml packages)
-    pullparams (pulls processing parameters from a specified sheet in a provided excel workbook)
-    pullUVVisdata (pulls UV-Vis data from a mzML file)
-    PWconvert (converts .raw file to mzML file for use in python scripts)
     resolution (calculates the resolution of a spectrum peak)
+    sigmafwhm (cacluates sigma and fwhm from a resolution and a mass)
     strtolist (converts a string to a list)        
-
-still to import:
-    profiling function
 
 changelog:
     created mzML class and moved many functions to work within that class (removed several functions from Tome)
@@ -33,6 +27,10 @@ changelog:
     moved colours to _Colour class
     removed automz (now handled in the Molecule class)
     created bincidspectra to bin spectra with the same cid together
+    removed loadwb, openpyxlcheck, pullparams (now included in XLSX class)
+    generalized filepresent
+    removed pwconvert (now included in mzML class)
+    completely rewrote resolution
     ---v02---
 
 
@@ -176,20 +174,18 @@ def bincidspectra(dct,dec=3,startmz=50.,endmz=2000.,threshold=0,fillzeros=False)
     sys.stdout.flush()
     return specout,cv
     
-def filepresent(filename):
+def filepresent(filename,ftype='file'):
     """
-    This function checks that the file is present in the current working directory.
-    
-    This error is returned commonly in these cases:
-    1) The current working directory is incorrect
-    2) The supplied filename is incorrect
+    function to check the presense of a file ('file') or directory ('dir')
+    in the current working directory
     """
-    import os,sys
-    if filename[-4:] == '.raw':
+    import os
+    if ftype == 'dir':
         if os.path.isdir(filename) == False:
-            sys.exit('\nThe file (%s) could not be located in the current working directory\n%s'%(filename,filepresent.__doc__))
-    elif os.path.isfile(filename) == False:
-        sys.exit('\nThe file (%s) could not be located in the current working directory\n%s'%(filename,present.__doc__))
+            raise IOError('\nThe directory "%s" could not be located in the current working directory'%(filename))
+    if ftype == 'file':
+        if os.path.isfile(filename) == False:
+            raise IOError('\nThe file "%s" could not be located in the current working directory'%(filename))
 
 
 def find_all(fname,path):
@@ -230,18 +226,6 @@ def linramp(valstart,valend,dur):
     for i in range(int(dur)):
         out.append( ((float(valend-valstart))/(float(dur)))*(i) + valstart )
     return out
-
-def loadwb(bookname):
-    """
-    Function for importing an excel workbook using openpyxl
-    """
-    import openpyxl as op
-    try:
-        wb = op.load_workbook(bookname) #try loading specified excel workbook
-    except IOError:
-        import sys
-        sys.exit('\nThe specified excel file could not be loaded.\nPlease check that the name of the file ("%s") and the current working directory are correct.' %bookname)
-    return wb
 
 def lyround(x,basen):
     """
@@ -397,140 +381,71 @@ def normalize(lst,maxval):
         lst[ind] = float(val)/float(listmax)*maxval
     return lst
 
-def openpyxlcheck():
+def resolution(x,y,index=None):
     """
-    checks for installation of openpyxl and lxml (necessary for excel file reading)
-    """
-    import sys
-    try:
-        import openpyxl
-    except ImportError:
-            sys.exit('openpyxl does not appear to be installed.\nPlease install this package.')
-    try:
-        import lxml
-    except ImportError:
-            sys.exit('lxml does not appear to be installed.\nPlease install this package.')
-
-def pullparams(wb,sheet):
-    """
-    Pulls parameters from a specified sheet in a provided excel workbook
-    
-    Parameters sheets are expected to have a header row (the first row will be ignored).
-    There should be a row for each thing to interpret (e.g. peak in a mass spectrum).
-    The columns will be interpreted in the following manner:
-        col#1: name of species
-        col#2: start value (m/z or wavelength)
-        col#3: end value (m/z or wavelength)
-        col#4: what spectrum to find this species in (+,-,UV)
-    The start value (col#2) is expected to be less than the end value (col#3).
-    """
-    import sys
-    try:
-        s = wb.get_sheet_by_name(sheet) #load sheet in specified excel file
-    except KeyError:
-        sys.exit('\nThere does not appear to be a "%s" sheet in the supplied excel file.\nPlease ensure that the sheet has that exact naming (this is case sensitive).\nSheets present: %s'%(sheet,str(wb.get_sheet_names())))
-    out = {} # output dictionary
-    for ind,row in enumerate(s.rows):
-        if ind == 0: # skip header row
-            continue
-        name = str(row[0].value) # species name for dictionary key
-        out[name] = {'bounds':[None,None],'affin':None} # basic structure
-        
-        try: # try to interpret column 2 (start value)
-            out[name]['bounds'][0] = float(row[1].value)
-        except TypeError:
-            sys.exit('\nThe start value in row %i could not be interpreted in sheet %s.\nPlease refer to the expected layout and correct the row.\n%s'%(ind+1,sheet,pullparams.__doc__))
-        
-        try: # try to interpret column 3 (end value)
-            out[name]['bounds'][1] = float(row[2].value)
-        except TypeError: # if the cell is empty
-            pass # leave it as nonetype
-        except ValueError: # if the value is not a number
-            sys.exit('\nThe value in row %s, cell %s of the parameter sheet "%s" is not a number.\nPlease check and correct this value.'%(str(ind+1),alpha(ind),sheet))
-        
-        affin = {'(+)MS':['+','pos','positive'], # positive mode valid inputs
-        '(-)MS':['-','neg','negative'], # negative mode valid inputs
-        'UV':['UV','UV-Vis','UVVis','uv','uvvis']} # UV-Vis valid inputs
-        try:
-            if row[3].value in affin['(+)MS']: # sets affinity to positive spectra
-                out[name]['affin'] = '+'
-            elif row[3].value in affin['(-)MS']: # sets affinity to negative spectra
-                out[name]['affin'] = '-'
-            elif row[3].value in affin['UV']: # sets affinity to negative spectra
-                out[name]['affin'] = 'UV'
-            else: # sets affinity to positive (default)
-                out[name]['affin'] = '+'
-        except IndexError: # if there is no affinity column
-            out[name]['affin'] = '+'
-    for key in out: #checks that start value is less than end value
-        if out[key]['bounds'][1] is None: # ignore single value bounds
-            continue
-        if out[key]['bounds'][0] > out[key]['bounds'][1]:
-            sys.exit('\nThe end value is larger than the start value for row "%s".\nStart: %s\nEnd: %s\n%s'%(key,str(out[key][0]),str(out[key][1]),pullparams.__doc__))
-    return out
-
-def PWconvert(filename):
-    """
-    Runs msconvert.exe from ProteoWizard to convert Waters .RAW format to .mzXML
-    which can then be parsed by python.
-    
-    module requirements: os, subprocess, sys
-    
-    ProteoWizard must be installed for this script to function.
-    go to 
-    http://proteowizard.sourceforge.net/downloads.shtml
-    to download
-    
-    This script assumes that the ProteoWizard is installed under either
-    c:\program files\proteowizard
-    or
-    c:\program files (x86)\proteowizard
-    
-    If you use this python script, you should cite the paper of the folks who wrote the program
-    Chambers, M.C. Nature Biotechnology 2012, 30, 918-920
-    doi 10.1038/nbt.2377
-    """
-    import subprocess,sys
-    if sys.platform != 'win32':
-        sys.exit('The conversion function of SOAPy is limited to Windows operating systems.\nYou can attempt to manually convert to *.mzML using the proteowizard standalone package (32-bit binary encoding precision)')
-    locs = []
-    for val in ['c:\\program files\\proteowizard','c:\\program files (x86)\\proteowizard']: #searches for msconvert.exe in expected folders
-        locs.extend(find_all('msconvert.exe',val))
-                
-    if len(locs)==0: #exits if script cannot find msconvert.exe
-        sys.exit('The python script could not find msconvert.exe\nPlease ensure that ProteoWizard is installed in either:\nc:\\program files\\proteowizard\nor\nc:\\program files (x86)\\proteowizard')
-    
-    sys.stdout.write('Generating *.mzML file from *.raw...')
-    sys.stdout.flush()
-    subprocess.call(locs[-1]+' "'+filename+'" --mzML --32 -v')
-    sys.stdout.write(' DONE\n')
-    sys.stdout.flush()
-
-def resolution(x,y,maxindex,realmax):
-    """
-    Function for finding the resolution of a peak given its index in a list and the maximum value
+    Finds the resolution and full width at half max of a spectrum
     x: list of mz values
     y: corresponding list of intensity values
-    maxindex: index of maximum intensity
-    realmax: value of maximum intensity
+    index: index of maximum intensity (optional; used if the resolution of a specific peak is desired)
     
-    returns: [halfmax,halfleft,leftmz,halfright,rightmz,delta mz, resolution]
+    returns resolution
     """
-    out = []
-    out.append(realmax/2) #0 halfmax
-    for i in range(maxindex):
-        if y[maxindex-i] <= out[0]:
-            out.append(y[maxindex-i]) #1 halfleft
-            out.append(x[maxindex-i]) #2 leftmz
-            break
-    for i in range(len(x)-maxindex):
-        if y[maxindex+i] <= out[0]:
-            out.append(y[maxindex+i]) #3 halfright
-            out.append(x[maxindex+i]) #4 rightmz
-            break
-    out.append(out[4]-out[2]) #5 dmz
-    out.append(x[maxindex]/out[-1]) #6 resolution
-    return out
+    import scipy as sp
+    y = sp.asarray(y) # convert to array for efficiency
+    if index is None: # find index and value of maximum
+        maxy = max(y)
+        index = sp.where(y==maxy)[0][0]
+    else:
+        maxy = y[index]
+    halfmax = maxy/2
+    indleft = int(index)-1 # generate index counters for left and right walking
+    indright = int(index)+1
+    while y[indleft] > halfmax: # while intensity is still above halfmax
+        #if y[indleft] > y[indleft]+1: # if intensity start increasing (half max was not reached)
+        #    raise ValueError('Half max for the left side of the peak could not be determined')
+        indleft -= 1
+    while y[indright] > halfmax:
+        #if y[indright] > y[indright]-1:
+        #    raise ValueError('Half max for the right side of the peak could not be determined')
+        indright += 1
+    return x[index]/(x[indright]-x[indleft]) # return resolution (mz over full width at half max)
+
+#def resolution(x,y,maxindex,realmax):
+#    """
+#    Function for finding the resolution of a peak given its index in a list and the maximum value
+#    x: list of mz values
+#    y: corresponding list of intensity values
+#    maxindex: index of maximum intensity
+#    realmax: value of maximum intensity
+#    
+#    returns: [halfmax,halfleft,leftmz,halfright,rightmz,delta mz, resolution]
+#    """
+#    out = []
+#    out.append(realmax/2) #0 halfmax
+#    for i in range(maxindex):
+#        if y[maxindex-i] <= out[0]:
+#            out.append(y[maxindex-i]) #1 halfleft
+#            out.append(x[maxindex-i]) #2 leftmz
+#            break
+#    for i in range(len(x)-maxindex):
+#        if y[maxindex+i] <= out[0]:
+#            out.append(y[maxindex+i]) #3 halfright
+#            out.append(x[maxindex+i]) #4 rightmz
+#            break
+#    out.append(out[4]-out[2]) #5 dmz
+#    out.append(x[maxindex]/out[-1]) #6 resolution
+#    return out
+
+def sigmafwhm(res,em):
+    """
+    determines the full width at half max and sigma for a normal distribution
+    res is the resolution of the instrument
+    em is the mass being calculated
+    """
+    import math
+    fwhm = em/res
+    sigma = fwhm/(2*math.sqrt(2*math.log(2))) # based on the equation FWHM = 2*sqrt(2ln2)*sigma
+    return fwhm,sigma
 
 def strtolist(string):
     """
