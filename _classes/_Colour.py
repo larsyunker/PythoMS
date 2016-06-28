@@ -12,7 +12,7 @@ class Colour(object):
     p: purple
     o: orange
     a: aqua
-    bl: black
+    k: black
     
     d_: dark colour (ex. 'db' = dark blue)
     l_: light colour (ex. 'lb' = light blue)

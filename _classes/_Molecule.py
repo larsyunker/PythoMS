@@ -62,6 +62,8 @@ CHANGELOG:
     corrected generation of the formula if the class is added/subtracted/multiplied/divided
     ---2.6---
     simplified sigmafwhm() for ease of calling within the Molecule object (also generalized it and copied it to tome)
+    removed redundant lines in bounds()
+    fixed threshold in bounds() to be a percentage of the maximum barip intensity
     ---2.7
 
 to add:
@@ -210,15 +212,16 @@ class Molecule(object):
             out[1][ind] = val/maxint*100. # normalize to 100
         return out
     
-    def bounds(self,conf=0.95,perpeak=False,threshold=1):
+    def bounds(self,conf=0.95,perpeak=False,threshold=0.01):
         """
-        calculates bounds based on a set confidence interval and the bar isotope pattern
-        for use with RSIM calculations
+        calculates bounds of the isotope pattern based on a confidence interval and the bar isotope pattern
+
         conf: (float) the confidence interval to use
         perpeak: (bool) toggle for whether the function should return a dictionary of 
         boundaries for each peak, or a single pair of bounds that covers the entire isotope pattern
-        threshold: (int) minimum threshold for peaks to be included in bounds
+        threshold: (int/float) minimum threshold as a percentage of the maximmum for peaks to be included in bounds
         """
+        threshold = threshold * max(self.barip[1])
         from scipy import stats
         tempip = [[],[]]
         for ind,inten in enumerate(self.barip[1]): # checks for intensities above threshold
@@ -231,9 +234,7 @@ class Molecule(object):
                 out[str(mz)] = {}
                 out[str(mz)]['bounds'] = stats.norm.interval(conf,mz,scale=self.sigma)
         else: # a general range that covers the entire isotope pattern
-            out = [None,None]
-            out[0] = stats.norm.interval(conf,tempip[0][0],scale=self.sigma)[0]
-            out[1] = stats.norm.interval(conf,tempip[0][-1],scale=self.sigma)[1]
+            out = [stats.norm.interval(conf,tempip[0][0],scale=self.sigma)[0],stats.norm.interval(conf,tempip[0][-1],scale=self.sigma)[1]]
         return out
         
     
