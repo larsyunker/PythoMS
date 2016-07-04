@@ -6,12 +6,10 @@ new/changed:
     completely rewritten so that the actual plotting could be a standalone function
     this script now just handles the appropriate functions to accomplish a plotted mass spectrum with isotope pattern overlays
     tweaking of the figure is now handled by keyword arguments
-    ---12.0 alpha
+    ---12.0 
 
 to add:
     reincorporate mass delta
-    get rid of realmax necessity for figure generation (redefine in sets['ymax'])
-    create a more generic version for naming the output file in the tome function
     databridge for masslynx conversion (is this even useful?)
 """
 # provide the experimental spectrum xlsx
@@ -21,9 +19,6 @@ spectrum = '2016-06-13 09 Pd cation with boronic acid'
 # supply simulated spectrum in dictionary format
 # 'molecular formula':{'colour':(R,G,B) or hex,'alpha':float}
 simdict = {
-#'L2PdAr+OMe':{'colour':'#fc8d59','alpha':0.75},
-#'L2PdAr+(2+)':{'colour':'#e41a1c','alpha':0.75},
-#'(MeOC6H4BO)2OH':{'colour':'#e41a1c','alpha':0.75},
 'L2PdPh':{'colour':'#4f81bd','alpha':0.75}
 }
 
@@ -35,7 +30,7 @@ setting = 'pub'
 # preset settings can be overridden here (see presets() function for details)
 override = {
 #'mz': [1008,1028], # modify the m/z bounds of the figure
-#'simtype': 'gaussian', # generate a gaussian spectrum
+#'simtype': 'gaussian' # generate a gaussian spectrum
 #'exten':'svg' # change to scalable vector graphic
 #'size':[4,3] # change the size of the image
 }

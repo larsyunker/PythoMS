@@ -14,6 +14,7 @@ functions:
     mag (calculates and returns the magnification of a given y value relative to the start)
     msipoverlay (generates a figure overlaying predicted isotope patterns on top of experimental data)
     normalize (normalizes a list to a given value)
+    plotms (plots a mass spectrum)
     resolution (calculates the resolution of a spectrum peak)
     sigmafwhm (cacluates sigma and fwhm from a resolution and a mass)
     strtolist (converts a string to a list)        
@@ -283,7 +284,11 @@ def plotms(realspec,simdict={},**kwargs):
     def estimatedem(x,y,em,lookwithin=1):
         """estimates the exact mass of a peak"""
         l,r = bl(x,em-lookwithin),br(x,em+lookwithin)
-        # !!! figure out how to find the exact max value of y that was found
+        locmax = max(y[l:r])
+        for ind,val in enumerate(y): # for the y list
+            if val == locmax: # if the value matches the local max
+                if ind > l and ind < r: # if the index is between the bounds
+                    return x[ind]
     
     def checksimdict(dct):
         """
@@ -361,6 +366,7 @@ def plotms(realspec,simdict={},**kwargs):
         if settings['simtype'] == 'bar':
             simdict[species]['x'],simdict[species]['y'] = simdict[species]['mol'].barip
         if settings['simtype'] == 'gaussian':
+            simdict[species]['mol'].gaussianisotopepattern()
             simdict[species]['x'],simdict[species]['y'] = simdict[species]['mol'].gausip
         
     if settings['mz'] == 'auto': # automatically determine m/z range
@@ -385,6 +391,9 @@ def plotms(realspec,simdict={},**kwargs):
     if settings['norm'] is True: # normalize spectrum
         realspec[1] = normalize(realspec[1],100.)
     
+    if settings['delta'] is True:
+        settings['delta'] = [[],[]]
+    
     for species in simdict: # normalize simulations
         if settings['simnorm'] == 'spec': # normalize to maximum around exact mass
             simdict[species]['y'] = normalize(simdict[species]['y'],localmax(realspec[0],realspec[1],simdict[species]['mol'].em,simdict[species]['mol'].fwhm))
@@ -392,6 +401,12 @@ def plotms(realspec,simdict={},**kwargs):
             simdict[species]['y'] = normalize(simdict[species]['y'],settings['maxy'])
         elif type(settings['simnorm']) is int or type(settings['simnorm']) is float: # normalize to specified value
             simdict[species]['y'] = normalize(simdict[species]['y'],settings['simnorm'])
+        if settings['delta'] is not False:
+            settings['delta'][0].append(simdict[species]['mol'].em - estimatedem(realspec[0],realspec[1],simdict[species]['mol'].em,simdict[species]['mol'].fwhm))
+            settings['delta'][1].append(abs(settings['delta'][0][-1])) # append absolute value for magnitude comparison
+    
+    if settings['delta'] is not False: # find minimum distance and set delta to that
+        settings['delta'] = settings['delta'][0][settings['delta'][1].index(min(settings['delta'][1]))]
     
     pl.clf() # clear and close figure if open
     pl.close()
@@ -436,9 +451,8 @@ def plotms(realspec,simdict={},**kwargs):
                     if ins > 0 and ins < len(simdict[subsp]['x']): # if species highest m/z is inside subsp list
                         for i in range(ins): # add intensity of species to subsp zeros
                             simdict[subsp]['zero'][i] += simdict[species]['y'][-ins+i]
-
     if settings['res'] is True: #include resolution if specified
-        ax.text(mz[1],top,'resolution: '+str(res),horizontalalignment='right',**font)
+        ax.text(mz[1],top,'resolution: '+str(round(res))[:-2],horizontalalignment='right',**font)
     if settings['delta'] is not False: #display mass delta if specified
         ax.text(mz[1],top*0.9,'mass delta: '+str(round(settings['delta'],3)),horizontalalignment='right',**font)
     
@@ -449,10 +463,9 @@ def plotms(realspec,simdict={},**kwargs):
             ax.plot(simdict[species]['x'], simdict[species]['y'], alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=settings['lw'])
             ax.fill(simdict[species]['x'], simdict[species]['y'], alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=0)
         if settings['simlabels'] is True: # if labels are to be shown
-            bpm = max(simdict[species]['y']) # simulation base peak intensity
-            bpi = simdict[species]['y'].index(bpm) # index of base peak
+            bpi = simdict[species]['y'].index(max(simdict[species]['y'])) # index of base peak
             if settings['stats'] is True:
-                simdict['SER'] = simdict[species]['mol'].compare(realspec)
+                simdict[species]['SER'] = simdict[species]['mol'].compare(realspec)
                 ax.text(simdict[species]['x'][bpi],top*(1.01),'%s SER: %.2f'%(species,simdict[species]['SER']), color = simdict[species]['colour'].mpl, horizontalalignment='center', **font)
             else:
                 ax.text(simdict[species]['x'][bpi],top*(1.01),species, color = simdict[species]['colour'].mpl, horizontalalignment='center', **font)
@@ -460,7 +473,7 @@ def plotms(realspec,simdict={},**kwargs):
     if settings['spectype'] == 'continuum':
         ax.plot(realspec[0], realspec[1], linewidth=settings['lw'], color=Colour(settings['speccolour']).mpl)
     elif settings['spectype'] == 'centroid':
-        ax.bar(realspec[0], realspec[1], 1.0, linewidth=0, color=Colour(settings['speccolour']).mpl)
+        ax.bar(realspec[0], realspec[1], 1.0, linewidth=0, color=Colour(settings['speccolour']).mpl, align='center')
 
     # show or hide axis values/labels as specified
     if settings['axvalues'][1] is False: # y tick marks and values
@@ -475,7 +488,6 @@ def plotms(realspec,simdict={},**kwargs):
         else: # set to counts
             ax.set_ylabel('intensity (counts)', **font)
             
-    
     if settings['axvalues'][0] is False:  # x tick marks and values
         ax.tick_params(axis='x', labelbottom='off',length=0)
     if settings['axvalues'][0] is True: # x value labels
@@ -531,32 +543,6 @@ def resolution(x,y,index=None):
         #    raise ValueError('Half max for the right side of the peak could not be determined')
         indright += 1
     return x[index]/(x[indright]-x[indleft]) # return resolution (mz over full width at half max)
-
-#def resolution(x,y,maxindex,realmax):
-#    """
-#    Function for finding the resolution of a peak given its index in a list and the maximum value
-#    x: list of mz values
-#    y: corresponding list of intensity values
-#    maxindex: index of maximum intensity
-#    realmax: value of maximum intensity
-#    
-#    returns: [halfmax,halfleft,leftmz,halfright,rightmz,delta mz, resolution]
-#    """
-#    out = []
-#    out.append(realmax/2) #0 halfmax
-#    for i in range(maxindex):
-#        if y[maxindex-i] <= out[0]:
-#            out.append(y[maxindex-i]) #1 halfleft
-#            out.append(x[maxindex-i]) #2 leftmz
-#            break
-#    for i in range(len(x)-maxindex):
-#        if y[maxindex+i] <= out[0]:
-#            out.append(y[maxindex+i]) #3 halfright
-#            out.append(x[maxindex+i]) #4 rightmz
-#            break
-#    out.append(out[4]-out[2]) #5 dmz
-#    out.append(x[maxindex]/out[-1]) #6 resolution
-#    return out
 
 def sigmafwhm(res,em):
     """
