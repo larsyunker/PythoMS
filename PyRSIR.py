@@ -70,10 +70,10 @@
     ---27.4---
     now automatically determines the resolution of the instrument
     now sums all spectra together and outputs a full spectrum to the excel file (takes 3x as long, but probably worth it)
+    skips resolution calculation if there are no formulas specified
     ---27.5 building
 
 to add/fix:
-    try to clean up script (e.g. so auto res is only called in one place)
     update mzml to work with calibration
     create functionality for per-peak summing (create daughter dictionary?)
         if peaks overlap, combine
@@ -111,10 +111,10 @@ Column #5: end value (m/z or wavelength)
 """
 
 # input *.raw filename
-filename = 'DY-06-21-2016 03.raw'
+filename = 'LY-2015-09-15 06'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = 'DY-2016-06-21 03'
+xlsx = 'Book2 - Copy'
 
 # set number of scans to sum (integer or list of integers)
 n = [3,5]
@@ -244,14 +244,18 @@ def pyrsim(filename,xlsx,n):
             
         sys.stdout.write(' DONE\n')        
            
-    def prepformula(dct,res):
+    def prepformula(dct):
         """looks for formulas in a dictionary and prepares them for pullspeciesdata"""
         for species in dct:
             if dct[species]['formula'] is not None:
-                dct[species]['mol'].res = res # sets resolution in Molecule object
+                try:
+                    dct[species]['mol'].res = res # sets resolution in Molecule object
+                except NameError:
+                    res = int(mzml.autoresolution())
+                    dct[species]['mol'].res = res
                 dct[species]['mol'].sigma = dct[species]['mol'].sigmafwhm()[1] # recalculates sigma with new resolution
                 dct[species]['bounds'] = dct[species]['mol'].bounds(0.95) # caclulates bounds
-                dct[species]['spectrum'] = Spectrum(3,dct[species]['bounds'][0],dct[species]['bounds'][1]) # generates a Spectrum object with those bounds
+            dct[species]['spectrum'] = Spectrum(3,dct[species]['bounds'][0],dct[species]['bounds'][1]) # generates a Spectrum object with those bounds
         return dct
     
     # ----------------------------------------------------------
@@ -333,8 +337,7 @@ def pyrsim(filename,xlsx,n):
             for species in ips: # set spectrum list
                 sp[species]['spectrum'] = [ips[species]['x'],ips[species]['y']]
             mzml = mzML(filename) # load mzML class
-            res = int(mzml.autoresolution()) # calculate resolution
-            newsp = prepformula(newsp,res) # prep formula species for summing
+            newsp = prepformula(newsp) # prep formula species for summing
             for species in newsp:
                 if newsp[species].has_key('spectrum') is False:
                     newsp[species]['spectrum'] = Spectrum(3,newsp[species]['bounds'][0],newsp[species]['bounds'][1])
@@ -344,8 +347,7 @@ def pyrsim(filename,xlsx,n):
         
     if rd is None: # if no raw data is present, process mzML file
         mzml = mzML(filename) # load mzML class
-        res = mzml.autoresolution()
-        sp = prepformula(sp,res)
+        sp = prepformula(sp)
         sp,TIC,rtime,sumspec = mzml.pullspeciesdata(sp,True) # pull relevant data from mzML
         chroms = mzml.pullchromdata() # pull chromatograms from mzML
         for key in sp: # compare predicted isotope patterns to the real spectrum and save standard error of the regression

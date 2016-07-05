@@ -116,10 +116,10 @@ class ScriptTime(object):
         if self.__dict__.has_key('m') is False:
             self.m = __import__('math')
         self.sys.stdout.write('\nFunction profile data:\n')
-        self.sys.stdout.write('%20s  %6s  %13s  %13s  %13s  %13s\n' %('function','called','avg','stdev','max','min'))
+        self.sys.stdout.write('%15s  %6s  %13s  %13s  %13s  %13s\n' %('function','called','avg','stdev','max','min'))
         for fname, data in self.profiles.items():
             avg = sum(data[1])/len(data[1])
-            self.sys.stdout.write('%20s  %6d  %13s  %13s  %13s  %13s\n' %(fname,data[0], self.formattime(avg), self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))), self.formattime(max(data[1])), self.formattime(min(data[1]))))
+            self.sys.stdout.write('%15s  %6d  %13s  %13s  %13s  %13s\n' %(fname,data[0], self.formattime(avg), self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))), self.formattime(max(data[1])), self.formattime(min(data[1]))))
             #self.sys.stdout.write('Function %s called %d times. ' % (fname, data[0]))
             #self.sys.stdout.write('Execution time max: %s, min: %s, average: %s, stdev: %s\n' % (self.formattime(max(data[1])), self.formattime(min(data[1])), self.formattime(avg),self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))) ))
     
