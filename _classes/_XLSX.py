@@ -17,7 +17,10 @@ new:
     ---1.1---
     added skiplines function to pullspectrum
     added pause for user input if the file is open (no longer requires rerunning entire script after closing)
-    ---1.2 building
+    added function to convert row and column indicies into excel coordinates
+    tweaked pullspectrum to warn users of non-numerical values
+    ---1.2---
+    ---1.3
 
 to add:
     pull rsim raw data
@@ -107,6 +110,12 @@ class XLSX(object):
         extracts a spectrum from the specified sheet
         skiplines allows that number of lines to be ignored
         """
+        def tofloat(value,row,col):
+            """attempts to convert to float and raises exception if an error is encountered"""
+            try:
+                return float(value)
+            except ValueError:
+                raise ValueError('The value "%s" (cell %s) in "%s" could not be interpreted as a float.\nCheck the value in this cell or change the number of lines skipped' %(value,self.rowandcolumn(row,col),self.bookname))
         skiplines -= 1
         specsheet = self.wb.get_sheet_by_name(sheet)
         spectrum = [[],[]]
@@ -117,8 +126,8 @@ class XLSX(object):
                     yunit = row[1].value
                     continue
                 if row[0].value is not None and row[1].value is not None:
-                    spectrum[0].append(row[0].value) # append values
-                    spectrum[1].append(row[1].value)
+                    spectrum[0].append(tofloat(row[0].value,ind,0)) # append values
+                    spectrum[1].append(tofloat(row[1].value,ind,1))
         return spectrum,xunit,yunit
     
     def pullrsimparams(self,sheet='parameters'):
@@ -205,6 +214,34 @@ The start value (col#4) is expected to be less than the end value (col#5)
             if sheet in delete:
                 dels = self.wb.get_sheet_by_name(sheet)
                 self.wb.remove_sheet(dels)
+
+    def rowandcolumn(self,row,col):
+        """takes an index location of row and column and returns the cell location used by excel"""
+        def modrem(val):
+            return val//26,val%26
+        import string
+        alphabet = [x.upper() for x in list(string.ascii_lowercase)] # uppercase it
+        col += 1 # offset column to be properly divisible by 26
+        mod,rem = modrem(col)
+        modl = []
+        while mod > 26: # while modulo is greater than the length of the alphabet
+            if rem == 0: # if it divided equally
+                modl.insert(0,26)
+                mod -= 1
+            else:
+                modl.insert(0,rem)
+            mod,rem = modrem(mod)
+        if mod == 1 and rem == 0: # exactly 26 == Z
+            modl.insert(0,26)
+        elif mod == 0: # less than 26
+            modl.insert(0,rem)
+        else: # other
+            modl.insert(0,rem)
+            modl.insert(0,mod)
+        out = ''
+        for i in modl: # build out string
+            out += alphabet[i-1]
+        return out+str(row+1)    
     
     def save(self):
         """commits changes to the workbook"""
