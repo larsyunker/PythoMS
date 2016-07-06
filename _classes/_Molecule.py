@@ -60,7 +60,11 @@ CHANGELOG:
     removed __pow__ method because it's just so farfetched that someone might use it
     changed print calls to sys.stdout.write calls
     corrected generation of the formula if the class is added/subtracted/multiplied/divided
-    ---2.6 building
+    ---2.6---
+    simplified sigmafwhm() for ease of calling within the Molecule object (also generalized it and copied it to tome)
+    removed redundant lines in bounds()
+    fixed threshold in bounds() to be a percentage of the maximum barip intensity
+    ---2.7
 
 to add:
     
@@ -208,15 +212,16 @@ class Molecule(object):
             out[1][ind] = val/maxint*100. # normalize to 100
         return out
     
-    def bounds(self,conf=0.95,perpeak=False,threshold=1):
+    def bounds(self,conf=0.95,perpeak=False,threshold=0.01):
         """
-        calculates bounds based on a set confidence interval and the bar isotope pattern
-        for use with RSIM calculations
+        calculates bounds of the isotope pattern based on a confidence interval and the bar isotope pattern
+
         conf: (float) the confidence interval to use
         perpeak: (bool) toggle for whether the function should return a dictionary of 
         boundaries for each peak, or a single pair of bounds that covers the entire isotope pattern
-        threshold: (int) minimum threshold for peaks to be included in bounds
+        threshold: (int/float) minimum threshold as a percentage of the maximmum for peaks to be included in bounds
         """
+        threshold = threshold * max(self.barip[1])
         from scipy import stats
         tempip = [[],[]]
         for ind,inten in enumerate(self.barip[1]): # checks for intensities above threshold
@@ -229,9 +234,7 @@ class Molecule(object):
                 out[str(mz)] = {}
                 out[str(mz)]['bounds'] = stats.norm.interval(conf,mz,scale=self.sigma)
         else: # a general range that covers the entire isotope pattern
-            out = [None,None]
-            out[0] = stats.norm.interval(conf,tempip[0][0],scale=self.sigma)[0]
-            out[1] = stats.norm.interval(conf,tempip[0][-1],scale=self.sigma)[1]
+            out = [stats.norm.interval(conf,tempip[0][0],scale=self.sigma)[0],stats.norm.interval(conf,tempip[0][-1],scale=self.sigma)[1]]
         return out
         
     
@@ -239,7 +242,7 @@ class Molecule(object):
         """calls the calculation functions"""
         self.sf = self.molecularformula() # generates a string version of the molecular formula
         self.em = self.exactmass(self.comp,charge=self.charge) # monoisotopic mass (will not work for large number of carbons)
-        self.fwhm,self.sigma = self.sigmafwhm(self.res,self.em)
+        self.fwhm,self.sigma = self.sigmafwhm()
         self.mw,self.pcomp = self.molecularweight() # molecular weight and elemental percent composition
         self.rawip = self.rawisotopepattern(self.comp,dec=2,verbose=False) # generates a raw isotope pattern (charge of 1)
         self.barip = self.barisotopepattern(self.rawip,self.charge) # bar isotope pattern based on the generated raw pattern
@@ -669,17 +672,17 @@ class Molecule(object):
         """resets values to when the instance was created"""
         self.__dict__ = self.original
     
-    def sigmafwhm(self,res,em):
+    def sigmafwhm(self):
         """determines the full width at half max and sigma for a normal distribution"""
         import math
-        fwhm = em/res
+        fwhm = self.em/self.res
         sigma = fwhm/(2*math.sqrt(2*math.log(2))) # based on the equation FWHM = 2*sqrt(2ln2)*sigma
         return fwhm,sigma
     
     
 if __name__ == '__main__': # for testing and troubleshooting
-    string = 'L2PdAr+I'
+    string = 'Ar+I'
     charge = 1
-    res = 5000
+    res = 774
     mol = Molecule(string,charge=charge,res=res)
     mol.printdetails()

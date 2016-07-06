@@ -19,14 +19,21 @@ new:
     cleaned up and fixed checkforfile (I think most exceptions and eventualities have been accounted for now)
     added trimspectrum() method
     added sumscans() method (sums all scans together)
-    ---1.3 building
+    ---1.3---
+    changed integrate to warn instead of exception raise in the event that the bounds exceed the m/z range
+    created a BoundsError subclass to handling bounds warnings
+    added number of scans retrieval (used for auto resolution)
+    added automatic resolution calculator
+    ---1.4---
+    created cvparams and attributes methods to pull all parameters and attributes easily
+    consolidated gettext and decode into a single function that pulls binary strings and converts them
+    rewrote pull functions to use the consolidated methods
+    elaborated output of auto resolution to give progress
+    ---2.0---
 
 to add:
-    add keyword initiated full spectrum bin in pullspeciesdata (maybe as a decorator?)
-    remove pwconvert and filepresent from tome (or generalize filepresent)
     update pullspeciesdata docstring to better represent the newest version of the supplied dictionary
 """
-
 
 class mzML(object):
     def __init__(self,filename,verbose=True):
@@ -35,6 +42,8 @@ class mzML(object):
         """
         self.v = verbose
         self.sys = __import__('sys')
+        import os
+        self.sys.path.append(os.path.dirname(os.path.realpath(__file__)))
         self.filename = self.checkforfile(filename)
         self.b64 = __import__('base64')
         self.st = __import__('struct')
@@ -49,6 +58,8 @@ class mzML(object):
             self.tree = xml.dom.minidom.parse(self.filename) # full mzML file
         except:
             raise IOError('The mzML file "%s" could not be loaded. The file is either corrupt or incomplete.' %self.filename)
+        self.BE = self.BoundsError() # load warning instance for integration
+        self.nscans,self.nchroms = self.numberofthings() # find number of scans and number of chromatograms
         if self.v is True:
             self.sys.stdout.write(' DONE\n')
         
@@ -68,6 +79,139 @@ class mzML(object):
         return 'Multiplication of the mzML class is unsupported'
     def __div__(self,x):
         return 'Division of the mzML class is unsupported'
+    
+    class BoundsError(Warning):
+        """A warning class to handle bounds errors when integrating"""
+        def __init__(self):
+            self.warned = {}
+        def printwarns(self):
+            """prints the number of warnings if merited"""
+            if len(self.warned) > 0:
+                import sys
+                sys.stdout.write('The following peaks exceeded the bounds of the spectrum n number of times:\n(number of scans in the file: %d)\n'%self.nscans)
+                for name in self.warned:
+                    sys.stdout.write('"%s": %d\n' %(name,self.warned[name]))
+        def warn(self,name,intstart,intend,mzstart,mzend):
+            """warns the user if there was a mismatch"""
+            if self.warned.has_key(name) is False:
+                import sys
+                sys.stdout.write('\nThe peak "%s" (%f-%f) is outside of the bounds of the spectrum being summed m/z %.1f-%.1f\n' %(name,intstart,intend,mzstart,mzend))
+                self.warned[name] = 1
+            else:
+                self.warned[name] += 1
+    
+    def attributes(self,branch):
+        """pulls all attributes of a supplied branch and creates a dictionary of them"""
+        out = {}
+        for pair in branch.attributes.items():
+            out[pair[0]] = self.stringtodigit(pair[1])
+        return out
+    
+    def autoresolution(self,n=10):
+        """
+        automatically determines the resolution of the spectrometer that recorded the mzml file
+        resolution is based on the average resolution of 10 pseudo-random samples
+        each sample spectrum is split into 4 sections and 4 peaks are found to calculate the resolution
+        """
+        def findsomepeaks(y):
+            """roughly locates 4 peaks by maximum values in the spectrum and returns their index"""
+            split = int(len(y)/4)
+            start = 0
+            end = start+split
+            splity = []
+            for i in range(4):
+                splity.append(sci.asarray(y[start:end]))
+                start += split
+                end += split
+            out = []
+            for ind,section in enumerate(splity):
+                maxy = max(section)
+                if maxy == max(section[1:-1]): # if max is not at the edge of the spectrum
+                    out.append(sci.where(section==maxy)[0][0]+split*ind)
+            return out
+            
+        def resolution(x,y,index=None):
+            """
+            Finds the resolution and full width at half max of a spectrum
+            x: list of mz values
+            y: corresponding list of intensity values
+            index: index of maximum intensity (optional; used if the resolution of a specific peak is desired)
+            
+            returns resolution
+            """
+            y = sci.asarray(y) # convert to array for efficiency
+            if index is None: # find index and value of maximum
+                maxy = max(y)
+                index = sci.where(y==maxy)[0][0]
+            else:
+                maxy = y[index]
+            if maxy/(sum(y)/len(y)) < 10: # if intensity to average is below this threshold (rough estimate of signal/noise)
+                return None
+            halfmax = maxy/2
+            indleft = int(index)-1 # generate index counters for left and right walking
+            indright = int(index)+1
+            while y[indleft] > halfmax: # while intensity is still above halfmax
+                indleft -= 1
+            while y[indright] > halfmax:
+                indright += 1
+            return x[index]/(x[indright]-x[indleft]) # return resolution (mz over full width at half max)
+        
+        from random import random
+        from _Spectrum import Spectrum
+        import scipy as sci
+        ranges = [] # list of scan intervals
+        for i in range(n): # generate 10 pseudo-random intervals to sample
+            ran = random()
+            if (ran*self.nscans)-10 >= 0 and (ran*self.nscans)+10 <= self.nscans:
+                ranges.append([int((ran*self.nscans)-10),int((ran*self.nscans)+10)])
+        summed = []
+        for ind,rng in enumerate(ranges):
+            if self.v is True:
+                self.sys.stdout.write('\rEstimating resolution of the instrument %.0f%%' %(float(ind+1)/float(n)*100.))
+            spectra,sr,mzrange = self.pullspectra(rng,mute=True) # pull the spectra in the scan range
+            spectrum = Spectrum(2,mzrange[0],mzrange[1]) # generate a Spectrum object
+            for time in spectra: # add each spectrum to the Spectrum object
+                spectrum.addspectrum(spectra[time]['x'],spectra[time]['y'])
+            summed.append(spectrum.trim()) # append the summed spectra
+        res = []
+        for spec in summed: # calculate resolution for each scan range
+            inds = findsomepeaks(spec[1]) # find some peaks
+            for ind in inds: # for each of those peaks
+                res.append(resolution(spec[0],spec[1],ind))
+        if self.v is True:
+            self.sys.stdout.write(' DONE\n')
+        res = [y for y in res if y is not None] # removes None values (below S/N)
+        return sum(res)/len(res) # return average
+        
+    def binarytolist(self,spectrum):
+        """pulls and converts binary data to list"""
+        def decode(line,extension='.mzML'):
+            """
+            decodes base32 strings contained in mzML files
+            Currently only functions with 32-bit precision
+            """
+            decoded = self.b64.decodestring(line) #decodes base64 string 
+            unpack_format = "<%dL" % speclen # little-endian, number of values, unsigned long
+            values = [] 
+            for tmp in self.st.unpack(unpack_format,decoded):
+                tmp_i = self.st.pack("I",tmp) #pack as unsigned integer I
+                tmp_f = self.st.unpack("f",tmp_i)[0] #unpack as float f
+                values.append(float(tmp_f))
+            return values
+        
+        def gettext(nodelist):
+            """gets text from a simple XML object"""
+            rc = []
+            for node in nodelist:
+                if node.nodeType == node.TEXT_NODE:
+                    rc.append(node.data)
+            return ''.join(rc)
+        
+        speclen = int(spectrum.getAttribute('defaultArrayLength')) # spectrum length (defined in the spectrum attricubes)
+        B32 = []
+        for binary in spectrum.getElementsByTagName('binaryDataArray'): # pull both binary strings
+            B32.append(gettext(binary.getElementsByTagName('binary')[0].childNodes))
+        return [decode(B32[0]),decode(B32[1])] # return decoded binary data
     
     def checkforfile(self,fn):
         """checks for file and converts if necessary"""
@@ -91,24 +235,22 @@ class mzML(object):
                 self.pwconvert(fn)
                 return fn[:-4]+'.mzML'
             return fn
-   
-    def decode(self,line,extension='.mzML'):
+    
+    def cvparam(self,branch):
         """
-        Function to decode the base64 strings contained in XML files
-        Currently only functions with 32-bit precision
+        retrieves the values of each cvParam in the branch
         
-        Module requirements: base64, struct
+        # there is currently no need to retrieve all attributes of the cvParams,
+        # but they can be extracted in dictionary format
+        for cvParam in branch.getElementsByTagName('cvParam'):
+            out[cvParam.getAttribute('name')] = {}
+            for attribute,value in cvParam.attributes.items():
+                out[cvParam.getAttribute('name')][attribute] = value
         """
-        decoded = self.b64.decodestring(line) #decodes base64 string 
-        tmp_size = len(decoded)/4 #number of values in string
-        if extension == ".mzML": # mzML files have separated string pairs
-            unpack_format = "<%dL" % tmp_size # little-endian, number of values, unsigned long
-            values = [] 
-            for tmp in self.st.unpack(unpack_format,decoded):
-                tmp_i = self.st.pack("I",tmp) #pack as unsigned integer I
-                tmp_f = self.st.unpack("f",tmp_i)[0] #unpack as float f
-                values.append(float(tmp_f))
-            return values
+        out = {}
+        for cvParam in branch.getElementsByTagName('cvParam'):
+            out[cvParam.getAttribute('name')] = self.stringtodigit(cvParam.getAttribute('value'))
+        return out
     
     def filepresent(self,fn,ty='file'):
         """
@@ -143,129 +285,107 @@ class mzML(object):
             return fn+'.mzml'
         raise IOError('The file "%s" could not be located in the current working directory'%(fn)) # if it can't be found, raise IOError
     
-    def foreachscan(self):
-        """
-        test function, no particular use at this time
-        """
-        n = 0
-        for spectrumList in self.tree.getElementsByTagName('spectrumList'):
-            for spectrum in spectrumList.getElementsByTagName('spectrum'):
-                n+=1
-        print n
-    
-    def getText(self,nodelist):
-        """
-        function to get text from a simple XML object
-        snippet written by Dennis Hore
-        """
-        rc = []
-        for node in nodelist:
-            if node.nodeType == node.TEXT_NODE:
-                rc.append(node.data)
-        return ''.join(rc)
-
-    def integ(self,start,end,x,y):
+    def integ(self,name,start,end,x,y):
         """
         Function to integrate values between paired list indicies (e.g. a m/z list and an intensity list)
         
-        input (start,end,x,y)
-        start:
-            start x value
-        end:
-            end x value
-        x:
-            list of x values
-        y:
-            list of y values (paired with x)
+        name: name of the peak being integrated (only used for warning purposes)
+        start: start x value
+        end: end x value
+        x: list of x values
+        y: list of y values (paired with x)
         """
-        if start < min(x):
-            raise ValueError('\nThe provided start integration value {} is less than the minimum value of the spectrum being summed {}.\nCheck your input.'.format(start,min(x)))
-        if end is None: # if there a range is not supplied, return a single value
+        if start > max(x) or start < min(x): # check that start is within the m/z bounds
+            self.BE.warn(name,start,end,min(x),max(x))
+        if end is None: # if only a start value is supplied, return closest to that value
             return y[self.takeclosest(x,start)]
-        if end is not None:
-            if start > max(x):
-                raise ValueError('\nThe provided start integration value {} is greater than the maximum value of the spectrum being summed {}.\nCheck your input.'.format(start,max(x)))
-            elif end > max(x):
-                raise ValueError('\nThe provided end integration value {} is greater than the maximum value of the spectrum being summed {}.\nCheck your input.'.format(end,max(x)))
-            return sum(y[self.br(x,start):self.bl(x,end)]) #take nearest value inside the bounds    
+        if end > max(x): # check that end is within the m/z bounds
+            self.BE.warn(name,start,end,min(x),max(x))
+        return sum(y[self.br(x,start):self.bl(x,end)]) # integrate using the nearest values inside the bounds        
+    
+    def numberofthings(self):
+        """retrieves the number of scans and chromatograms in the file"""
+        nscans = 0
+        nchroms = 0
+        if len(self.tree.getElementsByTagName('spectrumList')) > 1:
+            raise ValueError("There are more than one set of scans, and this script can't handle it.\nGive this file to Lars so he can figure out how to fix it.")
+        for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
+            if nscans < int(spectrumList.getAttribute('count')):
+                nscans = int(spectrumList.getAttribute('count'))
+        for chromatogramList in self.tree.getElementsByTagName('chromatogramList'):
+            if nchroms < int(chromatogramList.getAttribute('count')):
+                nchroms = int(chromatogramList.getAttribute('count'))
+        return nscans,nchroms
     
     def pullchromdata(self):
-        """
-        Pulls mzML chromatograms
-        """
+        """Pulls mzML chromatograms"""
         chroms = {} #dictionary of chromatograms
         for chromatogramList in self.tree.getElementsByTagName('chromatogramList'):
-            nchroms = int(chromatogramList.getAttribute('count')) # pull total number of scans
             for chromatogram in chromatogramList.getElementsByTagName('chromatogram'):
-                curchrom = int(chromatogram.getAttribute('index'))+1 #get current chromatogram number
+                attr = self.attributes(chromatogram)
                 if self.v is True:
-                    self.sys.stdout.write('\rExtracting chromatogram #%i/%i  %.1f%%' %(curchrom,nchroms,float(curchrom)/float(nchroms)*100.))
+                    self.sys.stdout.write('\rExtracting chromatogram #%s/%i  %.1f%%' %(attr['index']+1,self.nchroms,float(attr['index']+1)/float(self.nchroms)*100.))
                     self.sys.stdout.flush()
-                units = []
-                B64 = []
-                for binaryList in chromatogram.getElementsByTagName('binaryDataArrayList'): #pull array data for mz and intensity
-                    for cvParam in binaryList.getElementsByTagName('cvParam'): #find units
-                        if len(cvParam.getAttribute('unitName')) >0:
-                            units.append(str(cvParam.getAttribute('unitName'))) 
-                    for binary in binaryList.getElementsByTagName('binaryDataArray'): # pull both binary strings in each chromatogram 
-                        B64.append(self.getText(binary.getElementsByTagName('binary')[0].childNodes))
-                    x,y = self.decode(B64[0]),self.decode(B64[1]) #decode binary data to a list of values
-                    chroms[str(chromatogram.getAttribute('id'))] = {'x':x,'y':y,'xunit':units[0],'yunit':units[1]} #add dictionary entry for each chromatogram
+                x,y = self.binarytolist(chromatogram)
+                """
+                currently the x and y units are hard-coded (there is no easy way to tell which cvParam corresponds to which spectrum)
+                since no chromatograms seem to have units other than these, it should provide no problems, but it could be changed in the following line
+                """
+                chroms[attr['id']] = {'x':x, 'y':y, 'xunit':'minute', 'yunit':'number of counts'}
+        
         if self.v is True:
             self.sys.stdout.write(' DONE\n')
         return chroms
 
-    def pullspeciesdata(self,sp):
+    def pullspeciesdata(self,sp,sumspec=False):
         """
-        Iterates through the loaded mzML file and extracts data for each of the provided species in the dictionary
+        Extracts integrated data at every timepoint for all species specified in the sp dictionary
         
-        input:
-            dictionary of selected peaks
-            format {'peak name':{'bounds':[peak start mz,peak end mz],'affin':['+' or '-' or 'UV'},'raw':[],'spectrum':[]}
+        sp: dictionary
+            one key for every species to track
+            format for each key: 'peak name':{'bounds':[peak start mz,peak end mz],'affin':['+' or '-' or 'UV'},'raw':[],'spectrum':[]
+        sumspec: bool
+            toggles summing of all spectra together (creates an additional output item)
+        
         output:
-            filled dictionary, dictionary of TICs, dictionary of retention times
+            filled dictionary, dictionary of total ion currents, dictionary of retention times
+            if sumspec is true, will also output an [x,y] list
         
         explicitly interprets full scan mass spectra and UV species
         """
         rtime = {} # generate empty lists required for data processing
         TIC = {}
-        for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            nscans = int(spectrumList.getAttribute('count')) # pull total number of scans
-            mode = None
-            for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                curspec = int(spectrum.getAttribute('index'))+1 #get current spectrum number
+        if sumspec is True:
+            from _Spectrum import Spectrum
+            spec = Spectrum(3)
+        
+        for spectrumList in self.tree.getElementsByTagName('spectrumList'):
+            for spectrum in spectrumList.getElementsByTagName('spectrum'):
+                attr = self.attributes(spectrum) # get attributes
+                p = self.cvparam(spectrum) # pull parameters of the scan
+                mode,level = self.scantype(p) # determine the scan type
                 if self.v is True:
-                    self.sys.stdout.write('\rExtracting species data from spectrum #%i/%i  %.1f%%' %(curspec,nscans,float(curspec)/float(nscans)*100.))
-                mode,level = self.scantype(spectrum)
+                    self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
                 if mode is not None and level < 2:
                     modekey = 'raw'+mode # define dictionary key for current scan
                     if rtime.has_key(modekey) is False: # create dictionary entry if not present
                         rtime[modekey] = []
                     if TIC.has_key(modekey) is False:
                         TIC[modekey] = []
-                
-                    for cvParam in spectrum.getElementsByTagName('cvParam'): #find TIC and time
-                        if cvParam.getAttribute('name') == 'total ion current':
-                            try:
-                                TIC[modekey].append(int(cvParam.getAttribute('value')))
-                            except ValueError:
-                                TIC[modekey].append(float(cvParam.getAttribute('value')))
-                        if cvParam.getAttribute('name') == 'scan start time':
-                            rtime[modekey].append(float(cvParam.getAttribute('value')))
-                
-                    B64 = []
-                    for binary in spectrum.getElementsByTagName('binaryDataArray'): #pull array data for mz and intensity
-                        B64.append(self.getText(binary.getElementsByTagName('binary')[0].childNodes))
-                    x,y = self.decode(B64[0]),self.decode(B64[1]) #decode binary data to a list of values
-                    
+                    TIC[modekey].append(int(p['total ion current'])) # append TIC
+                    rtime[modekey].append(float(p['scan start time'])) # append scan time
+                    x,y = self.binarytolist(spectrum) # generate spectrum
+                    if sumspec is True:
+                        spec.addspectrum(x,y)
                     for key in sp: # integrate each peak
                         if sp[key]['affin'] == mode: # if species has affinity to this spectrum type
                             if mode in ['+','-']: # if mass spectrum
-                                sp[key]['raw'].append(self.integ(sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)) # integrate
+                                sp[key]['raw'].append(self.integ(key,sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)) # integrate
                                 xt,yt = self.trimspectrum(x,y,sp[key]['bounds'][0],sp[key]['bounds'][1]) # trim spectrum
                                 sp[key]['spectrum'].addspectrum(xt,yt) # add spectrum
                             if mode in ['UV']: # if UV spectrum
-                                sp[key]['raw'].append(self.integ(sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)/1000000.) # integrates and divides by 1 million bring it into au
+                                sp[key]['raw'].append(self.integ(key,sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)/1000000.) # integrates and divides by 1 million bring it into au
+        
         for key in sp: #remove mz/int values in spectrum that are None
             if sp[key]['affin'] in ['+','-']:
                 sp[key]['spectrum'] = sp[key]['spectrum'].trim() # trim spectrum to remove Nonetypes        
@@ -273,16 +393,21 @@ class mzML(object):
         self.rtime = rtime
         if self.v is True:
             self.sys.stdout.write(' DONE\n')
-        return sp,TIC,rtime    
+        self.BE.printwarns() # print bounds warnings (if any)
+        if sumspec is True:
+            return sp,TIC,rtime,spec.trim()  
+        else:
+            return sp,TIC,rtime
     
-    def pullspectra(self,sr='all',mzrange=None):
+    def pullspectra(self,sr=None,mzrange=None,mute=False):
         """
         iterates through a mzML tree and pulls full scan mass spectra
 
-        sr:
+        sr: [start,end] or None
             scan range to sum (default 'all')
-        mzrange:
-            m/z range to keep (None keeps the entire range)
+        mzrange: [start,end] or None
+            limit the m/z range to extract (default None)
+            None will keep whatever is present in the file
             this is a memory saving utility
         
         output:
@@ -291,28 +416,25 @@ class mzML(object):
         
         exclusively pulls mass spectra with MS level 1 (for MSMS spectra use pullmsmsspectra)
         """
-        speclist = {} # list of dictionaries
+        if sr is None:
+            sr = [1,self.nscans]
+        if sr[1] < sr[0]:
+            raise ValueError('The scan range is invalid: %d-%d' %(sr[0],sr[1]))
+        speclist = {} # dictionary for spectra
+        
         for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            nscans = int(spectrumList.getAttribute('count')) # pull total number of scans
-            if sr == 'all':
-                sr = [1,nscans]
             for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                mode,level = self.scantype(spectrum)
-                curspec = int(spectrum.getAttribute('index'))+1 #get current spectrum number
-                if self.v is True:
-                    self.sys.stdout.write('\rExtracting mass spectrum #%i/%i  %.1f%%' %(curspec,nscans,float(curspec)/float(nscans)*100.))
+                attr = self.attributes(spectrum) # get attributes
+                p = self.cvparam(spectrum) # pull parameters of the scan
+                if self.v is True and mute is False:
+                    self.sys.stdout.write('\rExtracting mass spectrum #%s (scan range: %d-%d)  %.1f%%' %(attr['index']+1,sr[0],sr[1],(float(attr['index']-sr[0]+1))/(float(sr[1]-sr[0]))*100.))
+                mode,level = self.scantype(p) # determine the scan type
                 if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
-                    if curspec >= sr[0] and curspec <= sr[1]:
-                        for cvParam in spectrum.getElementsByTagName('cvParam'):
-                            if cvParam.getAttribute('name') == 'scan start time': # scan time
-                                t = float(cvParam.getAttribute('value'))
-                        B64 = []
-                        for binary in spectrum.getElementsByTagName('binaryDataArray'): #pull array data for mz and intensity
-                            B64.append(self.getText(binary.getElementsByTagName('binary')[0].childNodes))
-                        x,y = self.decode(B64[0]),self.decode(B64[1]) #decode binary data to a list of values
+                    if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
+                        x,y = self.binarytolist(spectrum)
                         if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
                             x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
-                        speclist[t] = {'x':x,'y':y,'scan':curspec}
+                        speclist[float(p['scan start time'])] = {'x':x,'y':y,'scan':attr['index']}
         if mzrange is None: # determine m/z range if not specified
             minx = 1000000.
             maxx = 0.
@@ -322,18 +444,17 @@ class mzML(object):
                 if max(speclist[scan]['x']) > minx:
                     maxx = max(speclist[scan]['x'])
             mzrange = [minx,maxx]
-        if self.v is True:
+        if self.v is True and mute is False:
             self.sys.stdout.write(' DONE\n')
         return speclist,sr,mzrange
     
     def pullmsmsspectra(self):
         """
-        Iterates through a mzML tree and extracts any MSMS spectra
+        Extracts MSMS spectra from the mzML file
         
         Exclusively finds mass spectra with level greater or equal to 2
         groups spectra by key defined by thge isolation window target
         
-        returns a dictionary containing all selected ions
         each dictionary has subkeys for each time point which each has subkeys containing the information of that scan
         
         also returns a dictionary of m/z limits using the same keys as msms
@@ -341,44 +462,33 @@ class mzML(object):
         msms = {}
         limits = {}
         for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            nscans = int(spectrumList.getAttribute('count')) # pull total number of scans
-            mode = None
             for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                curspec = int(spectrum.getAttribute('index'))+1 #get current spectrum number
+                attr = self.attributes(spectrum)
+                p = self.cvparam(spectrum)
                 if self.v is True:
-                    self.sys.stdout.write('\rExtracting species data from spectrum #%i/%i  %.1f%%' %(curspec,nscans,float(curspec)/float(nscans)*100.))
-                mode,level = self.scantype(spectrum)
+                    self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
+                mode,level = self.scantype(p)
                 if level >= 2: # if it is a msms spectrum
-                    for cvParam in spectrum.getElementsByTagName('cvParam'): #find TIC and time
-                        if cvParam.getAttribute('name') == 'total ion current':
-                            try:
-                                tic = int(cvParam.getAttribute('value'))
-                            except ValueError:
-                                tic = float(cvParam.getAttribute('value'))
-                        if cvParam.getAttribute('name') == 'scan start time':
-                            t = float(cvParam.getAttribute('value'))
-                        if cvParam.getAttribute('name') == 'collision energy': # collision energy applied
-                            ce = float(cvParam.getAttribute('value'))
-                        if cvParam.getAttribute('name') == 'isolation window target m/z': # target m/z value
-                            target = cvParam.getAttribute('value')
-                        if cvParam.getAttribute('name') == 'scan window lower limit': # target m/z value
-                            lowmz = float(cvParam.getAttribute('value'))
-                        if cvParam.getAttribute('name') == 'scan window upper limit': # target m/z value
-                            highmz = float(cvParam.getAttribute('value'))
+                    tic = p['total ion current']
+                    t = p['scan start time']
+                    ce = p['collision energy']
+                    target = p['isolation window target m/z']
+                    lowmz = p['scan window lower limit']
+                    highmz = p['scan window upper limit']
+                    
                     if limits.has_key(target) is False:
                         limits[target] = [lowmz,highmz]
-                    B64 = []
-                    for binary in spectrum.getElementsByTagName('binaryDataArray'): #pull array data for mz and intensity
-                        B64.append(self.getText(binary.getElementsByTagName('binary')[0].childNodes))
-                    x,y = self.decode(B64[0]),self.decode(B64[1]) #decode binary data to a list of values
+                    x,y = self.binarytolist(spectrum)
                     if msms.has_key(target) is False:
                         msms[target] = {}
                     msms[target][t] = {'CE':ce,'TIC':tic,'x':list(x),'y':list(y)}
+        if self.v is True:
+            self.sys.stdout.write(' DONE\n')
         return msms,limits
     
-    def pullUVspectra(self):
+    def pulluvspectra(self):
         """
-        Iterates through a mzML tree and extracts UV-Vis spectra
+        extracts UV spectra from the mzML file
         
         returns a list of timepoints, a list of wavelengths, and a list of lists of intensity corresponding to timepoints
         """
@@ -386,20 +496,15 @@ class mzML(object):
         uvlambda = None
         uvint = []
         for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            nscans = int(spectrumList.getAttribute('count')) # pull total number of scans
             for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                curspec = int(spectrum.getAttribute('index'))+1 #get current spectrum number
+                attr = self.attributes(spectrum)
+                p = self.cvparam(spectrum)
                 if self.v is True:
-                    self.sys.stdout.write('\rExctracting UV spectrum #%i/%i  %.1f%%' %(curspec,nscans,float(curspec)/float(nscans)*100.))
-                mode,level = self.scantype(spectrum)
+                    self.sys.stdout.write('\rExctracting UV spectrum #%i/%i  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
+                mode,level = self.scantype(p)
                 if mode == 'UV': # if type is UV-Vis
-                    for cvParam in spectrum.getElementsByTagName('cvParam'): #find time
-                        if cvParam.getAttribute('name') == 'scan start time':
-                            rtime.append(float(cvParam.getAttribute('value')))
-                    B64 = []
-                    for binary in spectrum.getElementsByTagName('binaryDataArray'): #pull array data for wavelength and intensity
-                        B64.append(self.getText(binary.getElementsByTagName('binary')[0].childNodes))
-                    x,y = self.decode(B64[0]),self.decode(B64[1]) #decode binary data to a list of values
+                    rtime.append(p['scan start time'])
+                    x,y = self.binarytolist(spectrum)
                     if uvlambda is None: # if wavelength region has not yet been defined
                         uvlambda = list(x)
                     for ind,val in enumerate(y): # normalize y value by 1 million to bring value into a.u.
@@ -463,65 +568,69 @@ class mzML(object):
         else:
             subprocess.call(locs[-1]+' "'+filename+'" --mzML --32')
     
-    
-    def scantype(self,spectrum):
-        """
-        determines the scan type of the provided spectrum
-        """
-        MS = False
-        level = 0
-        UV = False
-        mode = None
-        for cvParam in spectrum.getElementsByTagName('cvParam'): # determine if spec or uv vis and set affinity
-            if cvParam.getAttribute('name') == 'MS1 spectrum':
-                MS = True
-            if cvParam.getAttribute('name') == 'MSn spectrum':
-                MS = True
-            if cvParam.getAttribute('name') == 'ms level':
-                level = int(cvParam.getAttribute('value'))
-            if cvParam.getAttribute('name') == 'electromagnetic radiation spectrum':
-                UV = True
-                break
-            if cvParam.getAttribute('name') == 'negative scan':
+    def scantype(self,hand):
+        """determines the scan type of the provided spectrum"""
+        if type(hand) == dict: # handed a parameters dictionary
+            p = hand
+        else: # handed a tree or branch
+            p = self.cvparam(hand)
+        
+        if p.has_key('MS1 spectrum'): # normal MS spectrum
+            MS = True
+        if p.has_key('MSn spectrum'): # MSMS spectrum
+            MS = True
+        if MS is True: # if MS, determine level and mode
+            level = int(p['ms level'])
+            if p.has_key('negative scan'):
                 mode = '-'
-            if cvParam.getAttribute('name') == 'positive scan':
+            if p.has_key('positive scan'):
                 mode = '+'
-        if UV is True: # electromagnetic radiation spectrum
-            return 'UV',level
-        elif MS is True: # MS scan
             return mode,level
-        #elif MS is True and level is 1: # full scan
-        #    return mode,level
-        #elif MS is True and level > 1: # MSMS of some type
-        #    return mode,level
-        else: # type that is not interpretable
-            return None,None        
-
-    def sumscans(self,sr='all',mzrange=[50.,2000.]):
+        elif p.has_key('electromagnetic radiation spectrum'): # otherwise is it a UV spectrum
+            return 'UV',0
+        else: # type that is not currently handled by the script
+            return None,None       
+    
+    def stringtodigit(self,string):
+        """attempts to convert a unicode string to float or integer"""
+        try:
+            value = int(string)
+        except ValueError:
+            try:
+                value = float(string)
+            except ValueError:
+                value = string
+        return value    
+    
+    def sumscans(self,sr=None,mzrange=[50.,2000.],dec=3):
         """
-        sums all ms1 full scan scans together
+        sums all ms1 full spectrum scans together
         this function has a lower memory overhead than pullscans()
         
-        sr: scan range to sum
-        mzrange: mz range to sum between
+        sr: [start,end] or None
+            scan range to sum (default None)
+            None will sum all scans
+        mzrange: [start,end]
+            mz range to sum between
+        dec: int
+            number of decimal places to track in the spectrum (lower values lower memory overhead)
         """
         from _Spectrum import Spectrum
-        spec = Spectrum(3,startmz=mzrange[0], endmz=mzrange[1])
+        spec = Spectrum(dec, startmz=mzrange[0], endmz=mzrange[1])
+        if sr == None:
+            sr = [1,self.nscans]
+        if sr[1] < sr[0]:
+            raise ValueError('The supplied scan range is invalid: %d-%d' %(sr[0],sr[1]))
         for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            nscans = int(spectrumList.getAttribute('count')) # pull total number of scans
-            if sr == 'all':
-                sr = [1,nscans]
             for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                mode,level = self.scantype(spectrum)
-                curspec = int(spectrum.getAttribute('index'))+1 #get current spectrum number
+                attr = self.attributes(spectrum) # get attributes
+                p = self.cvparam(spectrum) # pull parameters of the scan
+                mode,level = self.scantype(p)
                 if self.v is True:
-                    self.sys.stdout.write('\rCombining mass spectrum #%i/%i  %.1f%%' %(curspec,nscans,float(curspec)/float(nscans)*100.))
+                    self.sys.stdout.write('\rCombining mass spectrum #%i/%i  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
                 if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
-                    if curspec >= sr[0] and curspec <= sr[1]:
-                        B64 = []
-                        for binary in spectrum.getElementsByTagName('binaryDataArray'): #pull array data for mz and intensity
-                            B64.append(self.getText(binary.getElementsByTagName('binary')[0].childNodes))
-                        x,y = self.decode(B64[0]),self.decode(B64[1]) #decode binary data to a list of values
+                    if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
+                        x,y = self.binarytolist(spectrum)
                         if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
                             x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
                         spec.addspectrum(x,y)
@@ -561,7 +670,7 @@ class mzML(object):
         return x[l:r],y[l:r] # trim spectrum
 
 if __name__ == '__main__':
-    filename = 'LY-2016-06-13 09.raw'
+    filename = 'LY-2015-09-15 06'
     mzml = mzML(filename,verbose=True)
     #from _Spectrum import Spectrum
     #sp = {

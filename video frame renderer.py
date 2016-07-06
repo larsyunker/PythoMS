@@ -20,6 +20,7 @@ new:
     changed timepoint colour to blue (should be more visible)
     tweaked the spacing between the two plots
     ---9.1---
+    ---9.2
 
 to add:
     add functionality to track both + and - mode spectra (will have to modify pullspectra() in _mzML)

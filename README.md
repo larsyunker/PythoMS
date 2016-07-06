@@ -33,6 +33,8 @@ Takes a supplied mass spectrum and overlays the predicted isotope pattern onto i
 A tool for generating a series of images showing mass spectrum and traces which can be combined into a video. 
 ##### y-axis zoom figure
 Renders a series of images which zoom into the y-axis to illustrate the dynamic range of mass spectrometers. 
+##### barplotthese
+Takes an excel file populated with spectra and saves them as publication-quality figures. (Makes bar plots with consistent axes, which can be very difficult in excel.)
 
 ### Classes and packages
 ##### tome_v02

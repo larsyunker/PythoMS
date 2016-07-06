@@ -14,9 +14,16 @@ new:
     added pullmultispectrum function to read multiple spectra from sheet
     consolidated createwb into loadwb
     fixed workbook creation to not return a write-only workbood (this would break cell calls)
-    ---1.1 building
+    ---1.1---
+    added skiplines function to pullspectrum
+    added pause for user input if the file is open (no longer requires rerunning entire script after closing)
+    added function to convert row and column indicies into excel coordinates
+    tweaked pullspectrum to warn users of non-numerical values
+    ---1.2---
+    ---1.3
 
 to add:
+    pull rsim raw data
     dynamic creation of workbook (if it's there, load it, if not create)
     pull from pyrsim output sheets
 """
@@ -90,25 +97,37 @@ class XLSX(object):
         loc = 1
         while loc < len(cs.rows[0]):
             out[cs.cell(row=1,column=loc).value] = {'xunit':cs.cell(row=1,column=loc+1).value,'yunit':cs.cell(row=1,column=loc+2).value,'x':[],'y':[]}
-            ind = 1
+            ind = 2
             while cs.cell(row=ind,column=loc+1).value is not None:
-                out[cs.cell(row=1,column=loc).value]['x'].append(cs.cell(row=ind+1,column=loc+1).value)
-                out[cs.cell(row=1,column=loc).value]['y'].append(cs.cell(row=ind+1,column=loc+2).value)
+                out[cs.cell(row=1,column=loc).value]['x'].append(cs.cell(row=ind,column=loc+1).value)
+                out[cs.cell(row=1,column=loc).value]['y'].append(cs.cell(row=ind,column=loc+2).value)
                 ind += 1
             loc += 4
         return out
         
-    def pullspectrum(self,sheet='spectrum'):
-        """extracts a spectrum from the specified sheet"""
+    def pullspectrum(self,sheet='spectrum',skiplines=0):
+        """
+        extracts a spectrum from the specified sheet
+        skiplines allows that number of lines to be ignored
+        """
+        def tofloat(value,row,col):
+            """attempts to convert to float and raises exception if an error is encountered"""
+            try:
+                return float(value)
+            except ValueError:
+                raise ValueError('The value "%s" (cell %s) in "%s" could not be interpreted as a float.\nCheck the value in this cell or change the number of lines skipped' %(value,self.rowandcolumn(row,col),self.bookname))
+        skiplines -= 1
         specsheet = self.wb.get_sheet_by_name(sheet)
         spectrum = [[],[]]
         for ind,row in enumerate(specsheet.rows): # for each row append the mz and int values to their respective lists
-            if ind == 0: # header row
-                xunit = row[0].value
-                yunit = row[1].value
-                continue
-            spectrum[0].append(row[0].value) # append values
-            spectrum[1].append(row[1].value)
+            if ind > skiplines: # skip specified number of lines
+                if ind == skiplines+1: # header row
+                    xunit = row[0].value
+                    yunit = row[1].value
+                    continue
+                if row[0].value is not None and row[1].value is not None:
+                    spectrum[0].append(tofloat(row[0].value,ind,0)) # append values
+                    spectrum[1].append(tofloat(row[1].value,ind,1))
         return spectrum,xunit,yunit
     
     def pullrsimparams(self,sheet='parameters'):
@@ -195,13 +214,49 @@ The start value (col#4) is expected to be less than the end value (col#5)
             if sheet in delete:
                 dels = self.wb.get_sheet_by_name(sheet)
                 self.wb.remove_sheet(dels)
+
+    def rowandcolumn(self,row,col):
+        """takes an index location of row and column and returns the cell location used by excel"""
+        def modrem(val):
+            return val//26,val%26
+        import string
+        alphabet = [x.upper() for x in list(string.ascii_lowercase)] # uppercase it
+        col += 1 # offset column to be properly divisible by 26
+        mod,rem = modrem(col)
+        modl = []
+        while mod > 26: # while modulo is greater than the length of the alphabet
+            if rem == 0: # if it divided equally
+                modl.insert(0,26)
+                mod -= 1
+            else:
+                modl.insert(0,rem)
+            mod,rem = modrem(mod)
+        if mod == 1 and rem == 0: # exactly 26 == Z
+            modl.insert(0,26)
+        elif mod == 0: # less than 26
+            modl.insert(0,rem)
+        else: # other
+            modl.insert(0,rem)
+            modl.insert(0,mod)
+        out = ''
+        for i in modl: # build out string
+            out += alphabet[i-1]
+        return out+str(row+1)    
     
     def save(self):
         """commits changes to the workbook"""
         try:
             self.wb.save(self.bookname)
         except IOError:
-            raise IOError('\nThe excel file could not be written. Please close %s .' %self.bookname)
+            import sys
+            if sys.version.startswith('2.7'):
+                raw_input('\nThe excel file could not be written. Please close "%s" and press any key to retry save.' %self.bookname)
+            if sys.version.startswith('3.'):
+                input('\nThe excel file could not be written. Please close "%s" and press any key.' %self.bookname)
+            try:
+                self.wb.save(self.bookname)
+            except IOError:
+                raise IOError('\nThe excel file "%s" could not be written.' %self.bookname)
     
     def updatersimparams(self,sp,sheet='parameters'):
         """
