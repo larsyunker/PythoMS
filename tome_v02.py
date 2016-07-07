@@ -2,7 +2,7 @@
 Tome v02 A compilation of all Lars' python scripts as callable functions
 
 functions:
-    alpha (returns column index from numerical index for excel files)
+    autoresolution (estimates the resolution of a spectrum)
     bindata (bins a list of values)
     binnspectra (bins n mass spectra together into a single mass spectrum)
     bincidspectra (bins mass spectra together based on their collision voltage)
@@ -12,10 +12,8 @@ functions:
     linramp (generates a list of values which is linear from start to finish)
     lyround (rounds a number given a particular base number)
     mag (calculates and returns the magnification of a given y value relative to the start)
-    msipoverlay (generates a figure overlaying predicted isotope patterns on top of experimental data)
     normalize (normalizes a list to a given value)
     plotms (plots a mass spectrum)
-    resolution (calculates the resolution of a spectrum peak)
     sigmafwhm (cacluates sigma and fwhm from a resolution and a mass)
     strtolist (converts a string to a list)        
 
@@ -32,29 +30,86 @@ changelog:
     generalized filepresent
     removed pwconvert (now included in mzML class)
     completely rewrote resolution
+    rewrote resolution again to check multiple portions of the spectrum
+    significant change to plotms
+    moved alpha to XLSX class
     ---v02---
-
-
 """
 # ----------------------------------------------------------
 # -------------------FUNCTION DEFINITIONS-------------------
 # ----------------------------------------------------------
 
-def alpha(index):
+def autoresolution(x,y,v=True):
     """
-    function for taking an index and converting it to the corresponding column used by excel
-    works up to column ZY (column # 701)
+    determines the resolution of a provided spectrum
+    
+    x: list
+        list of x values
+    y: list
+        list of y values (paired with x values
+    v: bool
+        verbose toggle
+    
+    resolution is based on the average resolution of 10 pseudo-random samples
+    each sample spectrum is split into 10 sections, finding 10 peaks in order to calculate the resolution
     """
-    import string
-    alphabet = list(string.ascii_lowercase)
-    out = ''
-    n = (index+1)/26
-    if n != 0:
-        out += alphabet[n-1]
-        out += alphabet[(index+1)%26-1]
-    else:
-        out = alphabet[index]
-    return out.upper()
+    def findsomepeaks(y,n=10):
+        """roughly locates n peaks by maximum values in the spectrum and returns their index"""
+        split = int(len(y)/n)
+        start = 0
+        end = start+split
+        splity = []
+        for i in range(n):
+            splity.append(sci.asarray(y[start:end]))
+            start += split
+            end += split
+        out = []
+        for ind,section in enumerate(splity):
+            maxy = max(section)
+            if maxy == max(section[1:-1]): # if max is not at the edge of the spectrum
+                out.append(sci.where(section==maxy)[0][0]+split*ind)
+        return out
+        
+    def resolution(x,y,index=None):
+        """
+        Finds the resolution and full width at half max of a spectrum
+        x: list of mz values
+        y: corresponding list of intensity values
+        index: index of maximum intensity (optional; used if the resolution of a specific peak is desired)
+        
+        returns resolution
+        """
+        y = sci.asarray(y) # convert to array for efficiency
+        if index is None: # find index and value of maximum
+            maxy = max(y)
+            index = sci.where(y==maxy)[0][0]
+        else:
+            maxy = y[index]
+        if maxy/(sum(y)/len(y)) < 10: # if intensity to average is below this threshold (rough estimate of signal/noise)
+            return None
+        halfmax = maxy/2
+        indleft = int(index)-1 # generate index counters for left and right walking
+        indright = int(index)+1
+        while y[indleft] > halfmax: # while intensity is still above halfmax
+            indleft -= 1
+        while y[indright] > halfmax:
+            indright += 1
+        return x[index]/(x[indright]-x[indleft]) # return resolution (mz over full width at half max)
+    
+    import scipy as sci
+    if v is True:
+        import sys
+        sys.stdout.write('\rEstimating resolution of the spectrum')
+    
+    inds = findsomepeaks(y) # find some peaks in the spectrum
+    res = []
+    for ind in inds: # for each of those peaks
+        res.append(resolution(x,y,ind))
+    res = [y for y in res if y is not None] # removes None values (below S/N)
+    res = sum(res)/len(res) # calculate average
+    if v is True:
+        sys.stdout.write(': %.1f\n' %res)
+    return res # return average
 
 def bindata(n,v,lst):
     """
@@ -112,16 +167,6 @@ def binnspectra(dct,n,dec=3,startmz=50.,endmz=2000.):
             delta = 0 # reset critical sum
     sys.stdout.write(' DONE\n')
     return out
-    #for ind,scan in enumerate(lst): # for each pair
-    #    delta += 1
-    #    sys.stdout.write('\rBinning spectrum #%i/%i  %.1f%%' %(ind+1,len(lst),float(ind+1)/float(len(lst))*100.))
-    #    spec.addspectrum(scan['x'],scan['y']) # add spectrum
-    #    if delta == n: # critical number is reached
-    #        out.append(spec.trim(zeros=True)) # append list
-    #        spec.resety() # reset y list in object
-    #        delta = 0 # reset critical sum
-    #sys.stdout.write(' DONE\n')
-    #return out
 
 def bincidspectra(dct,dec=3,startmz=50.,endmz=2000.,threshold=0,fillzeros=False):
     """
@@ -148,13 +193,6 @@ def bincidspectra(dct,dec=3,startmz=50.,endmz=2000.,threshold=0,fillzeros=False)
         if binned.has_key(dct[time]['CE']) is False: # generate key if not present
             binned[dct[time]['CE']] = Spectrum(dec,startmz=startmz,endmz=endmz)
         binned[dct[time]['CE']].addspectrum(dct[time]['x'],dct[time]['y'])
-    #for ind,scan in enumerate(lst):
-    #    sys.stdout.write('\rBinning spectrum by CID value #%i/%i  %.1f%%' %(ind+1,len(lst),float(ind+1)/float(len(lst))*100.))
-    #    if binned.has_key(scan['col']) is False: # generate key if not present
-    #        binned[scan['col']] = Spectrum(dec,startmz=startmz,endmz=endmz)
-    #    binned[scan['col']].addspectrum(scan['x'],scan['y']) # add spectrum existing
-    
-    #sys.stdout.write(' DONE\n')
     
     if threshold > 0 or fillzeros is True: # if manipulation is called for
         for vol in binned:
@@ -187,7 +225,6 @@ def filepresent(filename,ftype='file'):
     if ftype == 'file':
         if os.path.isfile(filename) == False:
             raise IOError('\nThe file "%s" could not be located in the current working directory'%(filename))
-
 
 def find_all(fname,path):
     """
@@ -281,13 +318,13 @@ def plotms(realspec,simdict={},**kwargs):
         l,r = bl(x,left),br(x,right) # find indicies
         return x[l:r],y[l:r] # trim spectrum
     
-    def estimatedem(x,y,em,lookwithin=1):
+    def estimatedem(x,y,em,simmin,simmax,lookwithin=0.1):
         """estimates the exact mass of a peak"""
-        l,r = bl(x,em-lookwithin),br(x,em+lookwithin)
-        locmax = max(y[l:r])
-        for ind,val in enumerate(y): # for the y list
-            if val == locmax: # if the value matches the local max
-                if ind > l and ind < r: # if the index is between the bounds
+        l,r = bl(x,simmin-lookwithin)-1,br(x,simmax+lookwithin)+1 # narrow range to that of the isotope pattern
+        locmax = max(y[l:r]) # find local max in that range
+        for ind,val in enumerate(y):
+            if val == locmax: # if the y-value equals the local max
+                if ind > l and ind < r: # and if the index is in the range (avoids false locations)
                     return x[ind]
     
     def checksimdict(dct):
@@ -314,7 +351,7 @@ def plotms(realspec,simdict={},**kwargs):
     sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/_classes')
     from _Colour import Colour
     from _Molecule import Molecule
-    from tome_v02 import resolution,normalize
+    from tome_v02 import autoresolution,normalize
     import pylab as pl
     from bisect import bisect_left as bl
     from bisect import bisect_right as br
@@ -326,17 +363,20 @@ def plotms(realspec,simdict={},**kwargs):
     'simtype':'bar', # simulation overlay type ('bar' or 'gaussian')
     'spectype':'continuum', # spectrum type ('continuum' or 'centroid')
     'maxy':'max', # max or value
-    'norm':False, # True or False
+    'norm':True, # True or False
     'simnorm':'spec', # top, spec, or value
-    'axlabels':[True,True], # show/hide axes labels
-    'axvalues':[True,True], # show/hide axes values and tick marks
-    'axshow':[True,True], # show/hide axes
+    'xlabel':True, # show x label
+    'ylabel':True, # show y label
+    'xvalues':True, #show x values
+    'yvalues':True, # show y values
+    'showx':True, # show x axis
+    'showy':True, # how y axis
     'offsetx':True, # offset x axis (shows low intensity species better)
     'fs':16, # font size
     'lw':1.5, # line width for the plotted spectrum
     'axwidth':1.5, # axis width 
     'simlabels':False, # show labels isotope for patterns
-    'bw':2, # bar width for isotope patterns
+    'bw':'auto', # bar width for isotope patterns (auto does 2*fwhm)
     'specfont':'Arial', # the font for text in the plot
     'size':[7.87,4.87], # size in inches for the figure
     'dpiout':300, # dpi for the output figure
@@ -357,7 +397,7 @@ def plotms(realspec,simdict={},**kwargs):
     
     settings.update(kwargs) # update settings from keyword arguments
     
-    res = resolution(realspec[0],realspec[1]) # calculate resolution
+    res = autoresolution(realspec[0],realspec[1]) # calculate resolution
     
     simdict = checksimdict(simdict) # checks the simulation dictionary
     for species in simdict: # generate Molecule object and set x and y lists
@@ -371,7 +411,7 @@ def plotms(realspec,simdict={},**kwargs):
         
     if settings['mz'] == 'auto': # automatically determine m/z range
         if settings['verbose'] is True:
-            sys.stdout.write('Automatically determining m/z window: ')
+            sys.stdout.write('Automatically determining m/z window')
         mz = [10000000,0]
         for species in simdict:
             simdict[species]['bounds'] = simdict[species]['mol'].bounds() # calculate bounds
@@ -383,30 +423,25 @@ def plotms(realspec,simdict={},**kwargs):
             mz = [min(realspec[0]),max(realspec[0])]
         settings['mz'] = mz
         if settings['verbose'] is True:
-            sys.stdout.write('%i - %i\n' %(int(mz[0]),int(mz[1])))
+            sys.stdout.write(': %i - %i\n' %(int(mz[0]),int(mz[1])))
             sys.stdout.flush()
     
-    realspec[0],realspec[1] = trimspectrum(realspec[0],realspec[1],settings['mz'][0],settings['mz'][1]) # trim real spectrum for efficiency
+    realspec[0],realspec[1] = trimspectrum(realspec[0],realspec[1],settings['mz'][0]-1,settings['mz'][1]+1) # trim real spectrum for efficiency
     
     if settings['norm'] is True: # normalize spectrum
         realspec[1] = normalize(realspec[1],100.)
-    
-    if settings['delta'] is True:
-        settings['delta'] = [[],[]]
     
     for species in simdict: # normalize simulations
         if settings['simnorm'] == 'spec': # normalize to maximum around exact mass
             simdict[species]['y'] = normalize(simdict[species]['y'],localmax(realspec[0],realspec[1],simdict[species]['mol'].em,simdict[species]['mol'].fwhm))
         elif settings['simnorm'] == 'top': # normalize to top of the y value
+            if settings['maxy'] == 'max':
+                raise ValueError('Simulations con only be normalized to the top of the spectrum when the maxy setting is a specific value')
             simdict[species]['y'] = normalize(simdict[species]['y'],settings['maxy'])
         elif type(settings['simnorm']) is int or type(settings['simnorm']) is float: # normalize to specified value
             simdict[species]['y'] = normalize(simdict[species]['y'],settings['simnorm'])
-        if settings['delta'] is not False:
-            settings['delta'][0].append(simdict[species]['mol'].em - estimatedem(realspec[0],realspec[1],simdict[species]['mol'].em,simdict[species]['mol'].fwhm))
-            settings['delta'][1].append(abs(settings['delta'][0][-1])) # append absolute value for magnitude comparison
-    
-    if settings['delta'] is not False: # find minimum distance and set delta to that
-        settings['delta'] = settings['delta'][0][settings['delta'][1].index(min(settings['delta'][1]))]
+        if settings['delta'] is True:
+            simdict[species]['delta'] = simdict[species]['mol'].em - estimatedem(realspec[0],realspec[1],simdict[species]['mol'].em,min(simdict[species]['x']),max(simdict[species]['x']))
     
     pl.clf() # clear and close figure if open
     pl.close()
@@ -416,9 +451,9 @@ def plotms(realspec,simdict={},**kwargs):
     ax.spines["right"].set_visible(False) #hide right and top spines
     ax.spines["top"].set_visible(False)
     
-    if settings['axshow'][0] is False: 
+    if settings['showx'] is False: 
         ax.spines["bottom"].set_visible(False) # hide bottom axis
-    if settings['axshow'][1] is False:
+    if settings['showy'] is False:
         ax.spines["left"].set_visible(False) # hide left axis
     
     for axis in ["top","bottom","left","right"]:
@@ -451,55 +486,69 @@ def plotms(realspec,simdict={},**kwargs):
                     if ins > 0 and ins < len(simdict[subsp]['x']): # if species highest m/z is inside subsp list
                         for i in range(ins): # add intensity of species to subsp zeros
                             simdict[subsp]['zero'][i] += simdict[species]['y'][-ins+i]
-    if settings['res'] is True: #include resolution if specified
-        ax.text(mz[1],top,'resolution: '+str(round(res))[:-2],horizontalalignment='right',**font)
-    if settings['delta'] is not False: #display mass delta if specified
-        ax.text(mz[1],top*0.9,'mass delta: '+str(round(settings['delta'],3)),horizontalalignment='right',**font)
+    if settings['res'] is True and settings['spectype'] != 'centroid': #include resolution if specified (and spectrum is not centroid)
+        ax.text(mz[1],top*0.95,'resolution: '+str(round(res))[:-2],horizontalalignment='right',**font)
     
     for species in simdict: # plot and label bars
         if settings['simtype'] == 'bar':
-            ax.bar(simdict[species]['x'], simdict[species]['y'], simdict[species]['mol'].fwhm*settings['bw'], alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=0, align='center',bottom=simdict[species]['zero'])
+            if settings['bw'] == 'auto':
+                bw = simdict[species]['mol'].fwhm*2
+            else:
+                bw = settings['bw']
+            ax.bar(simdict[species]['x'], simdict[species]['y'], bw, alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=0, align='center',bottom=simdict[species]['zero'])
         elif settings['simtype'] == 'gaussian':
             ax.plot(simdict[species]['x'], simdict[species]['y'], alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=settings['lw'])
             ax.fill(simdict[species]['x'], simdict[species]['y'], alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=0)
-        if settings['simlabels'] is True: # if labels are to be shown
+        if settings['simlabels'] is True or settings['stats'] is True or settings['delta'] is True: # if any labels are to be shown
+            string = ''
             bpi = simdict[species]['y'].index(max(simdict[species]['y'])) # index of base peak
-            if settings['stats'] is True:
-                simdict[species]['SER'] = simdict[species]['mol'].compare(realspec)
-                ax.text(simdict[species]['x'][bpi],top*(1.01),'%s SER: %.2f'%(species,simdict[species]['SER']), color = simdict[species]['colour'].mpl, horizontalalignment='center', **font)
-            else:
-                ax.text(simdict[species]['x'][bpi],top*(1.01),species, color = simdict[species]['colour'].mpl, horizontalalignment='center', **font)
+            if settings['simlabels'] is True: # species name
+                string += species
+                if settings['stats'] is True or settings['delta'] is True: # add return if SER or delta is called for
+                    string += '\n'
+            if settings['stats'] is True: # standard error of regression
+                string += 'SER: %.2f ' %simdict[species]['mol'].compare(realspec)
+            if settings['delta'] is True: # mass delta
+                string += 'mass delta: %.3f' %simdict[species]['delta']
+            ax.text(simdict[species]['x'][bpi],top*(1.01),string, color = simdict[species]['colour'].mpl, horizontalalignment='center', **font)
     
     if settings['spectype'] == 'continuum':
         ax.plot(realspec[0], realspec[1], linewidth=settings['lw'], color=Colour(settings['speccolour']).mpl)
     elif settings['spectype'] == 'centroid':
-        ax.bar(realspec[0], realspec[1], 1.0, linewidth=0, color=Colour(settings['speccolour']).mpl, align='center')
+        dist = []
+        for ind,val in enumerate(realspec[0]): # find distance between all adjacent m/z values
+            if ind == 0:
+                continue
+            dist.append(realspec[0][ind]-realspec[0][ind-1])
+        dist = sum(dist)/len(dist) # average distance
+        ax.bar(realspec[0], realspec[1], dist*0.75, linewidth=0, color=Colour(settings['speccolour']).mpl, align='center', alpha=0.8)
 
     # show or hide axis values/labels as specified
-    if settings['axvalues'][1] is False: # y tick marks and values
+    if settings['yvalues'] is False: # y tick marks and values
         ax.tick_params(axis='y', labelleft='off',length=0)
-    if settings['axvalues'][1] is True: # y value labels
+    if settings['yvalues'] is True: # y value labels
         ax.tick_params(axis='y', length=settings['axwidth']*3, width=settings['axwidth'], direction='out',right='off')
         for label in ax.get_yticklabels():
             label.set_fontproperties(tickfont)
-    if settings['axlabels'][1] is True: # y unit
+    if settings['ylabel'] is True: # y unit
         if top == 100: # normalized
             ax.set_ylabel('relative intensity', **font)
         else: # set to counts
             ax.set_ylabel('intensity (counts)', **font)
             
-    if settings['axvalues'][0] is False:  # x tick marks and values
+    if settings['xvalues'] is False:  # x tick marks and values
         ax.tick_params(axis='x', labelbottom='off',length=0)
-    if settings['axvalues'][0] is True: # x value labels
+    if settings['xvalues'] is True: # x value labels
         ax.tick_params(axis='x', length=settings['axwidth']*3, width=settings['axwidth'] ,direction='out',top = 'off')
         for label in ax.get_xticklabels():
             label.set_fontproperties(tickfont) 
-    if settings['axlabels'][0] is True: # x unit
+    if settings['xlabel'] is True: # x unit
         ax.set_xlabel('m/z', style='italic', **font)
     
     if settings['padding'] == 'auto':
         pl.tight_layout(pad=0.5) # adjust subplots
-        pl.subplots_adjust(top = 0.95)
+        if settings['simlabels'] is True or settings['stats'] is True or settings['delta'] is True: 
+            pl.subplots_adjust(top = 0.90) # lower top if details are called for
     elif type(settings['padding']) is list and len(settings['padding']) == 4:
         pl.subplots_adjust(left=settings['padding'][0], right=settings['padding'][1], bottom=settings['padding'][2], top=settings['padding'][3])
     
@@ -510,39 +559,10 @@ def plotms(realspec,simdict={},**kwargs):
         outname = settings['outname'] + outname + '.' + settings['exten']
         pl.savefig(outname, dpi=settings['dpiout'], format=settings['exten'], transparent=True)
         if settings['verbose'] is True:
-            sys.stdout.write('Saved figure as \n"%s"\nin the working directory' %outname)
+            sys.stdout.write('Saved figure as:\n"%s"\nin the working directory' %outname)
     
-    if settings['output'] == 'show': # show figure
+    elif settings['output'] == 'show': # show figure
         pl.show()
-
-def resolution(x,y,index=None):
-    """
-    Finds the resolution and full width at half max of a spectrum
-    x: list of mz values
-    y: corresponding list of intensity values
-    index: index of maximum intensity (optional; used if the resolution of a specific peak is desired)
-    
-    returns resolution
-    """
-    import scipy as sp
-    y = sp.asarray(y) # convert to array for efficiency
-    if index is None: # find index and value of maximum
-        maxy = max(y)
-        index = sp.where(y==maxy)[0][0]
-    else:
-        maxy = y[index]
-    halfmax = maxy/2
-    indleft = int(index)-1 # generate index counters for left and right walking
-    indright = int(index)+1
-    while y[indleft] > halfmax: # while intensity is still above halfmax
-        #if y[indleft] > y[indleft]+1: # if intensity start increasing (half max was not reached)
-        #    raise ValueError('Half max for the left side of the peak could not be determined')
-        indleft -= 1
-    while y[indright] > halfmax:
-        #if y[indright] > y[indright]-1:
-        #    raise ValueError('Half max for the right side of the peak could not be determined')
-        indright += 1
-    return x[index]/(x[indright]-x[indleft]) # return resolution (mz over full width at half max)
 
 def sigmafwhm(res,em):
     """
