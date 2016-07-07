@@ -30,9 +30,17 @@ new:
     rewrote pull functions to use the consolidated methods
     elaborated output of auto resolution to give progress
     ---2.0---
+    added function to determine the units of a spectrum or chromatogram
+    modified cvparam function to return a dictionary of all attributes for each cvparam
+    added subfuction to binarytostring which determines the unpack format from the accession codes of the binary string
+    rewrote decode
+    ---2.1
 
 to add:
-    update pullspeciesdata docstring to better represent the newest version of the supplied dictionary
+    fix handling of compressed mzml files
+    identify spectrometer in softwareList
+    write pullspectrum function (to pull a single scan)
+    change all name keys to accession keys to eliminate the chance of mistakes?
 """
 
 class mzML(object):
@@ -48,6 +56,7 @@ class mzML(object):
         self.b64 = __import__('base64')
         self.st = __import__('struct')
         self.bisect = __import__('bisect')
+        self.zlib = __import__('zlib')
         self.bl = self.bisect.bisect_left # for convenience of calls
         self.br = self.bisect.bisect_right
         if self.v is True:
@@ -183,22 +192,8 @@ class mzML(object):
         res = [y for y in res if y is not None] # removes None values (below S/N)
         return sum(res)/len(res) # return average
         
-    def binarytolist(self,spectrum):
+    def binarytolist(self,spectrum,p=None):
         """pulls and converts binary data to list"""
-        def decode(line,extension='.mzML'):
-            """
-            decodes base32 strings contained in mzML files
-            Currently only functions with 32-bit precision
-            """
-            decoded = self.b64.decodestring(line) #decodes base64 string 
-            unpack_format = "<%dL" % speclen # little-endian, number of values, unsigned long
-            values = [] 
-            for tmp in self.st.unpack(unpack_format,decoded):
-                tmp_i = self.st.pack("I",tmp) #pack as unsigned integer I
-                tmp_f = self.st.unpack("f",tmp_i)[0] #unpack as float f
-                values.append(float(tmp_f))
-            return values
-        
         def gettext(nodelist):
             """gets text from a simple XML object"""
             rc = []
@@ -207,11 +202,37 @@ class mzML(object):
                     rc.append(node.data)
             return ''.join(rc)
         
+        def decodeformat(p,speclen):
+            """determines the decode format from the accession parameter"""
+            formats = {
+            'MS:1000519':['<','i'], # signed 32-bit little-endian integer
+            #'MS:1000520':['',''], # OBSOLETE Signed 16-bit float
+            'MS:1000521':['<','f'], # 32-bit precision little-endian floating point conforming to IEEE-754
+            'MS:1000522':['<','l'], # Signed 64-bit little-endian integer
+            'MS:1000523':['<','d'], # 64-bit precision little-endian floating point conforming to IEEE-754.
+            }
+            for key in p:
+                if p[key]['accession'] in formats:
+                    return formats[p[key]['accession']][0]+str(speclen)+formats[p[key]['accession']][1]
+            
+        if p == None: # pull cvparam if not supplied
+            p = self.cvparam(spectrum)
         speclen = int(spectrum.getAttribute('defaultArrayLength')) # spectrum length (defined in the spectrum attricubes)
-        B32 = []
-        for binary in spectrum.getElementsByTagName('binaryDataArray'): # pull both binary strings
-            B32.append(gettext(binary.getElementsByTagName('binary')[0].childNodes))
-        return [decode(B32[0]),decode(B32[1])] # return decoded binary data
+        if p.has_key('zlib compression') is True: # determine whether the spectrum is compressed
+            raise IOError('Compressed mzML files are not currently supported by this script, please provide an uncompressed file.')
+            compressed = True
+        else:
+            compressed = False
+        unpack_format = decodeformat(p,speclen) # determine unpack format
+        out = []
+        for binary in spectrum.getElementsByTagName('binaryDataArray'):
+            string = gettext(binary.getElementsByTagName('binary')[0].childNodes) # pull the binary string
+            if compressed is True:
+                ########### fix compression handling
+                string = self.zlib.decompress(string,len(string))
+            decoded = self.b64.decodestring(string) # decode the string
+            out.append(list(self.st.unpack(unpack_format,decoded))) # unpack the string
+        return out
     
     def checkforfile(self,fn):
         """checks for file and converts if necessary"""
@@ -237,19 +258,14 @@ class mzML(object):
             return fn
     
     def cvparam(self,branch):
-        """
-        retrieves the values of each cvParam in the branch
-        
-        # there is currently no need to retrieve all attributes of the cvParams,
-        # but they can be extracted in dictionary format
+        """retrieves the values of each cvParam in the branch"""
+        out = {}
+        #for cvParam in branch.getElementsByTagName('cvParam'):
+        #    out[cvParam.getAttribute('name')] = self.stringtodigit(cvParam.getAttribute('value'))
         for cvParam in branch.getElementsByTagName('cvParam'):
             out[cvParam.getAttribute('name')] = {}
             for attribute,value in cvParam.attributes.items():
                 out[cvParam.getAttribute('name')][attribute] = value
-        """
-        out = {}
-        for cvParam in branch.getElementsByTagName('cvParam'):
-            out[cvParam.getAttribute('name')] = self.stringtodigit(cvParam.getAttribute('value'))
         return out
     
     def filepresent(self,fn,ty='file'):
@@ -283,6 +299,8 @@ class mzML(object):
                     return fn+oopsr[key]
         if self.filepresent(fn+'.mzml') is True: # tries to add the extension
             return fn+'.mzml'
+        if self.filepresent(fn+'.raw','dir') is True:
+            return fn+'.raw'
         raise IOError('The file "%s" could not be located in the current working directory'%(fn)) # if it can't be found, raise IOError
     
     def integ(self,name,start,end,x,y):
@@ -322,11 +340,12 @@ class mzML(object):
         chroms = {} #dictionary of chromatograms
         for chromatogramList in self.tree.getElementsByTagName('chromatogramList'):
             for chromatogram in chromatogramList.getElementsByTagName('chromatogram'):
-                attr = self.attributes(chromatogram)
+                attr = self.attributes(chromatogram) # pull attributes
+                p = self.cvparam(chromatogram) # pull parameters
                 if self.v is True:
                     self.sys.stdout.write('\rExtracting chromatogram #%s/%i  %.1f%%' %(attr['index']+1,self.nchroms,float(attr['index']+1)/float(self.nchroms)*100.))
                     self.sys.stdout.flush()
-                x,y = self.binarytolist(chromatogram)
+                x,y = self.binarytolist(chromatogram,p)
                 """
                 currently the x and y units are hard-coded (there is no easy way to tell which cvParam corresponds to which spectrum)
                 since no chromatograms seem to have units other than these, it should provide no problems, but it could be changed in the following line
@@ -372,9 +391,9 @@ class mzML(object):
                         rtime[modekey] = []
                     if TIC.has_key(modekey) is False:
                         TIC[modekey] = []
-                    TIC[modekey].append(int(p['total ion current'])) # append TIC
-                    rtime[modekey].append(float(p['scan start time'])) # append scan time
-                    x,y = self.binarytolist(spectrum) # generate spectrum
+                    TIC[modekey].append(int(p['total ion current']['value'])) # append TIC
+                    rtime[modekey].append(float(p['scan start time']['value'])) # append scan time
+                    x,y = self.binarytolist(spectrum,p) # generate spectrum
                     if sumspec is True:
                         spec.addspectrum(x,y)
                     for key in sp: # integrate each peak
@@ -431,10 +450,10 @@ class mzML(object):
                 mode,level = self.scantype(p) # determine the scan type
                 if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
                     if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
-                        x,y = self.binarytolist(spectrum)
+                        x,y = self.binarytolist(spectrum,p)
                         if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
                             x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
-                        speclist[float(p['scan start time'])] = {'x':x,'y':y,'scan':attr['index']}
+                        speclist[float(p['scan start time']['value'])] = {'x':x,'y':y,'scan':attr['index']}
         if mzrange is None: # determine m/z range if not specified
             minx = 1000000.
             maxx = 0.
@@ -469,16 +488,16 @@ class mzML(object):
                     self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
                 mode,level = self.scantype(p)
                 if level >= 2: # if it is a msms spectrum
-                    tic = p['total ion current']
-                    t = p['scan start time']
-                    ce = p['collision energy']
-                    target = p['isolation window target m/z']
-                    lowmz = p['scan window lower limit']
-                    highmz = p['scan window upper limit']
+                    tic = p['total ion current']['value']
+                    t = p['scan start time']['value']
+                    ce = p['collision energy']['value']
+                    target = p['isolation window target m/z']['value']
+                    lowmz = p['scan window lower limit']['value']
+                    highmz = p['scan window upper limit']['value']
                     
                     if limits.has_key(target) is False:
                         limits[target] = [lowmz,highmz]
-                    x,y = self.binarytolist(spectrum)
+                    x,y = self.binarytolist(spectrum,p)
                     if msms.has_key(target) is False:
                         msms[target] = {}
                     msms[target][t] = {'CE':ce,'TIC':tic,'x':list(x),'y':list(y)}
@@ -503,8 +522,8 @@ class mzML(object):
                     self.sys.stdout.write('\rExctracting UV spectrum #%i/%i  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
                 mode,level = self.scantype(p)
                 if mode == 'UV': # if type is UV-Vis
-                    rtime.append(p['scan start time'])
-                    x,y = self.binarytolist(spectrum)
+                    rtime.append(p['scan start time']['value'])
+                    x,y = self.binarytolist(spectrum,p)
                     if uvlambda is None: # if wavelength region has not yet been defined
                         uvlambda = list(x)
                     for ind,val in enumerate(y): # normalize y value by 1 million to bring value into a.u.
@@ -556,7 +575,7 @@ class mzML(object):
         for val in ['c:\\program files\\proteowizard','c:\\program files (x86)\\proteowizard']: #searches for msconvert.exe in expected folders
             locs.extend(find_all('msconvert.exe',val))
                     
-        if len(locs)==0: #exits if script cannot find msconvert.exe
+        if len(locs)==0: # if script cannot find msconvert.exe
             raise IOError('The python script could not find msconvert.exe\nPlease ensure that ProteoWizard is installed in either:\nc:\\program files\\proteowizard\nor\nc:\\program files (x86)\\proteowizard')
         
         if self.v is True:
@@ -580,7 +599,7 @@ class mzML(object):
         if p.has_key('MSn spectrum'): # MSMS spectrum
             MS = True
         if MS is True: # if MS, determine level and mode
-            level = int(p['ms level'])
+            level = int(p['ms level']['value'])
             if p.has_key('negative scan'):
                 mode = '-'
             if p.has_key('positive scan'):
@@ -630,7 +649,13 @@ class mzML(object):
                     self.sys.stdout.write('\rCombining mass spectrum #%i/%i  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
                 if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
                     if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
-                        x,y = self.binarytolist(spectrum)
+                        x,y = self.binarytolist(spectrum,p)
+                        #if attr['index']+1 > 2:
+                            #for i in x:
+                            #    print i
+                            #for i in y:
+                            #    print i
+                            #self.sys.exit('BREAK!')
                         if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
                             x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
                         spec.addspectrum(x,y)
@@ -668,9 +693,43 @@ class mzML(object):
         """trims a spectrum to the left and right bounds"""
         l,r = self.bl(x,left),self.br(x,right) # find indicies
         return x[l:r],y[l:r] # trim spectrum
+    
+    def units(self,p):
+        """
+        takes a cvparam dictionary and determines the x and y units of a given spectrum/chromatogram
+        the most common units are defined here, but all possible units can be found in
+        https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo
+        """
+        xunit = None
+        yunit = None
+        xunits = {
+        'MS:1000040':'m/z',
+        'UO:0000010':'second',
+        'UO:0000031':'minute',
+        'UO:0000018':'nanometer',
+        }
+        yunits = {
+        'MS:1000131':'number of detector counts',
+        'MS:1000132':'percent of base peak',
+        'MS:1000814':'counts per second',
+        'MS:1000905':'percent of base peak times 100',
+        'UO:0000269':'absorbance unit',
+        }
+        for key in p:
+            if p[key].has_key('unitAccession'):
+                if p[key]['unitAccession'] in xunits:
+                    xunit = xunits[p[key]['unitAccession']]
+                elif p[key]['unitAccession'] in yunits:
+                    yunit = yunits[p[key]['unitAccession']]
+                else:
+                    raise ValueError('The unit denoted by unitAccession %s is not defined in the mzML class.\n%s' %(p[key]['unitAccession'],self.units.__doc__))
+        return xunit,yunit
+        
+        
+        
 
 if __name__ == '__main__':
-    filename = 'LY-2015-09-15 06'
+    filename = 'LY-2015-09-15 06 -64 compressed'
     mzml = mzML(filename,verbose=True)
     #from _Spectrum import Spectrum
     #sp = {
