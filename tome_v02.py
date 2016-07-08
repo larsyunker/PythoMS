@@ -318,14 +318,21 @@ def plotms(realspec,simdict={},**kwargs):
         l,r = bl(x,left),br(x,right) # find indicies
         return x[l:r],y[l:r] # trim spectrum
     
-    def estimatedem(x,y,em,simmin,simmax,lookwithin=0.1):
+    def estimatedem(x,y,em,simmin,simmax,lookwithin=1):
         """estimates the exact mass of a peak"""
-        l,r = bl(x,simmin-lookwithin)-1,br(x,simmax+lookwithin)+1 # narrow range to that of the isotope pattern
+        l,r = bl(x,simmin-lookwithin),br(x,simmax+lookwithin) # narrow range to that of the isotope pattern
+        print em
+        print x[l:r]
         locmax = max(y[l:r]) # find local max in that range
         for ind,val in enumerate(y):
             if val == locmax: # if the y-value equals the local max
-                if ind > l and ind < r: # and if the index is in the range (avoids false locations)
+                print x[ind]
+                if ind >= l and ind <= r: # and if the index is in the range (avoids false locations)
                     return x[ind]
+        difleft = abs(em-simmin)
+        difright = abs(em-simmax)
+        print difleft,difright
+        return '>%.1f' %max(difleft,difright) # if no match is found, return maximum difference
     
     def checksimdict(dct):
         """
@@ -441,7 +448,11 @@ def plotms(realspec,simdict={},**kwargs):
         elif type(settings['simnorm']) is int or type(settings['simnorm']) is float: # normalize to specified value
             simdict[species]['y'] = normalize(simdict[species]['y'],settings['simnorm'])
         if settings['delta'] is True:
-            simdict[species]['delta'] = simdict[species]['mol'].em - estimatedem(realspec[0],realspec[1],simdict[species]['mol'].em,min(simdict[species]['x']),max(simdict[species]['x']))
+            est = estimatedem(realspec[0],realspec[1],simdict[species]['mol'].em,min(simdict[species]['x']),max(simdict[species]['x'])) # try to calculate exact mass
+            if type(est) is float:
+                simdict[species]['delta'] = simdict[species]['mol'].em - est
+            else:
+                simdict[species]['delta'] = est
     
     pl.clf() # clear and close figure if open
     pl.close()
@@ -509,7 +520,11 @@ def plotms(realspec,simdict={},**kwargs):
             if settings['stats'] is True: # standard error of regression
                 string += 'SER: %.2f ' %simdict[species]['mol'].compare(realspec)
             if settings['delta'] is True: # mass delta
-                string += 'mass delta: %.3f' %simdict[species]['delta']
+                string += 'mass delta: '
+                if type(simdict[species]['delta']) is float:
+                    string += '%.3f' %simdict[species]['delta']
+                else:
+                    string += '%s' %simdict[species]['delta']
             ax.text(simdict[species]['x'][bpi],top*(1.01),string, color = simdict[species]['colour'].mpl, horizontalalignment='center', **font)
     
     if settings['spectype'] == 'continuum':

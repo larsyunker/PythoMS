@@ -29,13 +29,13 @@ spectrum = 'Zr'
 skiplines = 0
 
 # sheet name in the excel file (if this is not specified, the script will use the first sheet in the file)
-#sheetname = 'Cp2ZrMe'
+#sheetname = 'Cp2ZrCl'
 
 # provide species to be simulated in dictionary format
 # 'molecular formula':{'colour': ... ,'alpha':0-1}
 # colour can be (R,G,B), (C,M,Y,K), or 'hex'
 simdict = {
-'Cp2ZrMe2':{'colour':(0,0,255),'alpha':0.5}
+'Cp2ZrCl':{'colour':(0,0,255),'alpha':0.5}
 }
 
 # choose a figure type for auto settings
@@ -205,7 +205,7 @@ if __name__ == '__main__':
         sname = xlfile.wb.get_sheet_names()[0]
     
     keywords = presets(setting) # pull preset
-    keywords.update({'outname':xlfile.bookname[:-5]}) # set default output filename
+    keywords.update({'outname':xlfile.bookname[:-5]+' ('+sname+')'}) # set default output filename
     keywords.update(override) # apply any user overrides
     
     exp = xlfile.pullspectrum(sname,skiplines=skiplines)[0] # load spectrum from first sheet in workbook
