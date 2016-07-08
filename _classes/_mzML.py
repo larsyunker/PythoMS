@@ -33,8 +33,13 @@ new:
     added function to determine the units of a spectrum or chromatogram
     modified cvparam function to return a dictionary of all attributes for each cvparam
     added subfuction to binarytostring which determines the unpack format from the accession codes of the binary string
-    rewrote decode
-    ---2.1
+    ---2.1---
+    rewrote binarytolist to determine the decode format of each binary line (apparently they can be different)
+    incorporated decode function into binarytolist (it was unecessary to have a distinct function to do this)
+    added support for gzipped and compressed binary mzML files
+    pwconvert now creates a gzipped 64-bit binary mzML file (substantially reduces size on disk of mzML file)
+    ---2.2---
+    ---2.3
 
 to add:
     fix handling of compressed mzml files
@@ -50,8 +55,8 @@ class mzML(object):
         """
         self.v = verbose
         self.sys = __import__('sys')
-        import os
-        self.sys.path.append(os.path.dirname(os.path.realpath(__file__)))
+        self.os = __import__('os')
+        self.sys.path.append(self.os.path.dirname(self.os.path.realpath(__file__)))
         self.filename = self.checkforfile(filename)
         self.b64 = __import__('base64')
         self.st = __import__('struct')
@@ -62,12 +67,16 @@ class mzML(object):
         if self.v is True:
             self.sys.stdout.write('Loading %s into memory' %self.filename)
             self.sys.stdout.flush()
+        if self.filename.lower().endswith('.mzml.gz'): # if mzml is gzipped
+            import gzip
+            handle = gzip.open(self.filename) # unzip the file
+        else:
+            handle = self.filename
         import xml.dom.minidom
         try:
-            self.tree = xml.dom.minidom.parse(self.filename) # full mzML file
+            self.tree = xml.dom.minidom.parse(handle) # full mzML file
         except:
             raise IOError('The mzML file "%s" could not be loaded. The file is either corrupt or incomplete.' %self.filename)
-        self.BE = self.BoundsError() # load warning instance for integration
         self.nscans,self.nchroms = self.numberofthings() # find number of scans and number of chromatograms
         if self.v is True:
             self.sys.stdout.write(' DONE\n')
@@ -192,7 +201,7 @@ class mzML(object):
         res = [y for y in res if y is not None] # removes None values (below S/N)
         return sum(res)/len(res) # return average
         
-    def binarytolist(self,spectrum,p=None):
+    def binarytolist(self,spectrum):
         """pulls and converts binary data to list"""
         def gettext(nodelist):
             """gets text from a simple XML object"""
@@ -215,53 +224,42 @@ class mzML(object):
                 if p[key]['accession'] in formats:
                     return formats[p[key]['accession']][0]+str(speclen)+formats[p[key]['accession']][1]
             
-        if p == None: # pull cvparam if not supplied
-            p = self.cvparam(spectrum)
         speclen = int(spectrum.getAttribute('defaultArrayLength')) # spectrum length (defined in the spectrum attricubes)
-        if p.has_key('zlib compression') is True: # determine whether the spectrum is compressed
-            raise IOError('Compressed mzML files are not currently supported by this script, please provide an uncompressed file.')
-            compressed = True
-        else:
-            compressed = False
-        unpack_format = decodeformat(p,speclen) # determine unpack format
         out = []
         for binary in spectrum.getElementsByTagName('binaryDataArray'):
+            p = self.cvparam(binary) # grab cvparameters
+            if p.has_key('zlib compression') is True: # determine whether the spectrum is compressed
+                compressed = True
+            else:
+                compressed = False
+            unpack_format = decodeformat(p,speclen) # determine unpack format
             string = gettext(binary.getElementsByTagName('binary')[0].childNodes) # pull the binary string
-            if compressed is True:
-                ########### fix compression handling
-                string = self.zlib.decompress(string,len(string))
             decoded = self.b64.decodestring(string) # decode the string
+            if compressed is True: # if the string is compressed, decompress
+                decoded = self.zlib.decompress(decoded)
             out.append(list(self.st.unpack(unpack_format,decoded))) # unpack the string
         return out
     
     def checkforfile(self,fn):
         """checks for file and converts if necessary"""
-        if fn.endswith('.raw') is True:
-            if self.filepresent(fn[:-4]+'.mzML') is False:
-                if self.filepresent(fn,'dir') is True:
-                    self.pwconvert(fn)
-                    return fn[:-4]+'.mzML'
-                else:
-                    raise IOError('The raw file "%s" is not in the current working directory. Please check your input' %fn)
-            else:
-                return fn[:-4]+'.mzML'
-        elif fn.lower().endswith('.mzml') is True:
-            if self.filepresent(fn) is True:
+        if self.filepresent(fn) is True:
+            if fn.lower().endswith('.raw') is True:
+                if self.filepresent(fn[:-4]+'.mzML') is False:
+                    if self.filepresent(fn,'dir') is True:
+                        return self.pwconvert(fn)
+            elif fn.lower().endswith('.mzml') is True:
                 return fn
             else:
-                raise IOError('The mzML file "%s" is not in the current working directory. Please check your input' %fn)
+                raise IOError('The supplied filename "%s" is not an *.mzML file.' %fn)
         else:
             fn = self.fixextension(fn)
-            if fn.endswith('.raw') is True:
-                self.pwconvert(fn)
-                return fn[:-4]+'.mzML'
+            if fn.lower().endswith('.raw') is True:
+                return self.pwconvert(fn)
             return fn
-    
+            
     def cvparam(self,branch):
         """retrieves the values of each cvParam in the branch"""
         out = {}
-        #for cvParam in branch.getElementsByTagName('cvParam'):
-        #    out[cvParam.getAttribute('name')] = self.stringtodigit(cvParam.getAttribute('value'))
         for cvParam in branch.getElementsByTagName('cvParam'):
             out[cvParam.getAttribute('name')] = {}
             for attribute,value in cvParam.attributes.items():
@@ -273,14 +271,13 @@ class mzML(object):
         checks for the presence of the specified file or directory in the current working directory
         ty specifies the type of thing to look for "file" for file or "dir" for directory
         """
-        import os
         if ty == 'file':
-            if os.path.isfile(fn) == False:
+            if self.os.path.isfile(fn) == False:
                 return False
             else:
                 return True
         if ty == 'dir':
-            if os.path.isdir(fn) == False:
+            if self.os.path.isdir(fn) == False:
                 return False
             else:
                 return True
@@ -289,6 +286,16 @@ class mzML(object):
         """tries to fix invalid file extensions"""
         oopsx = {'.mzm':'l','.mz':'ml','.m':'zml','.':'mzml'} # incomplete mzml extensions
         oopsr = {'.ra':'w','.r':'aw','.':'raw'} # incomplete raw extionsions
+        oopsg = {'.mzml.g':'z','.mzml.':'gz','.mzml':'.gz','.mzm':'l.gz','.mz':'ml.gz','.m':'zml.gz','.':'mzml.gz'} #incomplete gz extensions
+        # looks for missing extensions first
+        if self.filepresent(fn+'.mzml.gz') is True:
+            return fn+'.mzml.gz'
+        if self.filepresent(fn+'.mzml') is True: 
+            return fn+'.mzml'
+        for key in oopsg: # tries to complete mzml.gz shortenings
+            if fn.lower().endswith(key) is True:
+                if self.filepresent(fn+oopsg[key],'file') is True:
+                    return fn+oopsg[key]
         for key in oopsx: # tries to complete mzml shortenings
             if fn.lower().endswith(key) is True:
                 if self.filepresent(fn+oopsx[key],'file') is True:
@@ -297,9 +304,7 @@ class mzML(object):
             if fn.lower().endswith(key) is True:
                 if self.filepresent(fn+oopsr[key],'dir') is True:
                     return fn+oopsr[key]
-        if self.filepresent(fn+'.mzml') is True: # tries to add the extension
-            return fn+'.mzml'
-        if self.filepresent(fn+'.raw','dir') is True:
+        if self.filepresent(fn+'.raw','dir') is True: # finally looks for raw file
             return fn+'.raw'
         raise IOError('The file "%s" could not be located in the current working directory'%(fn)) # if it can't be found, raise IOError
     
@@ -345,7 +350,7 @@ class mzML(object):
                 if self.v is True:
                     self.sys.stdout.write('\rExtracting chromatogram #%s/%i  %.1f%%' %(attr['index']+1,self.nchroms,float(attr['index']+1)/float(self.nchroms)*100.))
                     self.sys.stdout.flush()
-                x,y = self.binarytolist(chromatogram,p)
+                x,y = self.binarytolist(chromatogram)
                 """
                 currently the x and y units are hard-coded (there is no easy way to tell which cvParam corresponds to which spectrum)
                 since no chromatograms seem to have units other than these, it should provide no problems, but it could be changed in the following line
@@ -377,7 +382,7 @@ class mzML(object):
         if sumspec is True:
             from _Spectrum import Spectrum
             spec = Spectrum(3)
-        
+        self.BE = self.BoundsError() # load warning instance for integration
         for spectrumList in self.tree.getElementsByTagName('spectrumList'):
             for spectrum in spectrumList.getElementsByTagName('spectrum'):
                 attr = self.attributes(spectrum) # get attributes
@@ -393,7 +398,7 @@ class mzML(object):
                         TIC[modekey] = []
                     TIC[modekey].append(int(p['total ion current']['value'])) # append TIC
                     rtime[modekey].append(float(p['scan start time']['value'])) # append scan time
-                    x,y = self.binarytolist(spectrum,p) # generate spectrum
+                    x,y = self.binarytolist(spectrum) # generate spectrum
                     if sumspec is True:
                         spec.addspectrum(x,y)
                     for key in sp: # integrate each peak
@@ -450,7 +455,7 @@ class mzML(object):
                 mode,level = self.scantype(p) # determine the scan type
                 if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
                     if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
-                        x,y = self.binarytolist(spectrum,p)
+                        x,y = self.binarytolist(spectrum)
                         if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
                             x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
                         speclist[float(p['scan start time']['value'])] = {'x':x,'y':y,'scan':attr['index']}
@@ -488,16 +493,16 @@ class mzML(object):
                     self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
                 mode,level = self.scantype(p)
                 if level >= 2: # if it is a msms spectrum
-                    tic = p['total ion current']['value']
-                    t = p['scan start time']['value']
-                    ce = p['collision energy']['value']
-                    target = p['isolation window target m/z']['value']
-                    lowmz = p['scan window lower limit']['value']
-                    highmz = p['scan window upper limit']['value']
+                    tic = float(p['total ion current']['value'])
+                    t = float(p['scan start time']['value'])
+                    ce = float(p['collision energy']['value'])
+                    target = float(p['isolation window target m/z']['value'])
+                    lowmz = float(p['scan window lower limit']['value'])
+                    highmz = float(p['scan window upper limit']['value'])
                     
                     if limits.has_key(target) is False:
                         limits[target] = [lowmz,highmz]
-                    x,y = self.binarytolist(spectrum,p)
+                    x,y = self.binarytolist(spectrum)
                     if msms.has_key(target) is False:
                         msms[target] = {}
                     msms[target][t] = {'CE':ce,'TIC':tic,'x':list(x),'y':list(y)}
@@ -523,7 +528,7 @@ class mzML(object):
                 mode,level = self.scantype(p)
                 if mode == 'UV': # if type is UV-Vis
                     rtime.append(p['scan start time']['value'])
-                    x,y = self.binarytolist(spectrum,p)
+                    x,y = self.binarytolist(spectrum)
                     if uvlambda is None: # if wavelength region has not yet been defined
                         uvlambda = list(x)
                     for ind,val in enumerate(y): # normalize y value by 1 million to bring value into a.u.
@@ -533,7 +538,7 @@ class mzML(object):
             self.sys.stdout.write(' DONE\n')
         return rtime,uvlambda,uvint    
 
-    def pwconvert(self,filename):
+    def pwconvert(self,filename,bit=64,compression=True,gzip=True):
         """
         Runs msconvert.exe from ProteoWizard to convert Waters .RAW format to .mzXML
         which can then be parsed by python.
@@ -561,16 +566,14 @@ class mzML(object):
             
             Module dependancies: os
             """
-            import os
             locations = []
-            for root,dirs,files in os.walk(path):
+            for root,dirs,files in self.os.walk(path):
                 if fname in files:
-                    locations.append(os.path.join(root,fname))                   
+                    locations.append(self.os.path.join(root,fname))                   
             return locations
         
-        import subprocess
         if self.sys.platform != 'win32':
-            raise OSError('The conversion function of the mzML class is limited to Windows operating systems.\nYou can attempt to manually convert to *.mzML using the proteowizard standalone package (32-bit binary encoding precision)')
+            raise OSError('The function that converts to mzML is limited to Windows operating systems.\nYou can manually convert to *.mzML using the proteowizard standalone package and supply that mzML file to this script')
         locs = []
         for val in ['c:\\program files\\proteowizard','c:\\program files (x86)\\proteowizard']: #searches for msconvert.exe in expected folders
             locs.extend(find_all('msconvert.exe',val))
@@ -578,14 +581,31 @@ class mzML(object):
         if len(locs)==0: # if script cannot find msconvert.exe
             raise IOError('The python script could not find msconvert.exe\nPlease ensure that ProteoWizard is installed in either:\nc:\\program files\\proteowizard\nor\nc:\\program files (x86)\\proteowizard')
         
+        outname = filename[:-4]+'.mzML'
+        callstring = locs[-1]+' "'+filename+'" --mzML'
+        if bit == 32 or bit == 64:
+            callstring += ' --'+str(bit)
+        else:
+            raise ValueError('ProteoWizard conversion was called with an invalid bit precision "%s".' %str(bit))
+        
+        if compression is True: # call for compression
+            callstring += ' --zlib'
+        
+        if gzip is True: # call to compress entire mzml
+            callstring += ' --gzip'
+            outname += '.gz'
+        
+        import subprocess
         if self.v is True:
-            self.sys.stdout.write('Generating *.mzML file from *.raw...')
+            callstring += ' --verbose'
+            self.sys.stdout.write('Generating *.mzML file from *.raw')
             self.sys.stdout.flush()
-            subprocess.call(locs[-1]+' "'+filename+'" --mzML --32 -v')
+            subprocess.call(callstring)
             self.sys.stdout.write(' DONE\n')
             self.sys.stdout.flush()  
         else:
-            subprocess.call(locs[-1]+' "'+filename+'" --mzML --32')
+            subprocess.call(callstring)
+        return outname
     
     def scantype(self,hand):
         """determines the scan type of the provided spectrum"""
@@ -649,13 +669,7 @@ class mzML(object):
                     self.sys.stdout.write('\rCombining mass spectrum #%i/%i  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
                 if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
                     if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
-                        x,y = self.binarytolist(spectrum,p)
-                        #if attr['index']+1 > 2:
-                            #for i in x:
-                            #    print i
-                            #for i in y:
-                            #    print i
-                            #self.sys.exit('BREAK!')
+                        x,y = self.binarytolist(spectrum)
                         if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
                             x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
                         spec.addspectrum(x,y)
@@ -725,11 +739,8 @@ class mzML(object):
                     raise ValueError('The unit denoted by unitAccession %s is not defined in the mzML class.\n%s' %(p[key]['unitAccession'],self.units.__doc__))
         return xunit,yunit
         
-        
-        
-
 if __name__ == '__main__':
-    filename = 'LY-2015-09-15 06 -64 compressed'
+    filename = 'LY-2015-09-15 06'
     mzml = mzML(filename,verbose=True)
     #from _Spectrum import Spectrum
     #sp = {
