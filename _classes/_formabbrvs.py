@@ -22,6 +22,7 @@ abbrvs = {
 'Dppe':{'C':26,'H':24,'P':2}, # bis(diphenylphosphino)ethane
 'Dppp':{'C':27,'H':26,'P':2}, # bis(diphenylphosphino)propane
 'L':{'C':18,'H':15,'P':1}, # triphenylphosphine
+'Im+':{'C':11,'H':12,'N':2}, # imidazolium tagged aryl group
 'Me':{'C':1,'H':3}, # methyl
 'Mes':{'C':9,'H':12}, # mesitylene
 'Ph':{'C':6,'H':5}, # phenyl
