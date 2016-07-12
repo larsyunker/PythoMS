@@ -20,6 +20,7 @@ new:
     added function to convert row and column indicies into excel coordinates
     tweaked pullspectrum to warn users of non-numerical values
     ---1.2---
+    user input in save() is now handled by a function
     ---1.3
 
 to add:
@@ -245,14 +246,20 @@ The start value (col#4) is expected to be less than the end value (col#5)
     
     def save(self):
         """commits changes to the workbook"""
+        def version_input(string):
+            """checks the python version and uses the appropriate version of user input"""
+            import sys
+            if sys.version.startswith('2.7'):
+                return raw_input('%s' %string)
+            if sys.version.startswith('3.'):
+                return input('%s' %string)
+            else:
+                raise EnvironmentError('The version_input method encountered an unsupported version of python.')
+        
         try:
             self.wb.save(self.bookname)
         except IOError:
-            import sys
-            if sys.version.startswith('2.7'):
-                raw_input('\nThe excel file could not be written. Please close "%s" and press any key to retry save.' %self.bookname)
-            if sys.version.startswith('3.'):
-                input('\nThe excel file could not be written. Please close "%s" and press any key.' %self.bookname)
+            version_input('\nThe excel file could not be written. Please close "%s" and press any key to retry save.' %self.bookname)
             try:
                 self.wb.save(self.bookname)
             except IOError:
