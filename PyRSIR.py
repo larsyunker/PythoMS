@@ -261,15 +261,13 @@ def pyrsim(filename,xlsx,n):
     # ----------------------------------------------------------
     # -------------------PROGRAM BEGINS-------------------------
     # ----------------------------------------------------------
-    import os
-    sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/_classes')
     global tome_v02,_ScriptTime,_mzML,_Spectrum,_Molecule,_XLSX
     from tome_v02 import bindata
-    from _ScriptTime import ScriptTime
-    from _mzML import mzML
-    from _Spectrum import Spectrum
-    from _Molecule import Molecule
-    from _XLSX import XLSX
+    from _classes._ScriptTime import ScriptTime
+    from _classes._mzML import mzML
+    from _classes._Spectrum import Spectrum
+    from _classes._Molecule import Molecule
+    from _classes._XLSX import XLSX
     
     stime = ScriptTime()
     stime.printstart()

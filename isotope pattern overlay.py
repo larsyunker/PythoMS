@@ -192,10 +192,8 @@ def presets(typ):
         raise KeyError('\nThe specified figure setting "%s" is not defined.\nPlease check your spelling' %setting)
 
 if __name__ == '__main__':
-    import os,sys
-    if os.path.dirname(os.path.realpath(__file__))+'/_classes' not in sys.path:
-        sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/_classes')
-    from _XLSX import XLSX
+    import sys
+    from _classes._XLSX import XLSX
     from tome_v02 import plotms
     xlfile = XLSX(spectrum) # load excel file
     

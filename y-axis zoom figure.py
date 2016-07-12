@@ -10,6 +10,7 @@ new in 003:
     - checks for errors in the excel file (invalid values, blank cells, etc.)
 
 still to add:
+    update to new classes, etc.
     - fix fading (previous lines aren't completely gone)
     - option for having old lines still partially visible?
     - allow definition of figure size and dpi?
@@ -87,35 +88,6 @@ magni = 1
 # -------------------FUNCTION DEFINITIONS-------------------
 # ----------------------------------------------------------
 
-PROF_DATA = {}
-from functools import wraps
-def profile(fn):
-    @wraps(fn)
-    def with_profiling(*args, **kwargs):
-        start_time = time.time()
-
-        ret = fn(*args, **kwargs)
-
-        elapsed_time = time.time() - start_time
-
-        if fn.__name__ not in PROF_DATA:
-            PROF_DATA[fn.__name__] = [0, []]
-        PROF_DATA[fn.__name__][0] += 1
-        PROF_DATA[fn.__name__][1].append(elapsed_time)
-
-        return ret
-
-    return with_profiling
-
-def print_prof_data():
-    for fname, data in PROF_DATA.items():
-        sys.stdout.write('Function %s called %d times. ' % (fname, data[0]))
-        sys.stdout.write('Execution time max: %.3fs, min: %.3fs, average: %.3fs\n' % (max(data[1]), min(data[1]), (sum(data[1])/len(data[1])) ))
-
-def clear_prof_data():
-    global PROF_DATA
-    PROF_DATA = {}
-
 def secondsToStr(t):
     rediv = lambda ll,b : list(divmod(ll[0],b)) + ll[1:]
     return "%d:%02d:%02d.%02d" % tuple(reduce(rediv,[[t*1000,],1000,60,60]))
@@ -178,7 +150,6 @@ def mag(initial,final):
     """
     return float(initial)/float(final)
 
-@profile
 def linmag(vali,magstart,magend,dur):
     """
     funciton for generating a ramp of values that is linear in magnification
@@ -217,7 +188,6 @@ def titlecolor(filename):
     lines.close()
     return names,namecolor,alphaoff
 
-@profile
 def renderplot(ymax,timeslot,frame):
     """
     function for rendering plots
