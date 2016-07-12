@@ -7,16 +7,19 @@ new:
 
 """
 import sys
-from _mzML import mzML
+from _classes._mzML import mzML
 from tome_v02 import binnspectra,bincidspectra
+import matplotlib
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
 
 filename = 'HZ-140516_HOTKEYMSMS 1376 II.raw' # raw or mzml file name
 fillzeros = True # fills spectrum with zeros
 decpl = 1 # number of decimal places to track
-threshold = 20 # threshold intensity value
+threshold = 1 # threshold intensity value
 mzrange=None # mzrange to track
 sr = 'all' # scan range to track
-
+#
 mzml = mzML(filename,verbose=True)
 
 # pull time list, each spectrum at those time points, the scan range, and the mz range
@@ -50,9 +53,9 @@ for each ion:
     yvalues = voltage[ion]
     z values = zvals[ion]
 """
+ContourPlotLV = ""
+for ion in msms:
+    print ion
+    ContourPlotLV = plt.contour(grouped[ion][0][0], voltage[ion], zvals[ion])
 
-
-#for ind,scan in enumerate(grouped):
-#    sys.stdout.write('\rExtracting z values #%d/%d (%.1f%%) ' %(ind+1,len(grouped),float(ind+1)/float(len(grouped))*100.))
-#    zvals.append(scan[1]) # append only the intensities to list
-#sys.stdout.write(' DONE\n')
+#plt.plot(binned[u'1376.30005'][0], binned[u'1376.30005'][1])
