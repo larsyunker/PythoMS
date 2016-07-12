@@ -44,6 +44,7 @@ new:
     fixed checkforfile (several errors and missed catches in the previous version)
     added __getitem__ to sum the specified scans (only sums MS1 spectra)
     class now accepts keyword arguments (only used for calling of pwconvert and verbose currently)
+    reordered keywords to be assigned before referencing
     ---2.3
 
 to add:
@@ -56,16 +57,23 @@ to add:
 class mzML(object):
     def __init__(self,filename,**kwargs):
         """interprets and extracts information from a mzML (mass spectrum) file"""
-        # import required functions
-        self.sys = __import__('sys')
-        self.os = __import__('os')
-        self.sys.path.append(self.os.path.dirname(self.os.path.realpath(__file__)))
+        # check and set keword arguments
         self.ks = { # default keyword arguments
         'verbose': True, # toggle verbose
         'precision': 64, # floating point precision for values (32 or 64)
         'compression':True, # compression of binary strings (can substantially reduce file sizes)
         'gzip': True, # toggle gzip compression of mzml file (reduces file sizes even further
         }
+        if set(kwargs.keys()) - set(self.ks.keys()): # check for invalid keyword arguments
+            string = ''
+            for i in set(kwargs.keys()) - set(self.ks.keys()):
+                string += ` i`
+            raise KeyError('Unsupported keyword argument(s): %s' %string)
+        self.ks.update(kwargs) # update defaules with provided keyword arguments
+        
+        # import required functions
+        self.sys = __import__('sys')
+        self.os = __import__('os')
         self.filename = self.checkforfile(filename)
         self.b64 = __import__('base64')
         self.st = __import__('struct')
@@ -73,16 +81,7 @@ class mzML(object):
         self.zlib = __import__('zlib')
         self.bl = self.bisect.bisect_left # for convenience of calls
         self.br = self.bisect.bisect_right
-        
-        # check and set keword arguments
-        
-        
-        if set(kwargs.keys()) - set(ks.keys()): # check for invalid keyword arguments
-            string = ''
-            for i in set(kwargs.keys()) - set(ks.keys()):
-                string += ` i`
-            raise KeyError('Unsupported keyword argument(s): %s' %string)
-        self.ks.update(kwargs) # update defaules with provided keyword arguments
+        #self.sys.path.append(self.os.path.dirname(self.os.path.realpath(__file__))) # unsure if this will be needed
         
         # load file and determine key properties
         if self.ks['verbose'] is True:
