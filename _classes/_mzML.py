@@ -60,6 +60,12 @@ class mzML(object):
         self.sys = __import__('sys')
         self.os = __import__('os')
         self.sys.path.append(self.os.path.dirname(self.os.path.realpath(__file__)))
+        self.ks = { # default keyword arguments
+        'verbose': True, # toggle verbose
+        'precision': 64, # floating point precision for values (32 or 64)
+        'compression':True, # compression of binary strings (can substantially reduce file sizes)
+        'gzip': True, # toggle gzip compression of mzml file (reduces file sizes even further
+        }
         self.filename = self.checkforfile(filename)
         self.b64 = __import__('base64')
         self.st = __import__('struct')
@@ -69,12 +75,8 @@ class mzML(object):
         self.br = self.bisect.bisect_right
         
         # check and set keword arguments
-        ks = { # default keyword arguments
-        'verbose': True, # toggle verbose
-        'precision': 64, # floating point precision for values (32 or 64)
-        'compression':True, # compression of binary strings (can substantially reduce file sizes)
-        'gzip': True, # toggle gzip compression of mzml file (reduces file sizes even further
-        }
+        
+        
         if set(kwargs.keys()) - set(ks.keys()): # check for invalid keyword arguments
             string = ''
             for i in set(kwargs.keys()) - set(ks.keys()):
@@ -241,6 +243,7 @@ class mzML(object):
         return sum(res)/len(res) # return average
         
     def checkforfile(self,fn):
+        print self.ks['verbose']
         """checks for file and converts if necessary"""
         def version_input(string):
             """checks the python version and uses the appropriate version of user input"""
