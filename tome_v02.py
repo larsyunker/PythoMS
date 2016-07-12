@@ -15,7 +15,8 @@ functions:
     normalize (normalizes a list to a given value)
     plotms (plots a mass spectrum)
     sigmafwhm (cacluates sigma and fwhm from a resolution and a mass)
-    strtolist (converts a string to a list)        
+    strtolist (converts a string to a list)  
+    version_input (uses the appropriate user input function depending on the python version)      
 
 changelog:
     created mzML class and moved many functions to work within that class (removed several functions from Tome)
@@ -190,12 +191,13 @@ def bincidspectra(dct,dec=3,startmz=50.,endmz=2000.,threshold=0,fillzeros=False)
     binned = {}
     for time in dct:
         #sys.stdout.write('\rBinning spectrum by CID value #%i/%i  %.1f%%' %(ind+1,len(lst),float(ind+1)/float(len(lst))*100.))
-        if binned.has_key(dct[time]['CE']) is False: # generate key if not present
+        if binned.has_key(dct[time]['CE']) is False: # generate key and spectrum object if not present
             binned[dct[time]['CE']] = Spectrum(dec,startmz=startmz,endmz=endmz)
-        binned[dct[time]['CE']].addspectrum(dct[time]['x'],dct[time]['y'])
+        else: # otherwise add spectrum
+            binned[dct[time]['CE']].addspectrum(dct[time]['x'],dct[time]['y'])
     
     if threshold > 0 or fillzeros is True: # if manipulation is called for
-        for vol in binned:
+        for vol in binned: # for each voltage
             sys.stdout.write('\rZero filling spectrum for %s eV' %`vol`)
             if threshold > 0:
                 binned[vol].threshold(threshold) # apply threshold
@@ -354,10 +356,9 @@ def plotms(realspec,simdict={},**kwargs):
                 dct[species]['alpha'] = 0.5
         return dct
             
-    import os,sys
-    sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/_classes')
-    from _Colour import Colour
-    from _Molecule import Molecule
+    import sys
+    from _classes._Colour import Colour
+    from _classes._Molecule import Molecule
     from tome_v02 import autoresolution,normalize
     import pylab as pl
     from bisect import bisect_left as bl
@@ -612,3 +613,13 @@ def strtolist(string):
         except ValueError:
             out.append(float(temp))
     return out
+
+def version_input(string):
+    """checks the python version and uses the appropriate version of user input"""
+    import sys
+    if sys.version.startswith('2.7'):
+        return raw_input('%s' %string)
+    if sys.version.startswith('3.'):
+        return input('%s' %string)
+    else:
+        raise EnvironmentError('The version_input method encountered an unsupported version of python.')

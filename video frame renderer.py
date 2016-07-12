@@ -91,13 +91,11 @@ def spectrumtrace(filename,sp,scr='all',n=1,mz='all',inj=0.,save=1):
     save: save every # number of scans
         integer
     """
-    import os,sys
-    sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/_classes')
     from tome_v02 import bindata,binnspectra
-    from _mzML import mzML
-    from _ScriptTime import ScriptTime
-    from _Spectrum import Spectrum
-    from _Colour import Colour
+    from _classes._mzML import mzML
+    from _classes._ScriptTime import ScriptTime
+    from _classes._Spectrum import Spectrum
+    from _classes._Colour import Colour
     from bisect import bisect_left ,bisect_right
     import pylab as pl
     import os,sys

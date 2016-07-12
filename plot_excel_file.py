@@ -26,9 +26,8 @@ spectype = 'continuum'
 #########################################################################################
 # there is no need to modify the rest of the script
 if __name__ == '__main__':
-    import os,sys
-    sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/_classes')
-    from _XLSX import XLSX
+    import sys
+    from _classes._XLSX import XLSX
     from tome_v02 import normalize,plotms
     
     xlfile = XLSX(filename) # load excel file

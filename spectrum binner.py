@@ -30,11 +30,9 @@ def sumspectra(filename,sr='all',excel=None):
         default 'all'
         specify with [start scan,end scan]
     """
-    import os,sys
-    sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/_classes')
-    from _mzML import mzML
-    from _XLSX import XLSX
-    from _ScriptTime import ScriptTime
+    from _classes._mzML import mzML
+    from _classes._XLSX import XLSX
+    from _classes._ScriptTime import ScriptTime
     
     st = ScriptTime()
     st.printstart()
