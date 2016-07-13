@@ -48,6 +48,9 @@ new:
     ---2.3
 
 to add:
+    change cvparam to create accession keys, not name keys
+    create obo file parser if accession number is not defined
+    add plotspectrum call (which would use the tome_v02 plotter)
     identify spectrometer in softwareList
     obtain example files from different manufacturers and validate the script with those
     write pullspectrum function (to pull a single scan)
@@ -81,7 +84,7 @@ class mzML(object):
         self.zlib = __import__('zlib')
         self.bl = self.bisect.bisect_left # for convenience of calls
         self.br = self.bisect.bisect_right
-        #self.sys.path.append(self.os.path.dirname(self.os.path.realpath(__file__))) # unsure if this will be needed
+        self.sys.path.append(self.os.path.dirname(self.os.path.realpath(__file__))) # yes this is needed. don't be stupid.
         
         # load file and determine key properties
         if self.ks['verbose'] is True:
@@ -242,7 +245,6 @@ class mzML(object):
         return sum(res)/len(res) # return average
         
     def checkforfile(self,fn):
-        print self.ks['verbose']
         """checks for file and converts if necessary"""
         def version_input(string):
             """checks the python version and uses the appropriate version of user input"""
@@ -830,7 +832,7 @@ class mzML(object):
                     raise ValueError('The unit denoted by unitAccession %s is not defined in the mzML class.\n%s' %(p[key]['unitAccession'],self.units.__doc__))
         
 if __name__ == '__main__':
-    filename = 'EJ-UVTQ-007-Pd(dba)UV'
+    filename = 'HZ-140516_HOTKEYMSMS 1376 II'
     mzml = mzML(filename,verbose=True)
     #from _Spectrum import Spectrum
     #sp = {
