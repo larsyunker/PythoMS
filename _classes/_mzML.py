@@ -2,70 +2,33 @@
 Class for interpreting and processing mzML files
 
 CHANGELOG:
-
-new:
-    incorporated conversion to mzml into the class
-    moved base64 and struct imports into init
-    added verbose call to class (and moved sys import to init)
-    moved find_all into pwconvert
-    ---1.1---
-    moved bisect import into init (avoided use of arrays because searchsorted is an order of magnitude slower than bisect when floats are involved)
-    removed .mzXML functionality (very outdated)
-    commented, cleaned up, and lower-cased takeClosest
-    added catches for incomplete file extensions
-    changed sys.exit to exceptions in pwconvert
-    created pullmsmsspectra which searches for and pulls spectra with MS level >=2
-    ---1.2---
-    cleaned up and fixed checkforfile (I think most exceptions and eventualities have been accounted for now)
-    added trimspectrum() method
-    added sumscans() method (sums all scans together)
-    ---1.3---
-    changed integrate to warn instead of exception raise in the event that the bounds exceed the m/z range
-    created a BoundsError subclass to handling bounds warnings
-    added number of scans retrieval (used for auto resolution)
-    added automatic resolution calculator
-    ---1.4---
-    created cvparams and attributes methods to pull all parameters and attributes easily
-    consolidated gettext and decode into a single function that pulls binary strings and converts them
-    rewrote pull functions to use the consolidated methods
-    elaborated output of auto resolution to give progress
-    ---2.0---
-    added function to determine the units of a spectrum or chromatogram
-    modified cvparam function to return a dictionary of all attributes for each cvparam
-    added subfuction to binarytostring which determines the unpack format from the accession codes of the binary string
-    ---2.1---
-    rewrote binarytolist to determine the decode format of each binary line (apparently they can be different)
-    incorporated decode function into binarytolist (it was unecessary to have a distinct function to do this)
-    added support for gzipped and compressed binary mzML files
-    pwconvert now creates a gzipped 64-bit binary mzML file (substantially reduces size on disk of mzML file)
-    ---2.2---
     renamed binarytolist to extractspectrum
     incorporated a kwarg into extractspectrum to also return the x and y unit on request
     fixed checkforfile (several errors and missed catches in the previous version)
     added __getitem__ to sum the specified scans (only sums MS1 spectra)
     class now accepts keyword arguments (only used for calling of pwconvert and verbose currently)
     reordered keywords to be assigned before referencing
+    added obo class for loading and parsing an obo file (for accession codes that are not hard coded into the mzml file)
+    
     ---2.3
 
 to add:
-    change cvparam to create accession keys, not name keys
-    create obo file parser if accession number is not defined
+    change cvparam to create accession keys, not name keys (is this actually useful?)
     add plotspectrum call (which would use the tome_v02 plotter)
     identify spectrometer in softwareList
     obtain example files from different manufacturers and validate the script with those
-    write pullspectrum function (to pull a single scan)
-    change all name keys to accession keys to eliminate the chance of mistakes?
 """
 
 class mzML(object):
     def __init__(self,filename,**kwargs):
         """interprets and extracts information from a mzML (mass spectrum) file"""
-        # check and set keword arguments
+        # check and set kewyord arguments
         self.ks = { # default keyword arguments
         'verbose': True, # toggle verbose
         'precision': 64, # floating point precision for values (32 or 64)
         'compression':True, # compression of binary strings (can substantially reduce file sizes)
         'gzip': True, # toggle gzip compression of mzml file (reduces file sizes even further
+        'obo': None, # specific path to an *.obo file or the directory containing one
         }
         if set(kwargs.keys()) - set(self.ks.keys()): # check for invalid keyword arguments
             string = ''
@@ -160,7 +123,144 @@ class mzML(object):
                 self.warned[name] = 1
             else:
                 self.warned[name] += 1
-    
+
+    class obo(object):
+        """
+        locates *.obo files and converts the most recent version into a python dictionary for parsing
+        by default the class will look in the script's directory and the current working directory
+        a path to a directory or to an obo file can also be suppliedS
+        """
+        def __init__(self,lookin=None):
+            self.paths = []
+            self.os = __import__('os')
+            if lookin is not None: # if a path is supplied
+                if self.os.path.isdir(lookin) or self.os.path.isfile(lookin):
+                    self.paths.append(lookin)
+                elif lookin.lower().endswith('.obo'):
+                    if self.os.path.isfile(lookin):
+                        self.paths.append(lookin)
+                else:
+                    raise ValueError('The supplied path to look in "%s" does not exist' %lookin)
+            self.paths.append(self.os.path.realpath(__file__)) # the script's directory
+            self.paths.append(self.os.getcwd()) # current working directory
+            self.obo_path = self.find_obos() # find obo files in the directory
+            self.obo_path,self.ver = self.newest_version() # refine to newest version obo file
+            self.obodict = self.obo_to_dict(self.obo_path)
+            
+        def __str__(self):
+            return '*.obo file version: %s path: %s' %(str(self.ver),self.obo_path)
+        def __repr__(self):
+            return 'obo(%s)'%self.obo_path
+        
+        def __getitem__(self,key):
+            """
+            returns the name of the accession key that is provided
+            more extensive information about the accession key can be obtained by calling obo.print_properties(key)
+            """
+            if isinstance(key,slice):
+                raise ValueError('Slicing of the obo object is not supported')
+            if type(key) != str:
+                raise ValueError('Only accession keys may be retrieved from the obo object')
+            try:
+                return self.obodict[key]['name']
+            except KeyError:
+                raise KeyError('The accession key "%s" is not defined in the obo file.' %key)
+                
+        def find_obos(self):
+            """locates any *.obo files in the specified directory"""
+            locations = []
+            for eachpath in self.paths:
+                for root,dirs,files in self.os.walk(eachpath):
+                    for ind in files:
+                        if ind.endswith('.obo'):
+                            locations.append(self.os.path.join(root,ind))
+            if len(locations) == 0:
+                raise IOError('An *.obo file could not be located in the directory\n%s\nThis file can be obtained from the GitHub psi-ms-CV repository:\nhttps://github.com/HUPO-PSI/psi-ms-CV/blob/master/psi-ms.obo')
+            return locations
+        
+        def newest_version(self):
+            """of the supplied obo file paths, selects the most recent version"""
+            ver = 0.
+            out = ''
+            for loc in self.obo_path:
+                hndl = open(loc,'rt')
+                lines = hndl.readlines()
+                hndl.close()
+                for line in lines:
+                    if line.startswith('format-version:'):
+                        if float(line.split()[1]) > ver:
+                            ver = float(line.split()[1])
+                            out = loc
+                        break
+            return out,ver
+            
+        def obo_to_dict(self,filepath):
+            """converts the *.obo file into a dictionary"""
+            hndl = open(filepath,'rt')
+            lines = hndl.readlines()
+            hndl.close()
+            
+            out = {}
+            for ind,line in enumerate(lines):
+                if line.startswith('[Term]'):
+                    offset = 1 # offset initial state
+                    key = lines[ind+offset][4:-1] # accession ID
+                    out[key] = {}
+                    while lines[ind+offset].startswith('[Term]') is False:
+                        offset += 1
+                        if ind+offset == len(lines):
+                            break
+                        if lines[ind+offset].startswith('name:'): # accession name
+                            out[key]['name'] = lines[ind+offset][6:-1]
+                        elif lines[ind+offset].startswith('def:'): # definition
+                            out[key]['def'] = lines[ind+offset].split('"')[1]
+                        elif lines[ind+offset].startswith('xref:'): # xref (the coder cannot see a particular use for this key
+                            out[key]['xref'] = lines[ind+offset].split('"')[1]
+                        elif lines[ind+offset].startswith('is_a:'): # is a something
+                            if out[key].has_key('is_a') is False:
+                                out[key]['is_a'] = []
+                            out[key]['is_a'].append(lines[ind+offset].split()[1])
+                            if out.has_key(lines[ind+offset].split()[1]) is False: # catches undefined things like UO:0000000 ! unit
+                                out[lines[ind+offset].split()[1]] = {'name':lines[ind+offset].split('!')[1][1:-1]}
+                        elif lines[ind+offset].startswith('relationship:'): # relationship keys
+                            if out[key].has_key('relationship') is False:
+                                out[key]['relationship'] = {}
+                            spl = lines[ind+offset].split()
+                            if out[key]['relationship'].has_key(spl[1]) is False:
+                                out[key]['relationship'][spl[1]] = []
+                            out[key]['relationship'][spl[1]].append(spl[2])
+                        elif lines[ind+offset].startswith('synonym:'): # synonym
+                            if out[key].has_key('synonym') is False:
+                                out[key]['synonym'] = []
+                            out[key]['synonym'].append(lines[ind+offset].split()[1].split('"')[1])
+                        elif lines[ind+offset].startswith('is_obsolete:'): # obsolete
+                            out[key]['obsolete'] = True
+                        # the above keys seemed most pertinent, but additional keys can be coded here
+            return out
+        
+        def print_properties(self,key):
+            """prints detailed properties of the specified accession key"""
+            if self.obodict.has_key(key) is False:
+                raise KeyError('The accession "%s" is not defined in the obo file' %key)
+            import sys
+            sys.stdout.write('Accession: %s\n' %key)
+            sys.stdout.write('Name: %s\n' %self.obodict[key]['name'])
+            if self.obodict[key].has_key('obsolete'):
+                sys.stdout.write('This accession is obsolete.\n')
+            sys.stdout.write('Definition: %s\n' %self.obodict[key]['def'])
+            if self.obodict[key].has_key('is_a') is True:
+                for item in self.obodict[key]['is_a']:
+                    sys.stdout.write('Is a: %s (%s)\n' %(item,self.obodict[item]['name']))
+            if self.obodict[key].has_key('relationship') is True:
+                sys.stdout.write('Relationships:\n')
+                for subkey in self.obodict[key]['relationship']:
+                    for item in self.obodict[key]['relationship'][subkey]:
+                        sys.stdout.write('%s: %s\n' %(subkey,item))
+            if self.obodict[key].has_key('synonym') is True:
+                sys.stdout.write('Synonyms:\n')
+                for item in self.obodict[key]['synonym']:
+                    sys.stdout.write('%s\n' %item)    
+            
     def attributes(self,branch):
         """pulls all attributes of a supplied branch and creates a dictionary of them"""
         out = {}
@@ -829,8 +929,10 @@ class mzML(object):
                 if p[key]['unitAccession'] in unitkeys: # if it is defined, return unit code
                     return unitkeys[p[key]['unitAccession']]
                 else:
-                    raise ValueError('The unit denoted by unitAccession %s is not defined in the mzML class.\n%s' %(p[key]['unitAccession'],self.units.__doc__))
-        
+                    if self.__dict__.has_key('loadedobo') is False:
+                        self.loadedobo = self.obo(self.ks['obo']) # load obo file
+                    return self.loadedobo[p[key]['unitAccession']] # return accession key name as defined in obo file
+                    
 if __name__ == '__main__':
     filename = 'HZ-140516_HOTKEYMSMS 1376 II'
     mzml = mzML(filename,verbose=True)
