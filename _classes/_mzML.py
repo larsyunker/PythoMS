@@ -9,11 +9,17 @@ CHANGELOG:
     class now accepts keyword arguments (only used for calling of pwconvert and verbose currently)
     reordered keywords to be assigned before referencing
     added obo class for loading and parsing an obo file (for accession codes that are not hard coded into the mzml file)
-    
+    cvparam now returns a dictionary of accession keys (not names) to make end user coding easier to specify exactly what they want to retrieve
+    added accession key from name finder to obo (for ease of finding accession key if you know the name)
+    removed loops from numberofthings (loops were unnecessary)
+    updated str and repr outputs
+    removed spectrumList and chromatogramList loops (these were redundant, as looping through the spectrum or chromatogram tags accomplishes the same thing)
+    renamed scantype to spectrumtype (scan implies ms, where it is not necessarily)
+    added _foreachscan and _foreachchrom decorator functions (which will apply the provided function to every scan or chromatogram in the mzml)
     ---2.3
 
 to add:
-    change cvparam to create accession keys, not name keys (is this actually useful?)
+    create cvparam class so that it can interpret either an accession code or name
     add plotspectrum call (which would use the tome_v02 plotter)
     identify spectrometer in softwareList
     obtain example files from different manufacturers and validate the script with those
@@ -69,11 +75,11 @@ class mzML(object):
         
     def __str__(self):
         """The string that is returned when printed"""
-        return "The loaded mzML file is '{}'".format(self.filename)
+        return 'loaded mzML file: "%s" (#spectra: %d, #chromatograms: %d)' %(self.filename, self.nscans, self.nchroms)
     
     def __repr__(self):
         """The representation that is returned"""
-        return "{}('{}')".format(self.__class__.__name__,self.filename)
+        return "%s('%s')" %(self.__class__.__name__,self.filename)
     
     def __getitem__(self,ind):
         """returns the summed scans with the supplied index/indicies"""
@@ -154,17 +160,27 @@ class mzML(object):
         
         def __getitem__(self,key):
             """
-            returns the name of the accession key that is provided
-            more extensive information about the accession key can be obtained by calling obo.print_properties(key)
+            returns the name of the accession key or the accession key that goes with the supplied name that is provided
+            more extensive information about an accession key can be obtained by calling obo.print_properties(key)
             """
             if isinstance(key,slice):
                 raise ValueError('Slicing of the obo object is not supported')
             if type(key) != str:
                 raise ValueError('Only accession keys may be retrieved from the obo object')
             try:
-                return self.obodict[key]['name']
+                return self.obodict[key]['name'] # try to find name of accession key
             except KeyError:
-                raise KeyError('The accession key "%s" is not defined in the obo file.' %key)
+                try:
+                    return self.acc_from_name(key) # try to find accession key from name
+                except KeyError:
+                    raise KeyError('They item "%s" is not defined as an accession key or a name of an accession key in the obo file.' %key)
+        
+        def acc_from_name(self,name):
+            """finds the accession key from the name supplied"""
+            for acc in self.obodict:
+                if self.obodict[acc]['name'] == name:
+                    return acc
+            raise KeyError('No accession key was found matching the supplied name "%s"' %name) 
                 
         def find_obos(self):
             """locates any *.obo files in the specified directory"""
@@ -260,7 +276,45 @@ class mzML(object):
                 sys.stdout.write('Synonyms:\n')
                 for item in self.obodict[key]['synonym']:
                     sys.stdout.write('%s\n' %item)    
-            
+    
+    def _foreachchrom(self,fn):
+        """
+        a decorator function that will apply the supplied function to every chromatogram in the mzml file
+        the supplied function will be handed the chromatogram XML object as the first argument
+        the decorated function will return a list of outputs of the supplied function where each index corresponds to a scan
+        """
+        def foreachchrom(*args,**kwargs):
+            """decorates the supplied function to run for every scan"""
+            out = []
+            for chromatogram in self.tree.getElementsByTagName('chromatogram'):
+                current = int(chromatogram.getAttribute('index'))+1
+                if self.ks['verbose'] is True:
+                    self.sys.stdout.write('\rApplying function "%s" to chromatogram #%d/%d %.1f%%' %(fn.__name__,current,self.chroms,float(current)/float(self.nchroms)*100.))
+                out.append(fn(chromatogram,*args,**kwargs))
+            if self.ks['verbose'] is True:
+                self.sys.stdout.write(' DONE\n')
+            return out
+        return foreachchrom
+    
+    def _foreachscan(self,fn):
+        """
+        a decorator function that will apply the supplied function to every spectrum in the mzml file
+        the supplied function will be handed the spectrum XML object as the first argument
+        the decorated function will return a list of outputs of the supplied function where each index corresponds to a scan
+        """
+        def foreachscan(*args,**kwargs):
+            """decorates the supplied function to run for every scan"""
+            out = []
+            for spectrum in self.tree.getElementsByTagName('spectrum'):
+                current = int(spectrum.getAttribute('index'))+1
+                if self.ks['verbose'] is True:
+                    self.sys.stdout.write('\rApplying function "%s" to scan #%d/%d %.1f%%' %(fn.__name__,current,self.nscans,float(current)/float(self.nscans)*100.))
+                out.append(fn(spectrum,*args,**kwargs))
+            if self.ks['verbose'] is True:
+                self.sys.stdout.write(' DONE\n')
+            return out
+        return foreachscan        
+                            
     def attributes(self,branch):
         """pulls all attributes of a supplied branch and creates a dictionary of them"""
         out = {}
@@ -379,12 +433,16 @@ class mzML(object):
             return fn
             
     def cvparam(self,branch):
-        """retrieves the values of each cvParam in the branch"""
+        """retrieves all the cvParam tags for a given branch
+        returns a dictionary with keys corresponding to accession number
+        each key is a subdictionary with the attributes of the cvParam"""
         out = {}
         for cvParam in branch.getElementsByTagName('cvParam'):
-            out[cvParam.getAttribute('name')] = {}
-            for attribute,value in cvParam.attributes.items():
-                out[cvParam.getAttribute('name')][attribute] = value
+            acc = cvParam.getAttribute('accession') # accession key
+            out[acc] = {}
+            for attribute,value in cvParam.attributes.items(): # pull all the attributes
+                if attribute != 'accession':
+                    out[acc][attribute] = value
         return out
     
     def extractspectrum(self,spectrum,units=False):
@@ -406,9 +464,9 @@ class mzML(object):
             'MS:1000522':['<','l'], # Signed 64-bit little-endian integer
             'MS:1000523':['<','d'], # 64-bit precision little-endian floating point conforming to IEEE-754.
             }
-            for key in p:
-                if p[key]['accession'] in formats:
-                    return formats[p[key]['accession']][0]+str(speclen)+formats[p[key]['accession']][1]
+            for key in p: 
+                if key in formats: # find accession number match
+                    return formats[key][0]+str(speclen)+formats[key][1]
             
         speclen = int(spectrum.getAttribute('defaultArrayLength')) # spectrum length (defined in the spectrum attricubes)
         out = []
@@ -416,7 +474,7 @@ class mzML(object):
             units = []
         for binary in spectrum.getElementsByTagName('binaryDataArray'):
             p = self.cvparam(binary) # grab cvparameters
-            if p.has_key('zlib compression') is True: # determine whether the spectrum is compressed
+            if p.has_key('MS:1000574') is True: # determine whether the binary string is zlib compressed
                 compressed = True
             else:
                 compressed = False
@@ -495,34 +553,26 @@ class mzML(object):
     
     def numberofthings(self):
         """retrieves the number of scans and chromatograms in the file"""
-        nscans = 0
-        nchroms = 0
+        # I'm not sure if the following if statements will ever be true, but they'll break the class if they are
         if len(self.tree.getElementsByTagName('spectrumList')) > 1:
             raise ValueError("There are more than one set of scans, and this script can't handle it.\nGive this file to Lars so he can figure out how to fix it.")
-        for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            if nscans < int(spectrumList.getAttribute('count')):
-                nscans = int(spectrumList.getAttribute('count'))
-        for chromatogramList in self.tree.getElementsByTagName('chromatogramList'):
-            if nchroms < int(chromatogramList.getAttribute('count')):
-                nchroms = int(chromatogramList.getAttribute('count'))
+        if len(self.tree.getElementsByTagName('chromatogramList')) > 1:
+            raise ValueError("There are more than one set of chromatograms, and this script can't handle it.\nGive this file to Lars so he can figure out how to fix it.")
+        nscans = int(self.tree.getElementsByTagName('spectrumList')[0].getAttribute('count')) # number of spectra
+        nchroms = int(self.tree.getElementsByTagName('chromatogramList')[0].getAttribute('count')) # number of chromatograms
         return nscans,nchroms
     
     def pullchromdata(self):
         """Pulls mzML chromatograms"""
         chroms = {} #dictionary of chromatograms
-        for chromatogramList in self.tree.getElementsByTagName('chromatogramList'):
-            for chromatogram in chromatogramList.getElementsByTagName('chromatogram'):
-                attr = self.attributes(chromatogram) # pull attributes
-                p = self.cvparam(chromatogram) # pull parameters
-                if self.ks['verbose'] is True:
-                    self.sys.stdout.write('\rExtracting chromatogram #%s/%i  %.1f%%' %(attr['index']+1,self.nchroms,float(attr['index']+1)/float(self.nchroms)*100.))
-                    self.sys.stdout.flush()
-                x,y,xunit,yunit = self.extractspectrum(chromatogram,units=True)
-                """
-                currently the x and y units are hard-coded (there is no easy way to tell which cvParam corresponds to which spectrum)
-                since no chromatograms seem to have units other than these, it should provide no problems, but it could be changed in the following line
-                """
-                chroms[attr['id']] = {'x':x, 'y':y, 'xunit':xunit, 'yunit':yunit}
+        for chromatogram in self.tree.getElementsByTagName('chromatogram'):
+            attr = self.attributes(chromatogram) # pull attributes
+            p = self.cvparam(chromatogram) # pull parameters
+            if self.ks['verbose'] is True:
+                self.sys.stdout.write('\rExtracting chromatogram #%s/%i  %.1f%%' %(attr['index']+1,self.nchroms,float(attr['index']+1)/float(self.nchroms)*100.))
+                self.sys.stdout.flush()
+            x,y,xunit,yunit = self.extractspectrum(chromatogram,units=True) # extract x list, y list, and units
+            chroms[attr['id']] = {'x':x, 'y':y, 'xunit':xunit, 'yunit':yunit}
         
         if self.ks['verbose'] is True:
             self.sys.stdout.write(' DONE\n')
@@ -550,32 +600,31 @@ class mzML(object):
             from _Spectrum import Spectrum
             spec = Spectrum(3)
         self.BE = self.BoundsError() # load warning instance for integration
-        for spectrumList in self.tree.getElementsByTagName('spectrumList'):
-            for spectrum in spectrumList.getElementsByTagName('spectrum'):
-                attr = self.attributes(spectrum) # get attributes
-                p = self.cvparam(spectrum) # pull parameters of the scan
-                mode,level = self.scantype(p) # determine the scan type
-                if self.ks['verbose'] is True:
-                    self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
-                if mode is not None and level < 2:
-                    modekey = 'raw'+mode # define dictionary key for current scan
-                    if rtime.has_key(modekey) is False: # create dictionary entry if not present
-                        rtime[modekey] = []
-                    if TIC.has_key(modekey) is False:
-                        TIC[modekey] = []
-                    TIC[modekey].append(int(p['total ion current']['value'])) # append TIC
-                    rtime[modekey].append(float(p['scan start time']['value'])) # append scan time
-                    x,y = self.extractspectrum(spectrum) # generate spectrum
-                    if sumspec is True:
-                        spec.addspectrum(x,y)
-                    for key in sp: # integrate each peak
-                        if sp[key]['affin'] == mode: # if species has affinity to this spectrum type
-                            if mode in ['+','-']: # if mass spectrum
-                                sp[key]['raw'].append(self.integ(key,sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)) # integrate
-                                xt,yt = self.trimspectrum(x,y,sp[key]['bounds'][0],sp[key]['bounds'][1]) # trim spectrum
-                                sp[key]['spectrum'].addspectrum(xt,yt) # add spectrum
-                            if mode in ['UV']: # if UV spectrum
-                                sp[key]['raw'].append(self.integ(key,sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)/1000000.) # integrates and divides by 1 million bring it into au
+        for spectrum in self.tree.getElementsByTagName('spectrum'):
+            attr = self.attributes(spectrum) # get attributes
+            p = self.cvparam(spectrum) # pull parameters of the scan
+            mode,level = self.spectrumtype(p) # determine the scan type
+            if self.ks['verbose'] is True:
+                self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
+            if mode is not None and level < 2:
+                modekey = 'raw'+mode # define dictionary key for current scan
+                if rtime.has_key(modekey) is False: # create dictionary entry if not present
+                    rtime[modekey] = []
+                if TIC.has_key(modekey) is False:
+                    TIC[modekey] = []
+                TIC[modekey].append(int(p['MS:1000285']['value'])) # append total ion current value
+                rtime[modekey].append(float(p['MS:1000016']['value'])) # append scan start time
+                x,y = self.extractspectrum(spectrum) # generate spectrum
+                if sumspec is True:
+                    spec.addspectrum(x,y)
+                for key in sp: # integrate each peak
+                    if sp[key]['affin'] == mode: # if species has affinity to this spectrum type
+                        if mode in ['+','-']: # if mass spectrum
+                            sp[key]['raw'].append(self.integ(key,sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)) # integrate
+                            xt,yt = self.trimspectrum(x,y,sp[key]['bounds'][0],sp[key]['bounds'][1]) # trim spectrum
+                            sp[key]['spectrum'].addspectrum(xt,yt) # add spectrum
+                        if mode in ['UV']: # if UV spectrum
+                            sp[key]['raw'].append(self.integ(key,sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)/1000000.) # integrates and divides by 1 million bring it into au
         
         for key in sp: #remove mz/int values in spectrum that are None
             if sp[key]['affin'] in ['+','-']:
@@ -613,19 +662,18 @@ class mzML(object):
             raise ValueError('The scan range is invalid: %d-%d' %(sr[0],sr[1]))
         speclist = {} # dictionary for spectra
         
-        for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                attr = self.attributes(spectrum) # get attributes
-                p = self.cvparam(spectrum) # pull parameters of the scan
-                if self.ks['verbose'] is True and mute is False:
-                    self.sys.stdout.write('\rExtracting mass spectrum #%s (scan range: %d-%d)  %.1f%%' %(attr['index']+1,sr[0],sr[1],(float(attr['index']-sr[0]+1))/(float(sr[1]-sr[0]))*100.))
-                mode,level = self.scantype(p) # determine the scan type
-                if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
-                    if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
-                        x,y = self.extractspectrum(spectrum)
-                        if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
-                            x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
-                        speclist[float(p['scan start time']['value'])] = {'x':x,'y':y,'scan':attr['index']}
+        for spectrum in self.tree.getElementsByTagName('spectrum'): # go through each spectrum
+            attr = self.attributes(spectrum) # get attributes
+            p = self.cvparam(spectrum) # pull parameters of the scan
+            if self.ks['verbose'] is True and mute is False:
+                self.sys.stdout.write('\rExtracting mass spectrum #%s (scan range: %d-%d)  %.1f%%' %(attr['index']+1,sr[0],sr[1],(float(attr['index']-sr[0]+1))/(float(sr[1]-sr[0]))*100.))
+            mode,level = self.spectrumtype(p) # determine the scan type
+            if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
+                if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
+                    x,y = self.extractspectrum(spectrum)
+                    if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
+                        x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
+                    speclist[float(p['MS:1000016']['value'])] = {'x':x,'y':y,'scan':attr['index']} # key by scan start time
         if mzrange is None: # determine m/z range if not specified
             minx = 1000000.
             maxx = 0.
@@ -652,27 +700,26 @@ class mzML(object):
         """
         msms = {}
         limits = {}
-        for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                attr = self.attributes(spectrum)
-                p = self.cvparam(spectrum)
-                if self.ks['verbose'] is True:
-                    self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
-                mode,level = self.scantype(p)
-                if level >= 2: # if it is a msms spectrum
-                    tic = float(p['total ion current']['value'])
-                    t = float(p['scan start time']['value'])
-                    ce = float(p['collision energy']['value'])
-                    target = float(p['isolation window target m/z']['value'])
-                    lowmz = float(p['scan window lower limit']['value'])
-                    highmz = float(p['scan window upper limit']['value'])
-                    
-                    if limits.has_key(target) is False:
-                        limits[target] = [lowmz,highmz]
-                    x,y = self.extractspectrum(spectrum)
-                    if msms.has_key(target) is False:
-                        msms[target] = {}
-                    msms[target][t] = {'CE':ce,'TIC':tic,'x':list(x),'y':list(y)}
+        for spectrum in self.tree.getElementsByTagName('spectrum'): # go through each spectrum
+            attr = self.attributes(spectrum)
+            p = self.cvparam(spectrum)
+            if self.ks['verbose'] is True:
+                self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
+            mode,level = self.spectrumtype(p)
+            if level >= 2: # if it is a msms spectrum
+                tic = float(p['MS:1000285']['value']) # total ion current
+                t = float(p['MS:1000016']['value']) # scan start time
+                ce = float(p['MS:1000045']['value']) # collision energy
+                target = float(p['MS:1000827']['value']) # isolation window target m/z
+                lowmz = float(p['MS:1000501']['value']) # scan window lower limit
+                highmz = float(p['MS:1000500']['value']) # scan window upper limit
+                
+                if limits.has_key(target) is False:
+                    limits[target] = [lowmz,highmz]
+                x,y = self.extractspectrum(spectrum)
+                if msms.has_key(target) is False:
+                    msms[target] = {}
+                msms[target][t] = {'CE':ce,'TIC':tic,'x':list(x),'y':list(y)}
         if self.ks['verbose'] is True:
             self.sys.stdout.write(' DONE\n')
         return msms,limits
@@ -686,21 +733,20 @@ class mzML(object):
         rtime = [] # generate empty lists required for data processing
         uvlambda = None
         uvint = []
-        for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                attr = self.attributes(spectrum)
-                p = self.cvparam(spectrum)
-                if self.ks['verbose'] is True:
-                    self.sys.stdout.write('\rExctracting UV spectrum #%i/%i  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
-                mode,level = self.scantype(p)
-                if mode == 'UV': # if type is UV-Vis
-                    rtime.append(p['scan start time']['value'])
-                    x,y = self.extractspectrum(spectrum)
-                    if uvlambda is None: # if wavelength region has not yet been defined
-                        uvlambda = list(x)
-                    for ind,val in enumerate(y): # normalize y value by 1 million to bring value into a.u.
-                        y[ind] = val/1000000.
-                    uvint.append(y) # append intensity values
+        for spectrum in self.tree.getElementsByTagName('spectrum'): # go through each spectrum
+            attr = self.attributes(spectrum)
+            p = self.cvparam(spectrum)
+            if self.ks['verbose'] is True:
+                self.sys.stdout.write('\rExctracting UV spectrum #%i/%i  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
+            mode,level = self.spectrumtype(p)
+            if mode == 'UV': # if type is UV-Vis
+                rtime.append(p['MS:1000016']['value']) # scan start time
+                x,y = self.extractspectrum(spectrum)
+                if uvlambda is None: # if wavelength region has not yet been defined
+                    uvlambda = list(x)
+                for ind,val in enumerate(y): # normalize y value by 1 million to bring value into a.u.
+                    y[ind] = val/1000000.
+                uvint.append(y) # append intensity values
         if self.ks['verbose'] is True:
             self.sys.stdout.write(' DONE\n')
         return rtime,uvlambda,uvint    
@@ -774,25 +820,20 @@ class mzML(object):
             subprocess.call(callstring)
         return outname
     
-    def scantype(self,hand):
+    def spectrumtype(self,hand):
         """determines the scan type of the provided spectrum"""
         if type(hand) == dict: # handed a parameters dictionary
             p = hand
         else: # handed a tree or branch
             p = self.cvparam(hand)
-        MS = False
-        if p.has_key('MS1 spectrum'): # normal MS spectrum
-            MS = True
-        if p.has_key('MSn spectrum'): # MSMS spectrum
-            MS = True
-        if MS is True: # if MS, determine level and mode
-            level = int(p['ms level']['value'])
-            if p.has_key('negative scan'):
+        if p.has_key('MS:1000579') or p.has_key('MS:1000580'): # MS1 spectrum (full scan MS spectrum) or MSn spectrum (MS/MS)
+            level = int(p['MS:1000511']['value']) # ms level
+            if p.has_key('MS:1000129'): # negative scan
                 mode = '-'
-            if p.has_key('positive scan'):
+            elif p.has_key('MS:1000130'): # positive scan
                 mode = '+'
             return mode,level
-        elif p.has_key('electromagnetic radiation spectrum'): # otherwise is it a UV spectrum
+        elif p.has_key('MS:1000804'): # otherwise is it a UV spectrum
             return 'UV',0
         else: # type that is not currently handled by the script
             return None,None       
@@ -827,24 +868,23 @@ class mzML(object):
             sr = [1,self.nscans]
         if sr[1] < sr[0]:
             raise ValueError('The supplied scan range is invalid: %d-%d' %(sr[0],sr[1]))
-        for spectrumList in self.tree.getElementsByTagName('spectrumList'): #for each spectrum list
-            for spectrum in spectrumList.getElementsByTagName('spectrum'): # go through each spectrum
-                attr = self.attributes(spectrum) # get attributes
-                if attr['index']+1 > sr[1]:
-                    break
-                p = self.cvparam(spectrum) # pull parameters of the scan
-                mode,level = self.scantype(p)
-                if self.ks['verbose'] is True and mute is False:
-                    if sr[1]-sr[0] != 0:
-                        self.sys.stdout.write('\rCombining mass spectrum #%d (scan range: %d-%d)  %.1f%%' %(attr['index']+1,sr[0],sr[1],(float(attr['index']-sr[0]+1))/(float(sr[1]-sr[0]))*100.))
-                    else:
-                        self.sys.stdout.write('\rExtracting scan #%d' %sr[0])
-                if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
-                    if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
-                        x,y = self.extractspectrum(spectrum)
-                        if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
-                            x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
-                        spec.addspectrum(x,y)
+        for spectrum in self.tree.getElementsByTagName('spectrum'): # go through each spectrum
+            attr = self.attributes(spectrum) # get attributes
+            if attr['index']+1 > sr[1]:
+                break
+            p = self.cvparam(spectrum) # pull parameters of the scan
+            mode,level = self.spectrumtype(p)
+            if self.ks['verbose'] is True and mute is False:
+                if sr[1]-sr[0] != 0:
+                    self.sys.stdout.write('\rCombining mass spectrum #%d (scan range: %d-%d)  %.1f%%' %(attr['index']+1,sr[0],sr[1],(float(attr['index']-sr[0]+1))/(float(sr[1]-sr[0]))*100.))
+                else:
+                    self.sys.stdout.write('\rExtracting scan #%d' %sr[0])
+            if mode in ['+','-'] and level <2: # if type is full scan mass spectrum
+                if attr['index']+1 >= sr[0] and attr['index']+1 <= sr[1]:
+                    x,y = self.extractspectrum(spectrum)
+                    if mzrange is not None: # if m/z range is specified, trim spectrum to specified range
+                        x,y = self.trimspectrum(x,y,mzrange[0],mzrange[1])
+                    spec.addspectrum(x,y)
         out = spec.trim()
         if self.ks['verbose'] is True and mute is False:
             self.sys.stdout.write(' DONE\n')
