@@ -7,7 +7,7 @@ def dothis(spectrum):
     out = []
     p = mzml.cvparam(spectrum)
     out.append(float(p['MS:1000016']['value'])) # scan start time
-    out.append(int(p['MS:1000505']['value'])) # base peak intensity
+    out.append(int(p['MS:1000045']['value'])) # collision energy
     return out
 
 doit = dothis()
