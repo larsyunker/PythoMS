@@ -16,10 +16,11 @@ CHANGELOG:
     removed spectrumList and chromatogramList loops (these were redundant, as looping through the spectrum or chromatogram tags accomplishes the same thing)
     renamed scantype to spectrumtype (scan implies ms, where it is not necessarily)
     added _foreachscan and _foreachchrom decorator functions (which will apply the provided function to every scan or chromatogram in the mzml)
+    moved cvparam method and units method into cvparam class
     ---2.3
 
 to add:
-    create cvparam class so that it can interpret either an accession code or name
+    fix getitem to actually get the spectrum specified regardless of its ms level or whatever
     add plotspectrum call (which would use the tome_v02 plotter)
     identify spectrometer in softwareList
     obtain example files from different manufacturers and validate the script with those
@@ -130,6 +131,113 @@ class mzML(object):
             else:
                 self.warned[name] += 1
 
+    class cvparam(object):
+        """interprets all cvparameter tags within the provided branch and can provide details as required with flexible input"""
+        def __init__(self,branch):
+            self.parameters = self.interpret(branch)
+        
+        def __getitem__(self,key):
+            """
+            returns the value of the accesssion key supplied
+            (can also be handed an item name, provided that it is defined in this cvParameter set)
+            """
+            if isinstance(key,slice):
+                raise ValueError('Slicing of a cvparam is not supported')
+            if type(key) != str:
+                print key, type(key)
+                raise ValueError('Only accession keys or names may be retrieved from the cvparam object')
+            if self.parameters.has_key(key) is True: # if the key matches an accession key
+                return self.returnvalue(key)
+            try:
+                return self.parameters[self.acc_by_name(key)]['value'] # if a name was provided and it matches an accession key
+            except KeyError:
+                raise KeyError('The accession key "%s" is not present in this cvParameters set')
+            
+        def acc_by_name(self,name):
+            """trys to find an accession by a provided name"""
+            for key in self.parameters:
+                if self.parameters[key]['name'] == name:
+                    return key
+            raise KeyError('An accession key matching the name "%s" is not defined in this cvParameters set' %name)
+        
+        def has_key(self,key):
+            """checks for the presence of an accession key in the cvparameters set"""
+            return self.parameters.has_key(key)
+        
+        def interpret(self,branch):
+            """
+            retrieves all the cvParam tags for a given branch
+            returns a dictionary with keys corresponding to accession number
+            each key is a subdictionary with the attributes of the cvParam
+            """
+            out = {}
+            for cvParam in branch.getElementsByTagName('cvParam'):
+                acc = cvParam.getAttribute('accession') # accession key
+                out[acc] = {}
+                for attribute,value in cvParam.attributes.items(): # pull all the attributes
+                    if attribute != 'accession':
+                        out[acc][attribute] = value
+            return out
+        
+        def returnvalue(self,key):
+            """returns the value of a particular accession key in the parameters dictionary"""
+            try:
+                return self.parameters[key]['value']
+            except KeyError:
+                raise KeyError('The accession key "%s" is not present in this cvParameters set')
+        
+        def unitname(self):
+            """
+            looks for units in the cvParameters and returns the appropriate unit name
+            all units as of 2016-07-12 are defined here, but all possible units can be found in
+            https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo
+            """
+            unitkeys = {
+            # x units
+            'MS:1000040':'m/z',
+            'UO:0000010':'second',
+            'UO:0000017':'micrometer',
+            'UO:0000018':'nanometer',
+            'UO:0000028':'millisecond',
+            'UO:0000031':'minute',
+            'UO:0000221':'dalton',
+            'UO:0000222':'kilodalton',
+            # y units
+            'MS:1000131':'number of detector counts',
+            'MS:1000132':'percent of base peak',
+            'MS:1000814':'counts per second',
+            'MS:1000905':'percent of base peak times 100',
+            'UO:0000187':'percent',
+            'UO:0000269':'absorbance unit',
+            # other
+            'MS:1000807':'Th/s',
+            'UO:0000002':'mass unit',
+            'UO:0000008':'meter',
+            'UO:0000012':'kelvin',
+            'UO:0000021':'gram',
+            'UO:0000027':'degree Celsius',
+            'UO:0000098':'milliliter',
+            'UO:0000106':'hertz',
+            'UO:0000110':'pascal',
+            'UO:0000112':'joule',
+            'UO:0000166':'parts per notation unit',
+            'UO:0000169':'parts per million',
+            'UO:0000175':'gram per liter',
+            'UO:0000185':'degree',
+            'UO:0000218':'volt',
+            'UO:0000228':'tesla',
+            'UO:0000266':'electronvolt',
+            'UO:0000268':'volt per meter',
+            }
+            for key in self.parameters:
+                if self.parameters[key].has_key('unitAccession'): # find unitAccession (the accession code defines the unit)
+                    if self.parameters[key]['unitAccession'] in unitkeys: # if it is defined, return unit code
+                        return unitkeys[self.parameters[key]['unitAccession']]
+                    else:
+                        if mzML.__dict__.has_key('loadedobo') is False:
+                            mzML.loadedobo = mzML.obo(mzML.ks['obo']) # load obo file
+                        return mzML.loadedobo[self.parameters[key]['unitAccession']] # return accession key name as defined in obo file
+        
     class obo(object):
         """
         locates *.obo files and converts the most recent version into a python dictionary for parsing
@@ -431,19 +539,6 @@ class mzML(object):
             if fn.lower().endswith('.raw') is True: # convert if only raw file is found
                 return self.pwconvert(fn,self.ks['precision'],self.ks['compression'],self.ks['gzip'])
             return fn
-            
-    def cvparam(self,branch):
-        """retrieves all the cvParam tags for a given branch
-        returns a dictionary with keys corresponding to accession number
-        each key is a subdictionary with the attributes of the cvParam"""
-        out = {}
-        for cvParam in branch.getElementsByTagName('cvParam'):
-            acc = cvParam.getAttribute('accession') # accession key
-            out[acc] = {}
-            for attribute,value in cvParam.attributes.items(): # pull all the attributes
-                if attribute != 'accession':
-                    out[acc][attribute] = value
-        return out
     
     def extractspectrum(self,spectrum,units=False):
         """pulls and converts binary data to list"""
@@ -464,8 +559,8 @@ class mzML(object):
             'MS:1000522':['<','l'], # Signed 64-bit little-endian integer
             'MS:1000523':['<','d'], # 64-bit precision little-endian floating point conforming to IEEE-754.
             }
-            for key in p: 
-                if key in formats: # find accession number match
+            for key in formats:
+                if p.has_key(key): # find accession number match
                     return formats[key][0]+str(speclen)+formats[key][1]
             
         speclen = int(spectrum.getAttribute('defaultArrayLength')) # spectrum length (defined in the spectrum attricubes)
@@ -485,7 +580,7 @@ class mzML(object):
                 decoded = self.zlib.decompress(decoded)
             out.append(list(self.st.unpack(unpack_format,decoded))) # unpack the string
             if units is not False:
-                units.append(self.units(p))
+                units.append(p.unitname())
         if units is not False: # appends the units onto out
             for unit in units:
                 out.append(unit)
@@ -567,7 +662,7 @@ class mzML(object):
         chroms = {} #dictionary of chromatograms
         for chromatogram in self.tree.getElementsByTagName('chromatogram'):
             attr = self.attributes(chromatogram) # pull attributes
-            p = self.cvparam(chromatogram) # pull parameters
+            #p = self.cvparam(chromatogram) # pull parameters
             if self.ks['verbose'] is True:
                 self.sys.stdout.write('\rExtracting chromatogram #%s/%i  %.1f%%' %(attr['index']+1,self.nchroms,float(attr['index']+1)/float(self.nchroms)*100.))
                 self.sys.stdout.flush()
@@ -612,8 +707,8 @@ class mzML(object):
                     rtime[modekey] = []
                 if TIC.has_key(modekey) is False:
                     TIC[modekey] = []
-                TIC[modekey].append(int(p['MS:1000285']['value'])) # append total ion current value
-                rtime[modekey].append(float(p['MS:1000016']['value'])) # append scan start time
+                TIC[modekey].append(int(p['MS:1000285'])) # append total ion current value
+                rtime[modekey].append(float(p['MS:1000016'])) # append scan start time
                 x,y = self.extractspectrum(spectrum) # generate spectrum
                 if sumspec is True:
                     spec.addspectrum(x,y)
@@ -707,12 +802,12 @@ class mzML(object):
                 self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
             mode,level = self.spectrumtype(p)
             if level >= 2: # if it is a msms spectrum
-                tic = float(p['MS:1000285']['value']) # total ion current
-                t = float(p['MS:1000016']['value']) # scan start time
-                ce = float(p['MS:1000045']['value']) # collision energy
-                target = float(p['MS:1000827']['value']) # isolation window target m/z
-                lowmz = float(p['MS:1000501']['value']) # scan window lower limit
-                highmz = float(p['MS:1000500']['value']) # scan window upper limit
+                tic = float(p['MS:1000285']) # total ion current
+                t = float(p['MS:1000016']) # scan start time
+                ce = float(p['MS:1000045']) # collision energy
+                target = float(p['MS:1000827']) # isolation window target m/z
+                lowmz = float(p['MS:1000501']) # scan window lower limit
+                highmz = float(p['MS:1000500']) # scan window upper limit
                 
                 if limits.has_key(target) is False:
                     limits[target] = [lowmz,highmz]
@@ -740,7 +835,7 @@ class mzML(object):
                 self.sys.stdout.write('\rExctracting UV spectrum #%i/%i  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
             mode,level = self.spectrumtype(p)
             if mode == 'UV': # if type is UV-Vis
-                rtime.append(p['MS:1000016']['value']) # scan start time
+                rtime.append(p['MS:1000016']) # scan start time
                 x,y = self.extractspectrum(spectrum)
                 if uvlambda is None: # if wavelength region has not yet been defined
                     uvlambda = list(x)
@@ -822,12 +917,12 @@ class mzML(object):
     
     def spectrumtype(self,hand):
         """determines the scan type of the provided spectrum"""
-        if type(hand) == dict: # handed a parameters dictionary
+        if isinstance(hand,self.cvparam): # handed a cvparam class object (expected)
             p = hand
-        else: # handed a tree or branch
+        else: # handed a tree or branch (generate the cvparam class object)
             p = self.cvparam(hand)
         if p.has_key('MS:1000579') or p.has_key('MS:1000580'): # MS1 spectrum (full scan MS spectrum) or MSn spectrum (MS/MS)
-            level = int(p['MS:1000511']['value']) # ms level
+            level = int(p['MS:1000511']) # ms level
             if p.has_key('MS:1000129'): # negative scan
                 mode = '-'
             elif p.has_key('MS:1000130'): # positive scan
@@ -920,58 +1015,58 @@ class mzML(object):
         l,r = self.bl(x,left),self.br(x,right) # find indicies
         return x[l:r],y[l:r] # trim spectrum
     
-    def units(self,p):
-        """
-        takes a cvparam dictionary and returns the appropriate unit
-        (expects to be handed the cvparam dictionary of a binaryDataArray)
-        all units as of 2016-07-12 are defined here, but all possible units can be found in
-        https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo
-        """
-        unitkeys = {
-        # x units
-        'MS:1000040':'m/z',
-        'UO:0000010':'second',
-        'UO:0000017':'micrometer',
-        'UO:0000018':'nanometer',
-        'UO:0000028':'millisecond',
-        'UO:0000031':'minute',
-        'UO:0000221':'dalton',
-        'UO:0000222':'kilodalton',
-        # y units
-        'MS:1000131':'number of detector counts',
-        'MS:1000132':'percent of base peak',
-        'MS:1000814':'counts per second',
-        'MS:1000905':'percent of base peak times 100',
-        'UO:0000187':'percent',
-        'UO:0000269':'absorbance unit',
-        # other
-        'MS:1000807':'Th/s',
-        'UO:0000002':'mass unit',
-        'UO:0000008':'meter',
-        'UO:0000012':'kelvin',
-        'UO:0000021':'gram',
-        'UO:0000027':'degree Celsius',
-        'UO:0000098':'milliliter',
-        'UO:0000106':'hertz',
-        'UO:0000110':'pascal',
-        'UO:0000112':'joule',
-        'UO:0000166':'parts per notation unit',
-        'UO:0000169':'parts per million',
-        'UO:0000175':'gram per liter',
-        'UO:0000185':'degree',
-        'UO:0000218':'volt',
-        'UO:0000228':'tesla',
-        'UO:0000266':'electronvolt',
-        'UO:0000268':'volt per meter',
-        }
-        for key in p:
-            if p[key].has_key('unitAccession'): # find unitAccession (the accession code defines the unit)
-                if p[key]['unitAccession'] in unitkeys: # if it is defined, return unit code
-                    return unitkeys[p[key]['unitAccession']]
-                else:
-                    if self.__dict__.has_key('loadedobo') is False:
-                        self.loadedobo = self.obo(self.ks['obo']) # load obo file
-                    return self.loadedobo[p[key]['unitAccession']] # return accession key name as defined in obo file
+    #def units(self,p):
+    #    """
+    #    takes a cvparam dictionary and returns the appropriate unit
+    #    (expects to be handed the cvparam dictionary of a binaryDataArray)
+    #    all units as of 2016-07-12 are defined here, but all possible units can be found in
+    #    https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo
+    #    """
+    #    unitkeys = {
+    #    # x units
+    #    'MS:1000040':'m/z',
+    #    'UO:0000010':'second',
+    #    'UO:0000017':'micrometer',
+    #    'UO:0000018':'nanometer',
+    #    'UO:0000028':'millisecond',
+    #    'UO:0000031':'minute',
+    #    'UO:0000221':'dalton',
+    #    'UO:0000222':'kilodalton',
+    #    # y units
+    #    'MS:1000131':'number of detector counts',
+    #    'MS:1000132':'percent of base peak',
+    #    'MS:1000814':'counts per second',
+    #    'MS:1000905':'percent of base peak times 100',
+    #    'UO:0000187':'percent',
+    #    'UO:0000269':'absorbance unit',
+    #    # other
+    #    'MS:1000807':'Th/s',
+    #    'UO:0000002':'mass unit',
+    #    'UO:0000008':'meter',
+    #    'UO:0000012':'kelvin',
+    #    'UO:0000021':'gram',
+    #    'UO:0000027':'degree Celsius',
+    #    'UO:0000098':'milliliter',
+    #    'UO:0000106':'hertz',
+    #    'UO:0000110':'pascal',
+    #    'UO:0000112':'joule',
+    #    'UO:0000166':'parts per notation unit',
+    #    'UO:0000169':'parts per million',
+    #    'UO:0000175':'gram per liter',
+    #    'UO:0000185':'degree',
+    #    'UO:0000218':'volt',
+    #    'UO:0000228':'tesla',
+    #    'UO:0000266':'electronvolt',
+    #    'UO:0000268':'volt per meter',
+    #    }
+    #    for key in p:
+    #        if p[key].has_key('unitAccession'): # find unitAccession (the accession code defines the unit)
+    #            if p[key]['unitAccession'] in unitkeys: # if it is defined, return unit code
+    #                return unitkeys[p[key]['unitAccession']]
+    #            else:
+    #                if self.__dict__.has_key('loadedobo') is False:
+    #                    self.loadedobo = self.obo(self.ks['obo']) # load obo file
+    #                return self.loadedobo[p[key]['unitAccession']] # return accession key name as defined in obo file
                     
 if __name__ == '__main__':
     filename = 'HZ-140516_HOTKEYMSMS 1376 II'
