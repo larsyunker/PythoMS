@@ -135,8 +135,8 @@ class Spectrum(object):
                 self.y[index] += yval # try to add value
             except TypeError:
                 self.y[index] = yval # if None, then set to value
-        except ValueError: # if index is not in spectrum, do not add
-            pass
+        except ValueError: # if index is not in spectrum
+            pass # do nothing (the value will not be added to the spectrum)
         #if self.y[index] < 0: # catch for negative intensities while subtracting
         #    return ValueError('The intensity value for m/z %f is now negative (%f)'%(xval,self.y[index]))
     
