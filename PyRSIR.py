@@ -6,67 +6,6 @@
  
  version 027
  new:
-    switched wb loading to function definition
-    species output into excel is now sorted alphabetically
-    restructured sp in dictionary to be a dictionary with keys for bounds, nsum, nnorm, etc
-    now can do any number of n sums/norms in a single execution
-    ---26.2---
-    spectrum summing is incorporated into pullMSdata
-    isotope patterns of each species are summed and saved in a separate sheet
-    plot output changed to plot all summed traces (ignores norm traces)
-    ---26.3---
-    changed pullparams
-    affinity of species (positive mode, negative mode, UV) is now set in the excel file in a new column
-    all species to interpret are now given in the parameters sheet (no extra sheet required for UV-Vis data)
-    now uses pullmzMLdata (rewritten pullMSdata to account for affinity)
-    removed ext definition (assumption is that mzML files are supplied)
-    new name for Raw Data excel sheets to account for both positive and negative mode
-    works with TQD output
-    can now process positive, negative mode as well as UV-Vis simultaneously
-    excel output now groups species according to their affinity
-    separated UV-Vis spec summing script from bulk script (will now have to be run separately)
-    ---26.4---
-    updated pullparams to be more efficient
-    changed xml.dom.minidom import to be as xdm
-    fixed plots function to only plot MS species (plots all + and - species on the same plot)
-    detects when new peaks have been added and reprocesses mzML
-    new scantype function determines what type of scan each spectrum is (MS+,MS-,UV,MSMS)
-    fixed output functions to work when one MS mode is not present
-    validated with TQD functions (extracts and outputs in the function chromatograms sheet)
-    ---26.5---
-    pullchromdata now outputs a dictionary of dictionaries (keys for x, y, xunit, and yunit)
-    rewrote chromatogram output to work with dictionary
-    chromatogram output is now sorted
-    set up preliminary coding for dealing with MSMS spectra
-    ---26.6---
-    switched to use of mzML class and tome_v02
-    updated and enabled command line initiation (it should work)
-    added strtolist to handle list input from command line
-    ---27.0---
-    pwconvert now checks operating system
-    switched to use of ScriptTime class
-    ---27.1---
-    switched import away from * (split up classes into separate files, etc.)
-    switched to use of NoneSpectrum class for spectrum building
-    ---27.2---
-    renamed to PyRSIM
-    updated input parameters
-    pulls parameters from XLSX object
-    creates Molecule objects if formula is specified
-    if formula is specified, generates summing bounds from molecule
-    updates parameters sheet with details if some cells were left blank
-    removed Dandy call
-    added error checking against isotope patterns (this might be broken)
-    outputs standard error of the regression to the excel file if the pattern was compared
-    updated to work with the latest versions of Spectrum, ScriptTime, and mzML
-    moved rsim output to XLSX
-    ---27.3---
-    updated call to Molecule.bounds()
-    moved imports into the function
-    updated command line calling (has not been tested)
-    moved all excel writing to the XLSX class
-    added a pull for previously calculated isotope patterns
-    validated and fixed the isotope pattern pull, isotope pattern output, and chromatogram output
     ---27.4---
     now automatically determines the resolution of the instrument
     now sums all spectra together and outputs a full spectrum to the excel file (takes 3x as long, but probably worth it)
@@ -111,10 +50,10 @@ Column #5: end value (m/z or wavelength)
 """
 
 # input *.raw filename
-filename = 'LY-2015-09-15 06'
+filename = 'LY-2016-07-11 03'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = 'Book2 - Copy'
+xlsx = '2016-07-11 Sequential reaction with AgNO3 in MeOH'
 
 # set number of scans to sum (integer or list of integers)
 n = [3,5]
@@ -123,7 +62,7 @@ n = [3,5]
 # -------------------FUNCTION DEFINITIONS-------------------
 # ----------------------------------------------------------
 
-def pyrsim(filename,xlsx,n):    
+def pyrsir(filename,xlsx,n):    
     def checkinteger(val,name):
         """
         This function checks that the supplied values are integers greater than 1
@@ -148,8 +87,8 @@ def pyrsim(filename,xlsx,n):
         requirements: pylab as pl
         """
         import pylab as pl
-        #pl.clf() # clears and closes old figure (if still open)
-        #pl.close()
+        pl.clf() # clears and closes old figure (if still open)
+        pl.close()
         nplots = len(n)+1
         
         # raw data
@@ -182,6 +121,7 @@ def pyrsim(filename,xlsx,n):
             pl.ylabel('Intensity')
             pl.tick_params(axis='x',labelbottom='off')
             loc+=1
+        pl.tick_params(axis='x',labelbottom='on')
         pl.show()
   
     def output():
@@ -414,7 +354,7 @@ if len(sys.argv) > 1: # if script was initiated from the command line, pull para
         raise IOError('The pyrsim function requires three inputs:\n- The raw filename\n- The excel parameters file\n- The number of scans to sum')
 
 if __name__ == '__main__':    
-    pyrsim(filename,xlsx,n)
+    pyrsir(filename,xlsx,n)
     sys.stdout.write('fin.')
     sys.stdout.flush()
     import gc

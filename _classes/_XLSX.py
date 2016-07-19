@@ -110,6 +110,8 @@ class XLSX(object):
         """
         extracts a spectrum from the specified sheet
         skiplines allows that number of lines to be ignored
+        
+        output: spectrum, xunit, yunit
         """
         def tofloat(value,row,col):
             """attempts to convert to float and raises exception if an error is encountered"""
@@ -244,7 +246,7 @@ The start value (col#4) is expected to be less than the end value (col#5)
             out += alphabet[i-1]
         return out+str(row+1)    
     
-    def save(self):
+    def save(self,outname=None):
         """commits changes to the workbook"""
         def version_input(string):
             """checks the python version and uses the appropriate version of user input"""
@@ -256,14 +258,17 @@ The start value (col#4) is expected to be less than the end value (col#5)
             else:
                 raise EnvironmentError('The version_input method encountered an unsupported version of python.')
         
+        if outname is None:
+            outname = self.bookname
+        
         try:
-            self.wb.save(self.bookname)
+            self.wb.save(outname)
         except IOError:
-            version_input('\nThe excel file could not be written. Please close "%s" and press any key to retry save.' %self.bookname)
+            version_input('\nThe excel file could not be written. Please close "%s" and press any key to retry save.' %outname)
             try:
-                self.wb.save(self.bookname)
+                self.wb.save(outname)
             except IOError:
-                raise IOError('\nThe excel file "%s" could not be written.' %self.bookname)
+                raise IOError('\nThe excel file "%s" could not be written.' %outname)
     
     def updatersimparams(self,sp,sheet='parameters'):
         """

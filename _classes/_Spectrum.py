@@ -3,29 +3,12 @@ Spectrum class for combining spectra with different dimensions but are in the sa
 
 CHANGELOG
 new:
-    added support for addition and subtraction
-    fixed index calculation (rounding early yielded a bad index)
-    ---2.0---
-    switched to use of data arrays for speed optimization
-    now generates fullspeclist using arange
-    indexing is now done using searchsorted of the x list (returns no mismatches)
-    added integer subtraction functionality
-    fixed integer addition to not change the parent spectrum
-    modified fullspeclist to add one increment to the end value to ensure a full list
-    profiled index and concluded that despite the performance impact of searchsorted, the potential erronius indexes of the calculated were unacceptable
-    ---2.1---
-    ?
-    ---2.2---
-    renamed to Spectrum
-    added fillzeros
-    added addspectrum which allows addition of an entire spectrum in one call
-    addspectrum can be called on initialization
-    added threshold trimmer function
-    changed trim to round x value to the decimal place specified (avoids array floating point weirdness)
-    added functionality to add a spectrum using the + operator
-    added normalize method
     ---2.3---
+    fixed addition (arrays weren't working with addspectrum)
     ---2.4
+
+to add/fix:
+    update subtract method (reference add for what to change)
 """
 
 #from _ScriptTime import ScriptTime
@@ -83,8 +66,10 @@ class Spectrum(object):
             newstart = min(min(self.x),min(x.x)) # find new start m/z
             newend = max(max(self.x),max(x.x)) # find new end m/z
             tempnsp = Spectrum(self.decpl,newstart,newend) # temporary instance
-            tempnsp.addspectrum(self.x,self.y) # add self spectrum
-            tempnsp.addspectrum(x.x,x.y) # add input spectrum
+            specin = self.trim()
+            tempnsp.addspectrum(specin[0],specin[1]) # add self spectrum
+            specin = x.trim()
+            tempnsp.addspectrum(specin[0],specin[1]) # add input spectrum
             return tempnsp
         elif type(x) is int: # add this integer to every m/z
             tempnsp = Spectrum(self.decpl,self.startmz,self.endmz)
@@ -94,7 +79,8 @@ class Spectrum(object):
             return tempnsp
         elif len(x) == 2 and len(x[0]) == len(x[1]): # if it is a list of paired lists (another spectrum)
             tempnsp = Spectrum(self.decpl,self.startmz,self.endmz)
-            tempnsp.addspectrum(self.x,self.y)
+            specin = self.trim()
+            tempnsp.addspectrum(specin[0],specin[1])
             tempnsp.addspectrum(x[0],x[1])
             return tempnsp
         else:
@@ -135,8 +121,8 @@ class Spectrum(object):
                 self.y[index] += yval # try to add value
             except TypeError:
                 self.y[index] = yval # if None, then set to value
-        except ValueError: # if index is not in spectrum, do not add
-            pass
+        except ValueError: # if index is not in spectrum
+            pass # do nothing (the value will not be added to the spectrum)
         #if self.y[index] < 0: # catch for negative intensities while subtracting
         #    return ValueError('The intensity value for m/z %f is now negative (%f)'%(xval,self.y[index]))
     
