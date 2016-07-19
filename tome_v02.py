@@ -285,7 +285,8 @@ def locateinlist(lst,value,bias='closest'):
         'greater' will return the position of the value just greater than the provided value
         'closest' will return the index of the nearest value to the one provided
     """                
-    pos = self.bl(lst, value)
+    from bisect import bisect_left as bl
+    pos = bl(lst, value)
     if pos == 0: # if at start of list
         return pos
     elif pos == len(lst): # if insertion is beyond index range
