@@ -10,6 +10,7 @@ functions:
     find_all (finds all locations of files of a given name in a provided directory)
     linmag (generates a list of values which is linear in magnification)
     linramp (generates a list of values which is linear from start to finish)
+    locateinlist (locates a value or the closest value to it in a sorted list)
     lyround (rounds a number given a particular base number)
     mag (calculates and returns the magnification of a given y value relative to the start)
     normalize (normalizes a list to a given value)
@@ -266,6 +267,44 @@ def linramp(valstart,valend,dur):
     for i in range(int(dur)):
         out.append( ((float(valend-valstart))/(float(dur)))*(i) + valstart )
     return out
+
+def locateinlist(lst,value,bias='closest'):
+    """
+    Finds index in a sorted list of the value closest to a given value
+    
+    If two numbers are equally close, return the smallest number.
+    based on http://stackoverflow.com/questions/12141150/from-list-of-integers-get-number-closest-to-a-given-value
+    
+    lst: list
+        list of values to search
+    value: float or int
+        value number to find
+    bias: 'lesser','greater', or 'closest'
+        default 'left'
+        'lesser' will return the position of the value just less than the provided value
+        'greater' will return the position of the value just greater than the provided value
+        'closest' will return the index of the nearest value to the one provided
+    """                
+    pos = self.bl(lst, value)
+    if pos == 0: # if at start of list
+        return pos
+    elif pos == len(lst): # if insertion is beyond index range
+        return pos -1 
+    if lst[pos] == value: # if an exact match is found
+        return pos
+    if bias == 'greater': # return value greater than the value (bisect_left has an inherent bias to the right)
+        return pos
+    if bias == 'lesser': # return value lesser than the provided
+        return pos -1
+    if bias == 'closest': # check differences between index and index-1 and actual value, return closest
+        adjval = abs(lst[pos-1] - value)
+        curval = abs(lst[pos] - value)
+        if adjval < curval: # if the lesser value is closer
+            return pos-1
+        if adjval == curval: # if values are equidistant
+            return pos-1
+        else:
+            return pos
 
 def lyround(x,basen):
     """
@@ -573,6 +612,114 @@ def plotms(realspec,simdict={},**kwargs):
         for species in simdict:
             outname+=' '+species
         outname = settings['outname'] + outname + '.' + settings['exten']
+        pl.savefig(outname, dpi=settings['dpiout'], format=settings['exten'], transparent=True)
+        if settings['verbose'] is True:
+            sys.stdout.write('Saved figure as:\n"%s"\nin the working directory' %outname)
+    
+    elif settings['output'] == 'show': # show figure
+        pl.show()
+
+def plotuv(wavelengths,intensities,**kwargs):
+    """
+    plots a UV-Vis spectrum
+    input:
+    wavelengths: list
+        list of wavelengths
+    intensities: list or list of lists
+        list of intensities (matching wavelengths list)
+        can also supply several lists of intensities (to plot a progressive UV plot)
+    kwargs:
+        see settings for supported kwargs and what they do
+    """
+    settings = { # default settings for the function
+    'outname':'UV-Vis spectrum', # name for the output file
+    'fs':16, # font size
+    'lw':1.5, # line width for the plotted spectrum
+    'axwidth':1.5, # axis width 
+    'size':[7.87,4.87], # size in inches for the figure
+    'dpiout':300, # dpi for the output figure
+    'exten':'png', # extension for the output figure
+    'specfont':'Arial', # the font for text in the plot
+    # colours to use for multiple traces in the same spectrum (feel free to specify your own)
+    'colours':['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5',], 
+    'xrange':None, # the limits for the x axis
+    'yrange':None, # the limits for the y axis
+    'times':None, # time points for each provided trace (for legend labels)
+    'output':'save', # 'save' or 'show' the figure
+    'padding':None, # padding for the output plot
+    'verbose':True, # chatty
+    'legloc':0, # legend location (see http://matplotlib.org/api/legend_api.html location codes)
+    }
+    if set(kwargs.keys()) - set(settings.keys()): # check for invalid keyword arguments
+        string = ''
+        for i in set(kwargs.keys()) - set(settings.keys()):
+            string += ` i`
+        raise KeyError('Unsupported keyword argument(s): %s' %string)
+    
+    settings.update(kwargs) # update settings from keyword arguments
+    
+    import sys
+    import pylab as pl
+    from _classes._Colour import Colour
+    pl.clf() # clear and close figure if open
+    pl.close()
+    fig = pl.figure(figsize = tuple(settings['size']))
+    ax = fig.add_subplot(111)
+    
+    ax.spines["right"].set_visible(False) #hide right and top spines
+    ax.spines["top"].set_visible(False)
+    
+    font = {'fontname':settings['specfont'],'fontsize':settings['fs']} #font parameters for axis/text labels
+    tickfont = pl.matplotlib.font_manager.FontProperties(family=settings['specfont'],size=settings['fs']) # font parameters for axis ticks
+    
+    if type(intensities[0]) is float: # if the function has only been handed a single spectrum
+        intensities = [intensities]
+    
+    # determine and set limits for axes
+    if settings['xrange'] is None: # auto determine x limits
+        settings['xrange'] = [min(wavelengths),max(wavelengths)]
+    if settings['yrange'] is None: # auto determine y limits
+        settings['yrange'] = [0,0]
+        for spec in intensities:
+            if max(spec) > settings['yrange'][1]:
+                settings['yrange'][1] = max(spec)
+    ax.set_xlim(settings['xrange']) # set x bounds
+    ax.set_ylim(settings['yrange']) # set y bounds
+    
+    # apply font and tick parameters to axes
+    ax.tick_params(axis='x', length=settings['axwidth']*3, width=settings['axwidth'] ,direction='out',top = 'off')
+    for label in ax.get_xticklabels():
+        label.set_fontproperties(tickfont) 
+    ax.tick_params(axis='y', length=settings['axwidth']*3, width=settings['axwidth'], direction='out',right='off')
+    for label in ax.get_yticklabels():
+        label.set_fontproperties(tickfont)
+    for axis in ["top","bottom","left","right"]:
+        ax.spines[axis].set_linewidth(settings['axwidth'])
+    
+    if settings['times'] is not None:
+        if len(settings['times']) != len(intensities):
+            raise IndexError('The numer of times provided do not match the number of traces provided.')
+    
+    for ind,spec in enumerate(intensities): # plot traces
+        if settings['times'] is not None:
+            string = 't = '+str(round(settings['times'][ind],1))+'m'
+            ax.plot(wavelengths,spec,label=string,color=Colour(settings['colours'][ind]).mpl,linewidth=settings['lw'])
+        else:
+            ax.plot(wavelengths,spec,color=Colour(settings['colours'][ind]).mpl,linewidth=settings['lw'])
+    
+    if settings['times'] is not None:
+        ax.legend(loc=0,frameon=False)
+    
+    ax.set_xlabel('wavelength (nm)', **font)
+    ax.set_ylabel('absorbance (a.u.)', **font)
+    
+    if settings['padding'] is None:
+        pl.tight_layout(pad=0.5) # adjust subplots
+    elif type(settings['padding']) is list and len(settings['padding']) == 4:
+        pl.subplots_adjust(left=settings['padding'][0], right=settings['padding'][1], bottom=settings['padding'][2], top=settings['padding'][3])
+    
+    if settings['output'] == 'save': # save figure
+        outname = settings['outname'] + '.' + settings['exten']
         pl.savefig(outname, dpi=settings['dpiout'], format=settings['exten'], transparent=True)
         if settings['verbose'] is True:
             sys.stdout.write('Saved figure as:\n"%s"\nin the working directory' %outname)
