@@ -1,3 +1,6 @@
+# txt files
+*.txt
+
 # obo files (distributed in psi-ms-CV repository)
 *.obo
 
