@@ -172,9 +172,14 @@ def PlotEDESI(SummedSpectrum, ContourPlot, BreakdownCurve=False, **kwargs):
         
         for mz in xrange(len(SummedSpectrum[0])):
             if SummedSpectrum[1][mz] > threshold:
-               subDict = {'bounds': [int(SummedSpectrum[0][mz])], 'affin': '-', 'raw': [], 'spectrum': Spectrum(1)} 
+                """
+                the combination of affinity:- and level:2 should enable the species to be summed (untested)
+                if that doesn't work, try including 'function':3, which should force the function to relate those species to that function number
+                let me know if this doesn't work
+                """
+               subDict = {'bounds': [int(SummedSpectrum[0][mz])], 'affin': '-', 'level':2, 'raw': [], 'spectrum': Spectrum(1)} 
                traceBank[int(SummedSpectrum[0][mz])] = subDict
-        outTrace, TIC, rtime = mzml.pullspeciesdata(traceBank)
+        outTrace = mzml.pullspeciesdata(traceBank)
         ax3 = plt.subplot(gs1[3], sharey=ax2)
         for trace in traceBank:
             debugPrint(debug, outTrace)

@@ -6,11 +6,8 @@
  
  version 027
  new:
-    ---27.4---
-    now automatically determines the resolution of the instrument
-    now sums all spectra together and outputs a full spectrum to the excel file (takes 3x as long, but probably worth it)
-    skips resolution calculation if there are no formulas specified
-    ---27.5 building
+    updated to work with mzML v 2.4
+    ---27.6 incompatible with mzML v2.4 or greater
 
 to add/fix:
     update mzml to work with calibration
@@ -50,10 +47,10 @@ Column #5: end value (m/z or wavelength)
 """
 
 # input *.raw filename
-filename = 'LY-2016-07-11 03'
+filename = 'LY-2106-07-19 04'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = '2016-07-11 Sequential reaction with AgNO3 in MeOH'
+xlsx = '2016-07-19 04 AgNO3 in sequential (unusable)'
 
 # set number of scans to sum (integer or list of integers)
 n = [3,5]
@@ -97,7 +94,7 @@ def pyrsir(filename,xlsx,n):
         for mode in mskeys:
             modekey = 'raw'+mode
             if modekey in rtime.keys():
-                pl.plot(rtime[modekey],TIC[modekey], linewidth = 0.75, label = 'TIC') #plot TIC
+                pl.plot(rtime[modekey],tic[modekey], linewidth = 0.75, label = 'TIC') #plot tic
                 for key in sp: # plot each species
                     if sp[key]['affin'] is mode:
                         pl.plot(rtime[modekey],sp[key]['raw'], linewidth=0.75, label=key)
@@ -113,7 +110,7 @@ def pyrsir(filename,xlsx,n):
             for mode in mskeys:
                 modekey = str(num)+'sum'+mode
                 if modekey in rtime.keys():
-                    pl.plot(rtime[modekey],TIC[modekey], linewidth = 0.75, label = 'TIC') #plot TIC
+                    pl.plot(rtime[modekey],tic[modekey], linewidth = 0.75, label = 'TIC') #plot tic
                     for key in sp:
                         if sp[key]['affin'] is mode: #if a MS species
                             pl.plot(rtime[modekey],sp[key][sumkey], linewidth=0.75, label=key)
@@ -147,7 +144,7 @@ def pyrsir(filename,xlsx,n):
             modekey = 'raw'+mode
             if modekey in rtime.keys():
                 sheetname = 'Raw Data ('+mode+')'
-                xlfile.writersim(sp,rtime[modekey],'raw',sheetname,mode,TIC[modekey])
+                xlfile.writersim(sp,rtime[modekey],'raw',sheetname,mode,tic[modekey])
 
         for num in n: # write summed and normalized data to sheets
             sumkey = str(num)+'sum'
@@ -157,7 +154,7 @@ def pyrsir(filename,xlsx,n):
                 if modekey in rtime.keys():
                     if max(n) > 1: # if data were summed
                         sheetname = str(num)+' Sum ('+mode+')'
-                        xlfile.writersim(sp,rtime[sumkey+mode],sumkey,sheetname,mode,TIC[sumkey+mode]) # write summed data
+                        xlfile.writersim(sp,rtime[sumkey+mode],sumkey,sheetname,mode,tic[sumkey+mode]) # write summed data
                     sheetname = str(num)+' Normalized ('+mode+')'
                     xlfile.writersim(sp,rtime[sumkey+mode],normkey,sheetname,mode) # write normalized data
         
@@ -175,9 +172,9 @@ def pyrsir(filename,xlsx,n):
                 uvstuff = True
                 break
         if uvstuff is True:
-            for ind,val in enumerate(TIC['rawUV']): # normalize the UV intensities
-                TIC['rawUV'][ind] = val/1000000.
-            xlfile.writersim(sp,rtime['rawUV'],'raw','UV-Vis','UV',TIC['rawUV']) # write UV-Vis data to sheet
+            for ind,val in enumerate(tic['rawUV']): # normalize the UV intensities
+                tic['rawUV'][ind] = val/1000000.
+            xlfile.writersim(sp,rtime['rawUV'],'raw','UV-Vis','UV',tic['rawUV']) # write UV-Vis data to sheet
         
         if sumspec is not None:
             xlfile.writespectrum(sumspec[0],sumspec[1],'Summed Spectrum','m/z','counts')
@@ -232,8 +229,9 @@ def pyrsir(filename,xlsx,n):
                 sp[key]['%s' %(str(num)+'norm')] = []
     sys.stdout.write(' DONE\n')
     
-    rtime = {} # empty dictionaries for time and TIC
-    TIC = {}
+    
+    rtime = {} # empty dictionaries for time and tic
+    tic = {}
     rd = None
     for mode in mskeys: # look for existing positive and negative mode raw data
         try:
@@ -245,18 +243,18 @@ def pyrsir(filename,xlsx,n):
             sys.stdout.write('Existing (%s) mode raw data were found, grabbing those values.'%mode)
             sys.stdout.flush()
             rtime[modekey] = [] # generate empty lists required for data processing
-            TIC[modekey] = []
+            tic[modekey] = []
             for col,colval in enumerate(rd.columns):
                 for row,rowval in enumerate(colval):
                     if row == 0: #skip first row
                         continue
                     elif colval[0].value == 'Time': # if column is Time, append to that list
                         rtime[modekey].append(rd.cell(row = (row+1), column = (col+1)).value)
-                    elif colval[0].value == 'TIC': # if column is TIC, append to that list
-                        TIC[modekey].append(rd.cell(row = (row+1), column = (col+1)).value)
+                    elif colval[0].value == 'tic': # if column is tic, append to that list
+                        tic[modekey].append(rd.cell(row = (row+1), column = (col+1)).value)
                     else: # all other columns
                         sp['%s' %str(colval[0].value)]['raw'].append(rd.cell(row = (row+1), column = (col+1)).value)
-                if colval[0].value not in ['Time','TIC']: # define affinity of species
+                if colval[0].value not in ['Time','tic']: # define affinity of species
                     sp['%s' %str(colval[0].value)]['affin'] = mode
             sys.stdout.write(' DONE\n')
             
@@ -279,19 +277,29 @@ def pyrsir(filename,xlsx,n):
             for species in newsp:
                 if newsp[species].has_key('spectrum') is False:
                     newsp[species]['spectrum'] = Spectrum(3,newsp[species]['bounds'][0],newsp[species]['bounds'][1])
-            newsp,TIC,rtime = mzml.pullspeciesdata(newsp) # pull data
+            newsp = mzml.pullspeciesdata(newsp) # pull data
         else:
             sys.stdout.write('No new peaks were specified. Proceeding directly to summing and normalization.\n')
         
     if rd is None: # if no raw data is present, process mzML file
         mzml = mzML(filename) # load mzML class
         sp = prepformula(sp)
-        sp,TIC,rtime,sumspec = mzml.pullspeciesdata(sp,True) # pull relevant data from mzML
+        sp,sumspec = mzml.pullspeciesdata(sp,True) # pull relevant data from mzML
+        #sp,tic,rtime,sumspec = mzml.pullspeciesdata(sp,True) # pull relevant data from mzML
         chroms = mzml.pullchromdata() # pull chromatograms from mzML
+        rtime = {}
+        tic = {}
         for key in sp: # compare predicted isotope patterns to the real spectrum and save standard error of the regression
+            func = sp[key]['function']
+            if mzml.functions[func]['type'] == 'MS':
+                mode = 'raw'+mzml.functions[func]['mode']
+            if mzml.functions[func]['type'] == 'UV':
+                mode = 'rawUV'
+            if mode not in rtime:
+                rtime[mode] = mzml.functions[func]['timepoints']
+                tic[mode] = mzml.functions[func]['tic']
             if sp[key]['formula'] is not None:
                 sp[key]['match'] = sp[key]['mol'].compare(sp[key]['spectrum'])
-                #sp[key]['mol'].plotgaus()
     
     if max(n) > 1: # run combine functions if n > 1
         for num in n: # for each n to sum
@@ -305,7 +313,7 @@ def pyrsir(filename,xlsx,n):
                 modekey = 'raw'+mode
                 if modekey in rtime.keys(): # if there is data for that mode
                     rtime[sumkey] = bindata(num,num,rtime[modekey])
-                    TIC[sumkey] = bindata(num,1,TIC[modekey])
+                    tic[sumkey] = bindata(num,1,tic[modekey])
         sys.stdout.write(' DONE\n')
         sys.stdout.flush()
     
@@ -318,17 +326,19 @@ def pyrsir(filename,xlsx,n):
             modekey = 'raw'+mode
             if modekey in rtime.keys(): # if there is data for that mode
                 for key in sp: # for each species
+                    func = sp[key]['function']
                     if sp[key]['affin'] in mskeys: # if species has affinity
                         sp[key][normkey] = []
                         for ind,val in enumerate(sp[key][sumkey]):
-                            sp[key][normkey].append(val/(TIC[sumkey+sp[key]['affin']][ind]+0.01)) #+0.01 to avoid div/0 errors
+                            #sp[key][normkey].append(val/(mzml.function[func]['tic'][ind]+0.01)) #+0.01 to avoid div/0 errors
+                            sp[key][normkey].append(val/(tic[sumkey+sp[key]['affin']][ind]+0.01)) #+0.01 to avoid div/0 errors
     sys.stdout.write(' DONE\n')
     
     
     
     #import pickle #pickle objects (for troubleshooting)
     #pickle.dump(rtime,open("rtime.p","wb"))
-    #pickle.dump(TIC,open("TIC.p","wb"))
+    #pickle.dump(tic,open("tic.p","wb"))
     #pickle.dump(chroms,open("chroms.p","wb"))
     #pickle.dump(sp,open("sp.p","wb"))
     
@@ -349,7 +359,7 @@ def pyrsir(filename,xlsx,n):
 import sys
 if len(sys.argv) > 1: # if script was initiated from the command line, pull parameters from there
     try:
-        pyrsim(sys.argv[1],sys.argv[2],sys.arg[3])
+        pyrsir(sys.argv[1],sys.argv[2],sys.arg[3])
     except IndexError:
         raise IOError('The pyrsim function requires three inputs:\n- The raw filename\n- The excel parameters file\n- The number of scans to sum')
 
