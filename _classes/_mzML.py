@@ -11,12 +11,14 @@ CHANGELOG:
 
 to add:
     fix pullmsmsspectra to do the standard pulltimetic (and fix output and dependant functions accordingly)
+    make it so that if no affinity is specified in pullspeciesdata, it will default to function = 1
     change pullspectra to pull specified scans from a specified function (default function = 1)
     try to extract timepoints and tic from chromatogramList
     create attributes class (similar to cvparam) which will interpret the id string to as detailed a degree as possible
     update scan range from time range to accept a single time and return the closest scan number to that value
     update pull functions to identify the current spectrum and only look in the appropriate index range
     add ability to call a spectrum by time (find nearest match, perhaps ask user which one to retrieve)
+    add functionality to apply a calibration
     add plotspectrum call (which would use the tome_v02 plotter)
     identify spectrometer in softwareList
     obtain example files from different manufacturers and validate the script with those
@@ -478,12 +480,12 @@ class mzML(object):
             elif ml[0] in ['+','-']: # if affinity to mass spectrum
                 levelcount = 0 # counter for number of matches to this affinity and level
                 for fn in self.functions:
-                    if self.functions['type'] == 'MS': # if fn is ms
-                        if self.functions['mode'] == ml[0]: # if mode mathes
+                    if self.functions[fn]['type'] == 'MS': # if fn is ms
+                        if self.functions[fn]['mode'] == ml[0]: # if mode mathes
                             if ml[1] is None: # if there is no level specified, assume 1
                                 dct[key]['function'] = fn
                                 levelcount += 1
-                            if self.functions['level'] == ml[1]: # if level matches
+                            if self.functions[fn]['level'] == ml[1]: # if level matches
                                 dct[key]['function'] = fn
                                 levelcount += 1
                 if levelcount > 1:
@@ -491,6 +493,7 @@ class mzML(object):
                 continue
             else: # if some other affinity
                 raise ValueError('The specified affinity "%s" is not supported.' %ml[0])
+        return dct
     
     def attributes(self,branch):
         """pulls all attributes of a supplied branch and creates a dictionary of them"""
@@ -1214,6 +1217,7 @@ class mzML(object):
                     out['mode'] = '+'
                 if out['level'] == 2: # if msms (MSn >2 will have to be coded later, as I have no examples)
                     out['target'] = p['MS:1000827'] # isolation window target m/z
+                
                     
             if acc in othertypes: # if the scan is something else
                 out['acc'] = acc # accession code
@@ -1336,7 +1340,7 @@ class mzML(object):
         return x[l:r],y[l:r] # trim spectrum
                     
 if __name__ == '__main__':
-    filename = 'EJ-UVTQ-007-Pd(dba)UV'
+    filename = 'LY-2016-07-24 07'
     mzml = mzML(filename,verbose=True)
     #from _Spectrum import Spectrum
     #sp = {
