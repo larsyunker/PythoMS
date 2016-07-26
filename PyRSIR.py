@@ -7,10 +7,11 @@
  version 027
  new:
     updated to work with mzML v 2.4
+    removed spectrum object generation prior to pull_species_data (isotope patterns are now retrieved from the sumspec object)
+    removed raw key generation prior to pull_species_data (this is now generated in the mzml function)
     ---27.6 incompatible with mzML v2.4 or greater
 
 to add/fix:
-    update mzml to work with calibration
     create functionality for per-peak summing (create daughter dictionary?)
         if peaks overlap, combine
     
@@ -47,10 +48,10 @@ Column #5: end value (m/z or wavelength)
 """
 
 # input *.raw filename
-filename = 'LY-2106-07-19 04'
+filename = 'LY-2016-07-25 10'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = '2016-07-19 04 AgNO3 in sequential (unusable)'
+xlsx = '2016-07-25 10 AgNO3 abstraction of halide'
 
 # set number of scans to sum (integer or list of integers)
 n = [3,5]
@@ -192,7 +193,6 @@ def pyrsir(filename,xlsx,n):
                     dct[species]['mol'].res = res
                 dct[species]['mol'].sigma = dct[species]['mol'].sigmafwhm()[1] # recalculates sigma with new resolution
                 dct[species]['bounds'] = dct[species]['mol'].bounds(0.95) # caclulates bounds
-            dct[species]['spectrum'] = Spectrum(3,dct[species]['bounds'][0],dct[species]['bounds'][1]) # generates a Spectrum object with those bounds
         return dct
     
     # ----------------------------------------------------------
@@ -218,7 +218,6 @@ def pyrsir(filename,xlsx,n):
     
     mskeys = ['+','-']
     for key in sp: # append list places for chrom, summed chrom, and normalized chrom
-        sp[key]['raw'] = []
         if sp[key]['formula'] is not None: # if formula is specified
             sp[key]['mol'] = Molecule(sp[key]['formula']) # create Molecule object
             #sp[key]['bounds'] = sp[key]['mol'].bounds(0.99) # generate bounds from molecule object with this confidence interval
@@ -277,29 +276,30 @@ def pyrsir(filename,xlsx,n):
             for species in newsp:
                 if newsp[species].has_key('spectrum') is False:
                     newsp[species]['spectrum'] = Spectrum(3,newsp[species]['bounds'][0],newsp[species]['bounds'][1])
-            newsp = mzml.pullspeciesdata(newsp) # pull data
+            newsp = mzml.pull_species_data(newsp) # pull data
         else:
             sys.stdout.write('No new peaks were specified. Proceeding directly to summing and normalization.\n')
         
     if rd is None: # if no raw data is present, process mzML file
         mzml = mzML(filename) # load mzML class
         sp = prepformula(sp)
-        sp,sumspec = mzml.pullspeciesdata(sp,True) # pull relevant data from mzML
-        #sp,tic,rtime,sumspec = mzml.pullspeciesdata(sp,True) # pull relevant data from mzML
-        chroms = mzml.pullchromdata() # pull chromatograms from mzML
+        sp,sumspec = mzml.pull_species_data(sp,True) # pull relevant data from mzML
+        chroms = mzml.pull_chromatograms() # pull chromatograms from mzML
         rtime = {}
         tic = {}
         for key in sp: # compare predicted isotope patterns to the real spectrum and save standard error of the regression
             func = sp[key]['function']
-            if mzml.functions[func]['type'] == 'MS':
+            if mzml.functions[func]['type'] == 'MS': # determine mode key
+                sp[key]['spectrum'] = sumspec.trim(xbounds=sp[key]['bounds']) # extract the spectrum object
                 mode = 'raw'+mzml.functions[func]['mode']
             if mzml.functions[func]['type'] == 'UV':
                 mode = 'rawUV'
-            if mode not in rtime:
+            if mode not in rtime: # if rtime and tic have not been pulled from that function
                 rtime[mode] = mzml.functions[func]['timepoints']
                 tic[mode] = mzml.functions[func]['tic']
             if sp[key]['formula'] is not None:
                 sp[key]['match'] = sp[key]['mol'].compare(sp[key]['spectrum'])
+        sumspec = sumspec.trim() # convert Spectrum object into x,y lists
     
     if max(n) > 1: # run combine functions if n > 1
         for num in n: # for each n to sum

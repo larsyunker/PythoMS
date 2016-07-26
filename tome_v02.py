@@ -134,13 +134,12 @@ def bindata(n,v,lst):
             ttemp = 0
     return out
 
-def binnspectra(dct,n,dec=3,startmz=50.,endmz=2000.):
+def binnspectra(lst,n,dec=3,startmz=50.,endmz=2000.):
     """
     sums n mass spectra together into a single spectrum
     
-    dct:
-        dictionary of timepoints (see mzML.pullspectra output)
-        each timepoint is a dictionary with 'x' and 'y' lists
+    lst:
+        list of lists where each index is a paired set of x and y lists
     n:
         number of scans to sum
     dec:
@@ -159,23 +158,27 @@ def binnspectra(dct,n,dec=3,startmz=50.,endmz=2000.):
     out = []
     delta = 0
     spec = Spectrum(dec,startmz=startmz,endmz=endmz)
-    for time in dct: # for each timepoint
+    for x,y in lst: # for each timepoint
         delta += 1
-        sys.stdout.write('\rBinning spectrum #%i/%i  %.1f%%' %(delta,len(dct),float(delta)/float(len(dct))*100.))
-        spec.addspectrum(dct[time]['x'],dct[time]['y']) # add spectrum
+        sys.stdout.write('\rBinning spectrum #%i/%i  %.1f%%' %(delta,len(lst),float(delta)/float(len(lst))*100.))
+        spec.addspectrum(x,y) # add spectrum
         if delta == n: # critical number is reached
             out.append(spec.trim(zeros=True)) # append list
             spec.resety() # reset y list in object
             delta = 0 # reset critical sum
     sys.stdout.write(' DONE\n')
+    if len(out) == 1: # if there is only one item
+        return out[0]
     return out
 
-def bincidspectra(dct,dec=3,startmz=50.,endmz=2000.,threshold=0,fillzeros=False):
+def bincidspectra(speclist,celist,dec=3,startmz=50.,endmz=2000.,threshold=0,fillzeros=False):
     """
     bins mass spectra together based on their collision voltage
     
-    lst:
-        list of dictionarys corresponding to each scan (see mzML.pullspectra output)
+    speclist:
+        list of lists where each index is a paired set of x and y lists
+    celist:
+        list of collision energies with indicies corresponding to the speclist
     dec:
         how many decimals to keep
         default 3
@@ -190,12 +193,13 @@ def bincidspectra(dct,dec=3,startmz=50.,endmz=2000.,threshold=0,fillzeros=False)
     from _Spectrum import Spectrum
     import sys
     binned = {}
-    for time in dct:
-        #sys.stdout.write('\rBinning spectrum by CID value #%i/%i  %.1f%%' %(ind+1,len(lst),float(ind+1)/float(len(lst))*100.))
-        if binned.has_key(dct[time]['CE']) is False: # generate key and spectrum object if not present
-            binned[dct[time]['CE']] = Spectrum(dec,startmz=startmz,endmz=endmz)
+    
+    for ind,ce in enumerate(celist):
+        sys.stdout.write('\rBinning spectrum by CID value #%i/%i  %.1f%%' %(ind+1,len(celist),float(ind+1)/float(len(celist))*100.))
+        if binned.has_key(ce) is False: # generate key and spectrum object if not present
+            binned[ce] = Spectrum(dec,startmz=startmz,endmz=endmz)
         else: # otherwise add spectrum
-            binned[dct[time]['CE']].addspectrum(dct[time]['x'],dct[time]['y'])
+            binned[ce].addspectrum(speclist[ind][0],speclist[ind][1])
     
     if threshold > 0 or fillzeros is True: # if manipulation is called for
         for vol in binned: # for each voltage

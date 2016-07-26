@@ -5,6 +5,7 @@ CHANGELOG
 new:
     ---2.3---
     fixed addition (arrays weren't working with addspectrum)
+    trim method can now be restricted to output between specific x bounds (allows for easy narrowing of range for extracting segments from the parent spectrum)
     ---2.4
 
 to add/fix:
@@ -33,8 +34,8 @@ class Spectrum(object):
             list of lists of index-matched x and y values
         """
         self.decpl = decpl
-        self.startmz = startmz
-        self.endmz = endmz
+        self.startmz = round(startmz,self.decpl)
+        self.endmz = round(endmz,self.decpl)
         self.sp = __import__('scipy')
         self.x,self.yimm = self.fullspeclist(self.startmz,self.endmz) # m/z and intensity lists (these are intended to remain immutable)
         self.y = list(self.yimm) # create the list that will be actively modified
@@ -231,27 +232,28 @@ class Spectrum(object):
                 self.y[ind] = None
     
     #@st.profilefn
-    def trim(self,zeros=False):
+    def trim(self,zeros=False,xbounds=None):
         """
         trims pairs that have None intensity
         zeros specifies whether there should be zeros at the startmz and endmz (for generating continuous spectra across the range)
         the zeros will not overwrite existing intensity at that m/z
         """
+        if xbounds is None:
+            xbounds = [self.startmz,self.endmz]
         xout = []
         yout = []
         for ind,inten in enumerate(self.y):
-            if inten is not None:
-                xout.append(round(self.x[ind],self.decpl)) # rounded to avoid array floating point weirdness
-                yout.append(inten)
-            elif zeros is True: # if zeros at the edges of spectrum are desired
-                if ind == 0: #self.x[ind] == self.startmz:
-                    xout.append(self.x[ind])
-                    yout.append(0)
-                if ind == len(self.x)-1: #self.x[ind] == self.endmz:
-                    xout.append(self.x[ind])
-                    yout.append(0)
+            if self.x[ind] >= xbounds[0] and self.x[ind] <= xbounds[1]: # if within the x bounds
+                if inten is not None:
+                    xout.append(round(self.x[ind],self.decpl)) # rounded to avoid array floating point weirdness
+                    yout.append(inten)
+                elif zeros is True: # if zeros at the edges of spectrum are desired
+                    if self.x[ind] == xbounds[0] or self.x[ind] == xbounds[1]: # at the edges of the output spectrum
+                        xout.append(self.x[ind])
+                        yout.append(0)
         return [xout,yout]
-        
+    
+       
 if __name__ == '__main__':
     nsp = Spectrum(3)
     print nsp
