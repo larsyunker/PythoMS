@@ -2,22 +2,8 @@
 Class for interpreting and processing mzML files
 
 CHANGELOG:
-    added index calling of the cvparam object (to allow iteration through the keys in the the instance)
-    the functions dictionary created on initiation now determines more detailed scan properties (type, level, mode)
-    created function to associate speicifed affinity and level to the correct function in the mzML (makes spectrumtype obsolete)
-    rewrote pull species data function to assign a function number to species and process species based on that function affinity
-    updated functions to identify spectra based on function number and the properties in self.functions[fn]
-    modified nscans to work by counter (no longer screws up the length of the first function)
-    created retrieve_scans function (a general function to retrieve scans from the specified function)
-    made all retrieve scan functions obsolete (call retrieve_scans instead)
-    created scan_index function to determine the index of a scan or timepoint in the specified function
-    removed scanrange_from_timerange (functionality is now covered by scan_index)
-    rewrote sum_scans to use the new scan_index function
-    updated functions to work with the new scan_index, sum_scans, and retrieve_scans
-    generalized associate to function so that it can be suppiled with an affinity and level and will return the appropriate function
-    removed individual peak spectrum summing from pull_species_data (only sum the full spectrum and extract the isotope pattern later)
-    raw lists are now generated automatically in pull_species_data
-    ---2.4 building
+    
+    ---2.5 building
 
 to add:
     removed obsolete functions in a couple of months (once all calls to them have been found)
@@ -885,7 +871,7 @@ class mzML(object):
             from _Spectrum import Spectrum
             spec = Spectrum(3)
         for species in sp: # look for and assign function affinity
-            sp['function'] = self.associate_to_function(dct=sp[species]) # associate each species in the spectrum with a function
+            sp[species]['function'] = self.associate_to_function(dct=sp[species]) # associate each species in the spectrum with a function
             if sp[species].has_key('raw') is False: # look for empty raw list
                 sp[species]['raw'] = []
         if self.ftt is False: # if timepoints and tic values have not been extracted yet, extract those
