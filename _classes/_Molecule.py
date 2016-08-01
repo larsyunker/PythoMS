@@ -6,61 +6,6 @@ Negligable differences are attributed to different low value discarding techniqu
 (ChemCalc keeps the top 5000 peaks, this script drops values less than a threshold 5 orders of magnitude below the maximum value)
 
 CHANGELOG:
-    ---0.1---BETA
-    rebuilt rawisotopepattern to be more efficient and retain all decimals
-    fixed error in calcindex (within tome_v02; it was returning an index of one less than intended)
-    ---0.2---BETA
-    rewrote barisotopepattern to group m/z values and determine mass by weighted average
-    added support for addition and subtraction from the MF class
-    added returns (of unsupport) for multiplication and division
-    ---0.3---
-    enhanced formula interpreter (now handles single brackets and common abbreviations)
-    added support for common functional groups in _formabbrvs
-    ---1.0---
-    added support for specification of isotopes
-    added support for multiplication and division by integers
-    supports nested brackets (even of the same type)
-    ---2.0---
-    fixed gaussian addition by using NoneSpectrum instances
-    removed generation of the gaussian isotope pattern from the automatic execution
-    calling of plotgaus() and gaussianisotopepattern() generates the gaussian pattern
-    fixed add,sub,mul,div to raise errors and made the errors more explicit
-    added reset functionality to reset the instance to its original values from when the instance was called
-    ---2.1---
-    renamed to Molecule
-    added molecular weight calculator
-    added percent composition calculator
-    fixed molecular formula generator to exclude implicit 1's
-    tweaked instance checks in __add__ and __sub__ to look for the class name
-    added a percent composition printer (formatted output)
-    added amino acids to the abbreviations dictionary (can now interpret polypeptides)
-    removed all sys.exit calls and changed them to error raising
-    incorporated detail printing into the class as a callable function
-    removed resolution from the class call and incorporated it specifically into the functions which require it
-    updated dostrings
-    ---2.3---
-    reinstated resolution in the class call for use with PyRSIM
-    creating bounds function for integration with PyRSIM
-    shuffled fwhm and sigma calculations into a separate function and call them in __init__
-    fixed gaussian isotope pattern generation to work with NoneSpectrum addition method (now works correctly)
-    added compare function to compare an experimental pattern to the predicted one
-    bounds no longer includes peaks below a certain threshold
-    created dictionary from the crc handbook masses (nearly identical masses)
-    ---2.4---
-    significantly improved the generation of the raw spectrum (now uses the built in methods of the Spectrum class -- formerly the NoneSpectrum class)
-    added verbose call to raw spectrum
-    significantly improved the efficiency of gaussianisotopepattern by calling a single Spectrum object and adding the subsequent spectra to that
-    centered bar isotope pattern
-    added plotraw() in case a raw check is desired
-    fixed isotope handling in molecularweight()
-    ---2.5---
-    added charge interpreter into both the charge input and the string input (the string input will override the charge input)
-    added a catch for not closing a bracket
-    exactmass() can account for the mass of an electron, but this is commented out because of the extremely minute difference this makes
-    removed __pow__ method because it's just so farfetched that someone might use it
-    changed print calls to sys.stdout.write calls
-    corrected generation of the formula if the class is added/subtracted/multiplied/divided
-    ---2.6---
     simplified sigmafwhm() for ease of calling within the Molecule object (also generalized it and copied it to tome)
     removed redundant lines in bounds()
     fixed threshold in bounds() to be a percentage of the maximum barip intensity
@@ -276,8 +221,9 @@ class Molecule(object):
             self.gaussianisotopepattern()
         yvals = []
         res = []
-        #tot = []
         maxy = float(max(exp[1]))
+        if maxy == 0.:
+            return 'could not calculate'
         for ind,val in enumerate(exp[1]): # normalize y values
             yvals.append(float(val)/maxy*100.)
         #avgy = sum(exp[1])/len(exp[1])
@@ -681,7 +627,7 @@ class Molecule(object):
     
     
 if __name__ == '__main__': # for testing and troubleshooting
-    string = 'Ar+I'
+    string = 'L2PdAr+I'
     charge = 1
     res = 774
     mol = Molecule(string,charge=charge,res=res)

@@ -16,9 +16,6 @@ new/changed:
     added explicit keys for showing/hiding axis labels, values, and lines
     ---12.1---
     ---12.2
-
-to add:
-    databridge for masslynx conversion (is this even useful?)
 """
 # provide the experimental spectrum xlsx
 # the script will automatically use the first sheet
