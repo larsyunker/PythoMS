@@ -435,7 +435,7 @@ class Molecule(object):
         
         if verbose is True:
             import sys
-        self.nsp = Spectrum(3,startmz=min(self.barip[0])-self.fwhm*2,endmz=max(self.barip[0])+self.fwhm*2) # generate Spectrum object to encompass the entire region
+        self.nsp = Spectrum(3,min(self.barip[0])-self.fwhm*2,max(self.barip[0])+self.fwhm*2) # generate Spectrum object to encompass the entire region
         for ind,val in enumerate(self.barip[0]): # generate normal distributions for each peak
             if verbose is True:
                 sys.stdout.write('\rSumming m/z %.3f %d/%d' %(val,ind+1,len(self.barip[0])))
@@ -595,7 +595,7 @@ class Molecule(object):
                 for n in range(comp[key]): # for n number of atoms of each element
                     if verbose is True:
                         sys.stdout.write('\rProcessing element %s %d/%d' %(key,n+1,comp[key]))
-                    spec = Spectrum(dec,startmz=min(out[0])+min(bnds),endmz=max(out[0])+max(bnds)) # generate spectrum object
+                    spec = Spectrum(dec,min(out[0])+min(bnds),max(out[0])+max(bnds)) # generate spectrum object
                     for mass in self.md[key]:# for each mass of that element 
                         if mass != 0:
                             if self.md[key][mass][1] != 0: # if intensity is nonzero
