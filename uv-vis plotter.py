@@ -38,7 +38,7 @@ if __name__ == '__main__':
     from _classes._mzML import mzML
     from scipy import arange
     from tome_v02 import locateinlist,plotuv
-    mzml = mzML(filename) # initiate mzml object
+    mzml = mzML(filename,ftt=True) # initiate mzml object
     fn = mzml.associate_to_function('UV') # determine which function contains UV-Vis data
     uvspecs = mzml.retrieve_scans(start,end,fn) # pull uv spectra
     wavelengths = list(uvspecs[0][0]) # wavelength list
