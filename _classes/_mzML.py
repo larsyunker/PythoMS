@@ -2,18 +2,13 @@
 Class for interpreting and processing mzML files
 
 CHANGELOG:
-    
+    updated get item to pull a slice (from function 1), a single scan index, or a timepoint (from function 1)
+    moved self.ftt calls into self.ks (allows for calling of that function on initialization)
+    changed several function names to contain underscores (to make reading the function names easier)
     ---2.5 building
 
 to add:
-    removed obsolete functions in a couple of months (once all calls to them have been found)
-    create attributes class (similar to cvparam) which will interpret the id string to as detailed a degree as possible
-    add functionality to apply a calibration
-    add plotspectrum call (which would use the tome_v02 plotter)
-    identify spectrometer in softwareList
     try to extract timepoints and tic from chromatogramList (x values are sorted, so this probably won't work)
-    obtain example files from different manufacturers and validate the script with those
-    ask proteowizard support if it is possible to extract source conditions
 """
 
 class mzML(object):
@@ -26,6 +21,7 @@ class mzML(object):
         'compression':True, # compression of binary strings (can substantially reduce file sizes)
         'gzip': True, # toggle gzip compression of mzml file (reduces file sizes even further
         'obo': None, # specific path to an *.obo file or the directory containing one
+        'ftt': False, # run function time tic on initialization
         }
         if set(kwargs.keys()) - set(self.ks.keys()): # check for invalid keyword arguments
             string = ''
@@ -37,7 +33,7 @@ class mzML(object):
         # import required functions
         self.sys = __import__('sys')
         self.os = __import__('os')
-        self.filename = self.checkforfile(filename)
+        self.filename = self.check_for_file(filename)
         self.b64 = __import__('base64')
         self.st = __import__('struct')
         self.zlib = __import__('zlib')
@@ -59,10 +55,11 @@ class mzML(object):
             self.tree = xml.dom.minidom.parse(handle) # full mzML file
         except:
             raise IOError('The mzML file "%s" could not be loaded. The file is either unsupported, corrupt, or incomplete.' %self.filename)
-        self.mzmlcontents() # extract the contents of the mzML
-        self.ftt = False # signifier for whether or not function_timetic has been run
+        self.mzml_contents() # extract the contents of the mzML
         if self.ks['verbose'] is True:
             self.sys.stdout.write(' DONE\n')
+        if self.ks['ftt'] is True:
+            self.function_timetic()
         
     def __str__(self):
         """The string that is returned when printed"""
@@ -73,31 +70,40 @@ class mzML(object):
         return "%s('%s')" %(self.__class__.__name__,self.filename)
     
     def __getitem__(self,ind):
-        """
-        returns the summed scans with the supplied scan number
-        if a slice is provided, the script will attempt to sum those scans
-        """
+        """retrieves a scan or summed scans"""
         if isinstance(ind,slice): # if getitem is trying to slice
+            """
+            returns the summed scans with the supplied indicies
+            slice will assume that the intended function is 1
+            """
             if ind.start is None: # no start
                 start = 0
             else:
                 start = ind.start
             if ind.stop is None: # no stop
-                stop = self.nscans
+                stop = self.functions[1]['sr'][1]
             else:
                 stop = ind.stop
-        elif type(ind) is int:
-            if ind == 0 or ind > self.nscans:
-                raise IndexError("The scan #%d is outside of the mzML's scan range (1-%d)" %(ind,self.nscans))
-            start = ind
-            stop = ind
-            if start < 0: # if negative indicies are supplied
-                start = self.nscans+start+1
-            if stop < 0:
-                stop = self.nscans+stop+1
-            return self.sumscans(sr=[start,stop],mute=True)[0]
-        elif type(ind) is float:
-            raise IndexError('Indexing by floating point (time point) is currently unsupported')
+            return self.sum_scans(start,stop,mute=True)
+        
+        elif type(ind) is int: # scan index number
+            """will return the spectrum of the scan index provided"""
+            if ind < 0 or ind > self.nscans:
+                raise IndexError("The scan index number #%d is outside of the mzML's scan index range (0-%d)" %(ind,self.nscans-1))
+            for spectrum in self.tree.getElementsByTagName('spectrum'):
+                attr = self.attributes(spectrum)
+                if attr['index'] == ind:
+                    return self.extract_spectrum(spectrum)
+        
+        elif type(ind) is float: # timepoint in function 1
+            """float will assume the intended function was 1"""
+            if ind < 0 or ind > self.duration:
+                raise ValueError("The supplied time %.3f is outside of this file's time range (0 - %.3f)" %(ind,self.duration))
+            ind = self.scan_index(ind)
+            for spectrum in self.tree.getElementsByTagName('spectrum'):
+                attr = self.attributes(spectrum)
+                if attr['index'] == ind:
+                    return self.extract_spectrum(spectrum)
     
     def __add__(self,x):
         return 'Addition to the mzML class is unsupported'
@@ -123,7 +129,7 @@ class mzML(object):
             """warns the user if there was a mismatch"""
             if self.warned.has_key(name) is False:
                 import sys
-                sys.stdout.write('\nThe peak "%s" (%f-%f) is outside of the bounds of the spectrum being summed m/z %.1f-%.1f\n' %(name,intstart,intend,mzstart,mzend))
+                sys.stdout.write('\nThe peak "%s" (%s-%s) is outside of the bounds of the spectrum being summed m/z %.1f-%.1f\n' %(name,str(intstart),str(intend),mzstart,mzend))
                 self.warned[name] = 1
             else:
                 self.warned[name] += 1
@@ -471,7 +477,7 @@ class mzML(object):
                             fnout = fn
                             levelcount += 1
             if levelcount > 1:
-                raise ValueError("There affinity specification of mode: %s, level: '%d' matches more than one function in the mzML file.\nTo process this species, be more specific in your level specification or assign it to a specific function number by adding a 'function' key to its dictionary." %(affin,level))
+                raise ValueError("There affinity specification of mode: %s, level: '%s' matches more than one function in the mzML file.\nTo process this species, be more specific in your level specification or assign it to a specific function number by adding a 'function' key to its dictionary." %(affin,str(level)))
             return fnout
         else: # if some other affinity
             raise ValueError('The specified affinity "%s" is not supported.' %affin)
@@ -493,7 +499,7 @@ class mzML(object):
             out[pair[0]] = stringtodigit(pair[1])
         return out
     
-    def autoresolution(self,n=10,fn=1):
+    def auto_resolution(self,n=10,fn=1):
         """
         automatically determines the resolution of the spectrometer that recorded the mzml file
         resolution is based on the average resolution of 10 pseudo-random samples
@@ -545,13 +551,16 @@ class mzML(object):
         from random import random
         import scipy as sci
         if self.functions[fn]['type'] != 'MS':
-            raise ValueError('The autoresolution function only operates on mass spectrum functions. Type of specified function %d: %s' %(fn,self.function[fn]['type']))
+            raise ValueError('The auto_resolution function only operates on mass spectrum functions. Type of specified function %d: %s' %(fn,self.function[fn]['type']))
         ranges = [] # list of scan intervals
         
-        while len(ranges) < n: # generate 10 pseudo-random intervals to sample
-            ran = int(random()*self.functions[fn]['nscans']) + self.functions[fn]['sr'][0]
-            if ran-10 >= self.functions[fn]['sr'][0] and ran+10 <= self.functions[fn]['sr'][1]:
-                ranges.append([ran-10,ran+10])
+        if self.functions[fn]['nscans'] <= 20: # if the number of scans is less than 20
+            ranges = [[1,self.functions[fn]['nscans']]]
+        else:
+            while len(ranges) < n: # generate 10 pseudo-random intervals to sample
+                ran = int(random()*self.functions[fn]['nscans']) + self.functions[fn]['sr'][0]
+                if ran-10 >= self.functions[fn]['sr'][0] and ran+10 <= self.functions[fn]['sr'][1]:
+                    ranges.append([ran-10,ran+10])
         summed = []
         for ind,rng in enumerate(ranges):
             if self.ks['verbose'] is True:
@@ -567,7 +576,7 @@ class mzML(object):
         res = [y for y in res if y is not None] # removes None values (below S/N)
         return sum(res)/len(res) # return average
         
-    def checkforfile(self,fn):
+    def check_for_file(self,fn):
         """checks for file and converts if necessary"""
         def version_input(string):
             """checks the python version and uses the appropriate version of user input"""
@@ -581,12 +590,12 @@ class mzML(object):
         
         valid = ['.raw','.mzml.gz','.mzml'] # supported extensions
         if fn.lower().endswith('.raw') is True: # extension is raw
-            if self.filepresent(fn[:-4]+'.mzML.gz') is True: # if corresponding gzipped mzml is present
+            if self.file_present(fn[:-4]+'.mzML.gz') is True: # if corresponding gzipped mzml is present
                 return fn[:-4]+'.mzML.gz'
-            if self.filepresent(fn[:-4]+'.mzML') is True: # if corresponding mzml is present
+            if self.file_present(fn[:-4]+'.mzML') is True: # if corresponding mzml is present
                 return fn[:-4]+'.mzML'
-            return self.pwconvert(fn,self.ks['precision'],self.ks['compression'],self.ks['gzip']) # otherwise convert and return mzml
-        elif self.filepresent(fn) is True: # if the specified file is present
+            return self.pw_convert(fn,self.ks['precision'],self.ks['compression'],self.ks['gzip']) # otherwise convert and return mzml
+        elif self.file_present(fn) is True: # if the specified file is present
             for exten in valid: # checks for supported extensions
                 if fn.lower().endswith(exten) is True:
                     return fn
@@ -596,12 +605,12 @@ class mzML(object):
             else:
                 self.sys.exit('The user cancelled mzML loading.')
         else:
-            fn = self.fixextension(fn) # try to fix extension
+            fn = self.fix_extension(fn) # try to fix extension
             if fn.lower().endswith('.raw') is True: # convert if only raw file is found
-                return self.pwconvert(fn,self.ks['precision'],self.ks['compression'],self.ks['gzip'])
+                return self.pw_convert(fn,self.ks['precision'],self.ks['compression'],self.ks['gzip'])
             return fn
     
-    def extractspectrum(self,spectrum,units=False):
+    def extract_spectrum(self,spectrum,units=False):
         """pulls and converts binary data to list"""
         def gettext(nodelist):
             """gets text from a simple XML object"""
@@ -646,36 +655,36 @@ class mzML(object):
             out.extend(units)
         return out
     
-    def filepresent(self,filepath):
+    def file_present(self,filepath):
         """checks for the presence of the specified file or directory in the current working directory"""
         tf = self.os.path.isfile(filepath) # look for file first
         if tf is False: # if file cannot be found, look for directory
             tf = self.os.path.isdir(filepath)
         return tf
         
-    def fixextension(self,fn):
+    def fix_extension(self,fn):
         """tries to fix invalid file extensions"""
         oopsx = {'.mzm':'l','.mz':'ml','.m':'zml','.':'mzml'} # incomplete mzml extensions
         oopsr = {'.ra':'w','.r':'aw','.':'raw'} # incomplete raw extionsions
         oopsg = {'.mzml.g':'z','.mzml.':'gz','.mzml':'.gz','.mzm':'l.gz','.mz':'ml.gz','.m':'zml.gz','.':'mzml.gz'} #incomplete gz extensions
         # looks for missing extensions first
-        if self.filepresent(fn+'.mzml.gz') is True:
+        if self.file_present(fn+'.mzml.gz') is True:
             return fn+'.mzml.gz'
-        if self.filepresent(fn+'.mzml') is True: 
+        if self.file_present(fn+'.mzml') is True: 
             return fn+'.mzml'
         for key in oopsg: # tries to complete mzml.gz shortenings
             if fn.lower().endswith(key) is True:
-                if self.filepresent(fn+oopsg[key]) is True:
+                if self.file_present(fn+oopsg[key]) is True:
                     return fn+oopsg[key]
         for key in oopsx: # tries to complete mzml shortenings
             if fn.lower().endswith(key) is True:
-                if self.filepresent(fn+oopsx[key]) is True:
+                if self.file_present(fn+oopsx[key]) is True:
                     return fn+oopsx[key]
         for key in oopsr: # tries to complete raw shortenings
             if fn.lower().endswith(key) is True:
-                if self.filepresent(fn+oopsr[key]) is True:
+                if self.file_present(fn+oopsr[key]) is True:
                     return fn+oopsr[key]
-        if self.filepresent(fn+'.raw') is True: # finally looks for raw file
+        if self.file_present(fn+'.raw') is True: # finally looks for raw file
             return fn+'.raw'
         raise IOError('The file "%s" could not be located in the current working directory'%(fn)) # if it can't be found, raise IOError
     
@@ -692,8 +701,6 @@ class mzML(object):
         extracts timepoints and tic lists for each function
         this function is separate from mzml contents because it would increase load times significantly (~6x)
         """
-        if self.ftt is True: # if this has already been done, break out
-            return None
         for func in self.functions: # add timepoint and tic lists
             self.functions[func]['timepoints'] = [] # list for timepoints
             self.functions[func]['tic'] = [] # list for total ion current values
@@ -705,40 +712,43 @@ class mzML(object):
             if self.ks['verbose'] is True:
                 self.sys.stdout.write('\rExtracting timepoints and total ion current values from mzML %.1f%%' %(float(attr['index']+1)/float(self.nscans)*100.))
             p = self.cvparam(spectrum) # pull spectrum's cvparameters
-            self.functions[func]['timepoints'].append(p['MS:1000016'])
-            self.functions[func]['tic'].append(p['MS:1000285'])
+            self.functions[func]['timepoints'].append(p['MS:1000016']) # start scan time
+            self.functions[func]['tic'].append(p['MS:1000285']) # total ion current
             if p.has_key('MS:1000045'):
-                self.functions[func]['ce'].append(p['MS:1000045'])
+                self.functions[func]['ce'].append(p['MS:1000045']) # collision energy
         if self.ks['verbose'] is True:
             self.sys.stdout.write(' DONE\n')
-        self.ftt = True
+        self.ks['ftt'] = True
             
     def integrate(self,name,start,end,x,y):
         """
         Integrates y values given x bounds in a paired set of lists (e.g. a m/z list and an intensity list)
         
         name: name of the peak being integrated (only used for warning purposes)
-        start: start x value
-        end: end x value
+        start: float
+            start x value
+        end: float or None
+            end x value
+            None will return the nearest value to the provided start value
         x: list of x values
         y: list of y values (paired with x)
         
-        returns: integral value
+        returns: integral
         """
         if start > max(x) or start < min(x): # check that start is within the m/z bounds
             self.BE.warn(name,start,end,min(x),max(x))
         if end is None: # if only a start value is supplied, return closest to that value
-            return y[self.locateinlist(x,start)]
+            return y[self.locate_in_list(x,start)]
         if end > max(x): # check that end is within the m/z bounds
             self.BE.warn(name,start,end,min(x),max(x))
-        return sum(y[self.locateinlist(x,start,'greater'):self.locateinlist(x,end,'lesser')]) # integrate using the nearest values inside the bounds        
+        return sum(y[self.locate_in_list(x,start,'greater'):self.locate_in_list(x,end,'lesser')]) # integrate using the nearest values inside the bounds        
     
-    def locateinlist(self,lst,value,bias='closest'):
+    def locate_in_list(self,lst,value,bias='closest'):
         """
         Finds index in a sorted list of the value closest to a given value
         
         If two numbers are equally close, return the smallest number.
-        based on http://stackoverflow.com/questions/12141150/from-list-of-integers-get-number-closest-to-a-given-value
+        roughly based on http://stackoverflow.com/questions/12141150/from-list-of-integers-get-number-closest-to-a-given-value
         
         lst: list
             list of values to search
@@ -771,7 +781,7 @@ class mzML(object):
             else:
                 return pos
     
-    def mzmlcontents(self):
+    def mzml_contents(self):
         """finds the total number of scans, the number of chromatograms, and the scan range for each function in the mzml file"""
         self.nscans = int(self.tree.getElementsByTagName('spectrumList')[0].getAttribute('count')) # number of spectra
         self.nchroms = int(self.tree.getElementsByTagName('chromatogramList')[0].getAttribute('count')) # number of chromatograms
@@ -784,17 +794,25 @@ class mzML(object):
                 'sr':[int(spectrum.getAttribute('index')),None], # the scan index range that the function spans
                 'nscans':1, # number of scans
                 }
-                self.functions[func].update(self.scanproperties(p)) # update with scan properties
+                self.functions[func].update(self.scan_properties(p)) # update with scan properties
             else:
                 self.functions[func]['sr'][1] = int(spectrum.getAttribute('index')) # otherwise set the scan index range to the current index
                 self.functions[func]['nscans'] += 1
+        p = self.cvparam(spectrum) # pull properties of final spectrum
+        self.duration = p['MS:1000016'] # final start scan time
     
     def pull_chromatograms(self):
         """
         Pulls mzML chromatograms
+        
         returns:
-            dictionary of all chromatograms with keys denoted by the chromatogram id
-            each dictionary has subkeys for 'x':xlist, 'y':ylist, 'xunit':unit of x, 'yunit':unit of y
+        dictionary = {'chromatogram 1 id', 'chromatogram 2 id', ...}
+        dictionary['chromatogram 1 id'] = {
+        'x': list of x values
+        'y': list of y values (paired with x)
+        'xunit': unit of the x values
+        'yunit': unit of the y values
+        }
         """
         chroms = {} #dictionary of chromatograms
         for chromatogram in self.tree.getElementsByTagName('chromatogram'):
@@ -802,7 +820,7 @@ class mzML(object):
             if self.ks['verbose'] is True:
                 self.sys.stdout.write('\rExtracting chromatogram #%s/%i  %.1f%%' %(attr['index']+1,self.nchroms,float(attr['index']+1)/float(self.nchroms)*100.))
                 self.sys.stdout.flush()
-            x,y,xunit,yunit = self.extractspectrum(chromatogram,True) # extract x list, y list, and units
+            x,y,xunit,yunit = self.extract_spectrum(chromatogram,True) # extract x list, y list, and units
             chroms[attr['id']] = {'x':x, 'y':y, 'xunit':xunit, 'yunit':yunit}
         if self.ks['verbose'] is True:
             self.sys.stdout.write(' DONE\n')
@@ -853,8 +871,6 @@ class mzML(object):
         'affin':['+' or '-' or 'UV'}, //which spectrum to look for this species in
         'level':integer, //if applicable, the MSn level (optional, but add specificity)
         'function':integer, //the specific function in which to find this species (optional; overrides affin and level)
-        'raw':[], //an empty list for the raw values to be inserted into
-        'spectrum':Spectrum object //a spectrum object to contain the summed isotope pattern given by the bounds (only applicable for mass spectrum species)
         }
         
         sumspec: bool
@@ -862,19 +878,26 @@ class mzML(object):
             also sums the spectra of mass spectrum species to generate an isotope pattern used by the bounds
         
         output:
-            filled dictionary with integrated values inserted into 'raw' key
-            if sumspec is true, will also output an [x,y] list
+            filled dictionary, each subkey will have:
+            'raw': list of raw integrated values dictacted by the bounds
+            'function': the function that the species was associated with
+            
+            if sumspec is true, will also output a dictionary of Spectrum objects
+            the keys of this dictionary are the function numbers
         
         explicitly interprets full scan mass spectra and UV species
         """
         if sumspec is True:
             from _Spectrum import Spectrum
-            spec = Spectrum(3)
+            spec = {}
+            for fn in self.functions: # create spectrum objects for all MS species
+                if self.functions[fn]['type'] == 'MS':
+                    spec[fn] = Spectrum(3)
         for species in sp: # look for and assign function affinity
             sp[species]['function'] = self.associate_to_function(dct=sp[species]) # associate each species in the spectrum with a function
             if sp[species].has_key('raw') is False: # look for empty raw list
                 sp[species]['raw'] = []
-        if self.ftt is False: # if timepoints and tic values have not been extracted yet, extract those
+        if self.ks['ftt'] is False: # if timepoints and tic values have not been extracted yet, extract those
             self.function_timetic()
         self.BE = self.BoundsError() # load warning instance for integration
         for spectrum in self.tree.getElementsByTagName('spectrum'):
@@ -882,9 +905,9 @@ class mzML(object):
             attr = self.attributes(spectrum) # get attributes
             if self.ks['verbose'] is True:
                 self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
-            x,y = self.extractspectrum(spectrum) # generate spectrum
-            if sumspec is True:
-                spec.addspectrum(x,y)
+            x,y = self.extract_spectrum(spectrum) # generate spectrum
+            if sumspec is True and func == 1:
+                spec[func].addspectrum(x,y)
             for key in sp: # integrate each peak
                 if sp[key]['function'] == func: # if species is related to this function
                     if self.functions[func]['type'] == 'MS':
@@ -896,8 +919,7 @@ class mzML(object):
         self.BE.printwarns() # print bounds warnings (if any)
         if sumspec is True:
             return sp,spec  
-        else:
-            return sp
+        return sp
     
     def pullspectra(self,sr=None,tr=None,mzrange=None,mute=False):
         """
@@ -934,7 +956,7 @@ class mzML(object):
         """
         self.sys.exit('The pulluvspectra function is obsolete. Identify the appropriate function to sum from mzML.functions and use retrieve_scans instead.') 
         
-    def pwconvert(self,filename,bit=64,compression=True,gzip=True):
+    def pw_convert(self,filename,bit=64,compression=True,gzip=True):
         """
         Runs msconvert.exe from ProteoWizard to convert Waters .RAW format to .mzXML
         which can then be parsed by python.
@@ -1029,19 +1051,23 @@ class mzML(object):
         start = self.scan_index(start,fn,bias='greater')
         end = self.scan_index(end,fn,bias='lesser')
         
-        if self.ftt is False: # extract the timepoints and etc from the mzml
+        if self.ks['ftt'] is False: # extract the timepoints and etc from the mzml
             self.function_timetic()
         out = []
         for spectrum in self.tree.getElementsByTagName('spectrum'): # go through each spectrum
             attr = self.attributes(spectrum)
             # func,proc,scan = self.fps(spectrum) # determine function, process, and scan numbers
             # p = self.cvparam(spectrum)
+            if attr['index'] > end:
+                break
             if self.ks['verbose'] is True and mute is False:
                 self.sys.stdout.write('\rExtracting scan data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
             if attr['index'] >= start and attr['index'] <= end: # within the index bounds
-                out.append(self.extractspectrum(spectrum))
+                out.append(self.extract_spectrum(spectrum))
         if self.ks['verbose'] is True and mute is False:
             self.sys.stdout.write(' DONE\n')
+        if len(out) == 0: # if only one scan, return that scan
+            return out[0]
         return out
     
     def scan_index(self,scan=None,fn=1,bias='lesser'):
@@ -1051,7 +1077,7 @@ class mzML(object):
             the scan number or time point to find
         fn: integer
             the function to look in
-        bias: options dictated by locateinlist()
+        bias: options dictated by locate_in_list()
             bias of index finding
         """
         if fn not in self.functions:
@@ -1062,9 +1088,9 @@ class mzML(object):
             if bias == 'lesser': # used for end point
                 return self.functions[fn]['sr'][1]
         if type(scan) is float: # timepoint
-            if self.ftt is False:
+            if self.ks['ftt'] is False:
                 self.function_timetic()
-            return self.locateinlist(self.functions[fn]['timepoints'],scan,bias=bias) + self.functions[fn]['sr'][0] # return located index plus start of the scan range
+            return self.locate_in_list(self.functions[fn]['timepoints'],scan,bias=bias) + self.functions[fn]['sr'][0] # return located index plus start of the scan range
         elif type(scan) is int: # scan number
             if scan < 1:
                 raise ValueError('The scan number must be greater or equal to 1 (specified: %d)' %scan)
@@ -1086,7 +1112,7 @@ class mzML(object):
         """
         self.sys.exit('The scanrange_from_timerange function is obsolete, use scan_index')
    
-    def scanproperties(self,hand):
+    def scan_properties(self,hand):
         """determines the scan properties of the provided spectrum"""
         mstypes = { # ms accession keys and their respective names (for spectrum identification)
         'MS:1000928': 'calibration spectrum',
@@ -1125,8 +1151,8 @@ class mzML(object):
                     out['mode'] = '-'
                 elif p.has_key('MS:1000130'): # positive scan
                     out['mode'] = '+'
-                if out['level'] == 2: # if msms
-                    out['target'] = p['MS:1000827'] # isolation window target m/z
+                if p.has_key('MS:1000827'): # if there is an isolation window target m/z
+                    out['target'] = p['MS:1000827']
                 elif out['level'] > 2: # if MSn > 2, not sure how to handle this (will have to be hard coded later as I have no examples)
                     raise ValueError('This script has not been coded to handle MSn > 2, please contact the author of the class')
                 
@@ -1177,7 +1203,7 @@ class mzML(object):
             if self.ks['verbose'] is True and mute is False:
                 self.sys.stdout.write('\rCombining spectrum #%d (scan range: %d-%d)  %.1f%%' %(attr['index']+1,start,end,(float(attr['index']-start))/(float(end-start))*100.))
             if attr['index'] >= start and attr['index'] <= end: # if within the specified bounds
-                x,y = self.extractspectrum(spectrum) # pull spectrum
+                x,y = self.extract_spectrum(spectrum) # pull spectrum
                 spec.addspectrum(x,y) # add spectrum to Spectrum object
         out = spec.trim()
         if self.ks['verbose'] is True and mute is False:
@@ -1186,12 +1212,12 @@ class mzML(object):
 
     def trimspectrum(self,x,y,left,right):
         """trims a spectrum to the left and right bounds"""
-        l,r = self.locateinlist(x,left,'greater'),self.locateinlist(x,right,'lesser') # find indicies
+        l,r = self.locate_in_list(x,left,'greater'),self.locate_in_list(x,right,'lesser') # find indicies
         return x[l:r],y[l:r] # trim spectrum
                     
 if __name__ == '__main__':
-    filename = 'BTM-42 UVVis'
-    mzml = mzML(filename,verbose=True)
+    filename = 'MultiTest'
+    mzml = mzML(filename,verbose=True,ftt=True)
     #from _Spectrum import Spectrum
     #sp = {
     #'pos':{'bounds':[325,327],'affin':'+','spectrum':Spectrum(3),'raw':[]},
