@@ -16,20 +16,13 @@ an [[x values],[y values]] list with only the x values that have intensities. Ot
 manipulations are available, see below for details.
 
 CHANGELOG
-new:
-    ---2.3---
-    fixed addition (arrays weren't working with addspectrum)
-    trim method can now be restricted to output between specific x bounds (allows for easy narrowing of range for extracting segments from the parent spectrum)
-    addvalue now ignores nonetypes instead of overwriting existing values
-    add and subtract methods are updated to be more efficient (no longer need to trim)
-    elaborated get to accept float values
-    mul, div, and pow attempts now raise an AttributeError
-    replaced startmz and endmz with start and end
-    ---2.4
+---2.4---
+added toggle for generating an empty spectrum object (this is good for spectra with few items, but awful for many items, as each new item needs to be indexed and inserted)
+---2.5
 """
 
 class Spectrum(object):
-    def __init__(self,decpl,start=50.,end=2000.,specin=None):
+    def __init__(self,decpl,start=50.,end=2000.,specin=None,empty=False):
         """
         A class for manipulating a spectrum with the specified number of decimal places
         
@@ -44,10 +37,13 @@ class Spectrum(object):
         specin: [[x values],[y values]]
             can supply an original spectrum on initialization
             list of lists of index-matched x and y values
+        empty: bool
+            toggles whether the object should be filled with x values or not
         """
         self.decpl = decpl
         self.start = round(start,self.decpl)
         self.end = round(end,self.decpl)
+        self.empty = empty
         self.sp = __import__('scipy')
         self.x,self.yimm = self.fullspeclist(self.start,self.end) # m/z and intensity lists (these are intended to remain immutable)
         self.y = list(self.yimm) # create the list that will be actively modified
@@ -139,10 +135,20 @@ class Spectrum(object):
                     sign = -1
                 else:
                     sign = 1
-                try:
-                    self.y[index] += yval*sign # try to add value
-                except TypeError:
-                    self.y[index] = yval*sign # if None, then set to value
+                if self.empty is False:
+                    try:
+                        self.y[index] += yval*sign # try to add value
+                    except TypeError:
+                        self.y[index] = yval*sign # if None, then set to value
+                else:
+                    if self.x[index] != round(xval,self.decpl): # if the index does not equal the value
+                        self.x = self.sp.insert(self.x,index,round(xval,self.decpl)) # insert x value at specified index
+                        self.y.insert(index,yval*sign) # insert the y value
+                    else:
+                        try: # otherwise add
+                            self.y[index] += yval*sign
+                        except TypeError: # or set to value if None
+                            self.y[index] = yval*sign
             except ValueError: # if index is not in spectrum
                 pass # do nothing (the value will not be added to the spectrum)
     
@@ -179,9 +185,13 @@ class Spectrum(object):
         """
         Generates two paired lists (one m/z, one None) from start to end with a specified number of decimal places
         """
-        x = self.sp.arange(start,end+10**-self.decpl,10**-self.decpl) # generate x values using arange and convert to list
-        # end + increment ensures that the end value is present in the list
-        y = [None]*len(x) # generate y list of equal length
+        if self.empty is False:
+            x = self.sp.arange(start,end+10**-self.decpl,10**-self.decpl) # generate x values using arange and convert to list
+            # end + increment ensures that the end value is present in the list
+            y = [None]*len(x) # generate y list of equal length
+        else:
+            x = self.sp.asarray([start,end])
+            y = [None,None]
         return x,y
     
     def fillzeros(self):
