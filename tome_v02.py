@@ -367,17 +367,13 @@ def plotms(realspec,simdict={},**kwargs):
     def estimatedem(x,y,em,simmin,simmax,lookwithin=1):
         """estimates the exact mass of a peak"""
         l,r = bl(x,simmin-lookwithin),br(x,simmax+lookwithin) # narrow range to that of the isotope pattern
-        print em
-        print x[l:r]
         locmax = max(y[l:r]) # find local max in that range
         for ind,val in enumerate(y):
             if val == locmax: # if the y-value equals the local max
-                print x[ind]
                 if ind >= l and ind <= r: # and if the index is in the range (avoids false locations)
                     return x[ind]
         difleft = abs(em-simmin)
         difright = abs(em-simmax)
-        print difleft,difright
         return '>%.1f' %max(difleft,difright) # if no match is found, return maximum difference
     
     def checksimdict(dct):
@@ -438,7 +434,8 @@ def plotms(realspec,simdict={},**kwargs):
     'stats':False, # output the goodness of match between the spectrum and the predicted isotope patterns,
     'speccolour':'k', # colour for the spectrum to be plotted
     'padding':'auto', # padding for the output plot
-    'verbose':True # verbose setting
+    'verbose':True, # verbose setting
+    'normwindow':'fwhm', # the width of the window to look for a maximal value around the expected exact mass for a peak
     }
     
     if set(kwargs.keys()) - set(settings.keys()): # check for invalid keyword arguments
@@ -485,7 +482,11 @@ def plotms(realspec,simdict={},**kwargs):
     
     for species in simdict: # normalize simulations
         if settings['simnorm'] == 'spec': # normalize to maximum around exact mass
-            simdict[species]['y'] = normalize(simdict[species]['y'],localmax(realspec[0],realspec[1],simdict[species]['mol'].em,simdict[species]['mol'].fwhm))
+            if settings['normwindow'] == 'fwhm': # if default, look within the full width at half max
+                window = simdict[species]['mol'].fwhm
+            else: # otherwise look within the specified value
+                window = settings['normwindow']
+            simdict[species]['y'] = normalize(simdict[species]['y'],localmax(realspec[0],realspec[1],simdict[species]['mol'].em,window))
         elif settings['simnorm'] == 'top': # normalize to top of the y value
             if settings['maxy'] == 'max':
                 raise ValueError('Simulations con only be normalized to the top of the spectrum when the maxy setting is a specific value')
@@ -541,7 +542,8 @@ def plotms(realspec,simdict={},**kwargs):
                     ins = bl(simdict[subsp]['x'],simdict[species]['x'][-1]) # look for insertion point
                     if ins > 0 and ins < len(simdict[subsp]['x']): # if species highest m/z is inside subsp list
                         for i in range(ins): # add intensity of species to subsp zeros
-                            simdict[subsp]['zero'][i] += simdict[species]['y'][-ins+i]
+                            # used -ins+i-1 to fix an error, with any luck this won't break it next time
+                            simdict[subsp]['zero'][i] += simdict[species]['y'][-ins+i-1]
     if settings['res'] is True and settings['spectype'] != 'centroid': #include resolution if specified (and spectrum is not centroid)
         ax.text(mz[1],top*0.95,'resolution: '+str(round(res))[:-2],horizontalalignment='right',**font)
     
