@@ -1,3 +1,9 @@
+# txt files
+*.txt
+
+# obo files (distributed in psi-ms-CV repository)
+*.obo
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

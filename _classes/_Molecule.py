@@ -6,75 +6,20 @@ Negligable differences are attributed to different low value discarding techniqu
 (ChemCalc keeps the top 5000 peaks, this script drops values less than a threshold 5 orders of magnitude below the maximum value)
 
 CHANGELOG:
-    ---0.1---BETA
-    rebuilt rawisotopepattern to be more efficient and retain all decimals
-    fixed error in calcindex (within tome_v02; it was returning an index of one less than intended)
-    ---0.2---BETA
-    rewrote barisotopepattern to group m/z values and determine mass by weighted average
-    added support for addition and subtraction from the MF class
-    added returns (of unsupport) for multiplication and division
-    ---0.3---
-    enhanced formula interpreter (now handles single brackets and common abbreviations)
-    added support for common functional groups in _formabbrvs
-    ---1.0---
-    added support for specification of isotopes
-    added support for multiplication and division by integers
-    supports nested brackets (even of the same type)
-    ---2.0---
-    fixed gaussian addition by using NoneSpectrum instances
-    removed generation of the gaussian isotope pattern from the automatic execution
-    calling of plotgaus() and gaussianisotopepattern() generates the gaussian pattern
-    fixed add,sub,mul,div to raise errors and made the errors more explicit
-    added reset functionality to reset the instance to its original values from when the instance was called
-    ---2.1---
-    renamed to Molecule
-    added molecular weight calculator
-    added percent composition calculator
-    fixed molecular formula generator to exclude implicit 1's
-    tweaked instance checks in __add__ and __sub__ to look for the class name
-    added a percent composition printer (formatted output)
-    added amino acids to the abbreviations dictionary (can now interpret polypeptides)
-    removed all sys.exit calls and changed them to error raising
-    incorporated detail printing into the class as a callable function
-    removed resolution from the class call and incorporated it specifically into the functions which require it
-    updated dostrings
-    ---2.3---
-    reinstated resolution in the class call for use with PyRSIM
-    creating bounds function for integration with PyRSIM
-    shuffled fwhm and sigma calculations into a separate function and call them in __init__
-    fixed gaussian isotope pattern generation to work with NoneSpectrum addition method (now works correctly)
-    added compare function to compare an experimental pattern to the predicted one
-    bounds no longer includes peaks below a certain threshold
-    created dictionary from the crc handbook masses (nearly identical masses)
-    ---2.4---
-    significantly improved the generation of the raw spectrum (now uses the built in methods of the Spectrum class -- formerly the NoneSpectrum class)
-    added verbose call to raw spectrum
-    significantly improved the efficiency of gaussianisotopepattern by calling a single Spectrum object and adding the subsequent spectra to that
-    centered bar isotope pattern
-    added plotraw() in case a raw check is desired
-    fixed isotope handling in molecularweight()
-    ---2.5---
-    added charge interpreter into both the charge input and the string input (the string input will override the charge input)
-    added a catch for not closing a bracket
-    exactmass() can account for the mass of an electron, but this is commented out because of the extremely minute difference this makes
-    removed __pow__ method because it's just so farfetched that someone might use it
-    changed print calls to sys.stdout.write calls
-    corrected generation of the formula if the class is added/subtracted/multiplied/divided
-    ---2.6---
-    simplified sigmafwhm() for ease of calling within the Molecule object (also generalized it and copied it to tome)
-    removed redundant lines in bounds()
-    fixed threshold in bounds() to be a percentage of the maximum barip intensity
-    ---2.7
-
-to add:
-    
+simplified sigmafwhm() for ease of calling within the Molecule object (also generalized it and copied it to tome)
+removed redundant lines in bounds()
+fixed threshold in bounds() to be a percentage of the maximum barip intensity
+widened the bounds supplied to spectrum so that the base peak is not dropped due to rounding differences
+generated molecular formula now follows the hill formula
+added kwargs and verbose call
+now calculates the exact mass from the generated bar isotope pattern (this should now be true to reality for all species)
+now rounds the masses to the decimal place being tracked (no longer adds false precision)
+converted to the use of unfilled spectrum objects to save processing time and memory with large molecules and high decimal places
+---2.7
 """
 
-#from _ScriptTime import ScriptTime
-#st = ScriptTime(profile=True)
-
 class Molecule(object):
-    def __init__(self,string,charge=1,res=5000):
+    def __init__(self,string,**kwargs):
         """
         Determines many properties of a given molecule
         
@@ -88,16 +33,35 @@ class Molecule(object):
         specification of isotopes (e.g. carbon 13 could be specified as "(13C)" )
         charge can be specified either in the string by enclosing it in brackets (e.g. "(2+)" or in the charge kwarg)
         """
+        self.ks = { # default keyword arguments
+        'verbose': False, # toggle verbose
+        'decpl': 7, # number of decimal places to track while generating the raw isotope pattern
+        'res': 5000, # resolution of the instrument being matched
+        'charge': 1, # charge of the molecule (this can also be specified in the formula)
+        'emptyspec': True, # use an empty spectrum object (disable this for massive molecules)
+        }
+        if set(kwargs.keys()) - set(self.ks.keys()): # check for invalid keyword arguments
+            string = ''
+            for i in set(kwargs.keys()) - set(self.ks.keys()):
+                string += ` i`
+            raise KeyError('Unsupported keyword argument(s): %s' %string)
+        self.ks.update(kwargs) # update defaules with provided keyword arguments
+        
+        if self.ks['verbose'] is True:
+            self.sys = __import__('sys')
+            self.sys.stdout.write('Generating molecule object from input "%s"\n' %string)
+        
         from _nist_mass import nist_mass as mass # masses from the NIST database
         #from _crc_mass import crc_mass as mass # masses from the CRC Handbook of Chemistry and Physics
         self.md = mass # mass dictionary that the script will use
         self.formula = string # input formula
-        self.charge,self.sign = self.interpretcharge(charge) # charge
-        self.res = res # the resolution of the mass spectrometer
+        self.ks['charge'],self.ks['sign'] = self.interpretcharge(self.ks['charge']) # charge
         self.comp = self.composition(self.formula) # determine composition from formula
         self.checkinnist(self.comp) # checks that all the composition keys are valid
         self.calculate()
         self.default()
+        if self.ks['verbose'] is True:
+            self.printdetails()
     
     def __str__(self):
         return "Molecule {}".format(self.formula)
@@ -199,7 +163,8 @@ class Molecule(object):
             for ind,val in enumerate(ipgroup[0]): # sum mz*int pairs
                 s+= val*ipgroup[1][ind]
             return s/sum(ipgroup[1]),sum(ipgroup[1]) # return weighted m/z, summed intensity
-        
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('Generating bar isotope pattern')
         groupedip = groupmasses(rawip)
         out = [[],[]]
         for group in groupedip:
@@ -210,6 +175,8 @@ class Molecule(object):
         for ind,val in enumerate(out[1]): 
             out[0][ind] = out[0][ind]/abs(charge)
             out[1][ind] = val/maxint*100. # normalize to 100
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write(' DONE\n')
         return out
     
     def bounds(self,conf=0.95,perpeak=False,threshold=0.01):
@@ -221,6 +188,8 @@ class Molecule(object):
         boundaries for each peak, or a single pair of bounds that covers the entire isotope pattern
         threshold: (int/float) minimum threshold as a percentage of the maximmum for peaks to be included in bounds
         """
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('Calculating bounds from simulated gaussian isotope pattern')
         threshold = threshold * max(self.barip[1])
         from scipy import stats
         tempip = [[],[]]
@@ -235,18 +204,24 @@ class Molecule(object):
                 out[str(mz)]['bounds'] = stats.norm.interval(conf,mz,scale=self.sigma)
         else: # a general range that covers the entire isotope pattern
             out = [stats.norm.interval(conf,tempip[0][0],scale=self.sigma)[0],stats.norm.interval(conf,tempip[0][-1],scale=self.sigma)[1]]
+        if self.ks['verbose'] is True:
+            if perpeak is False:
+                self.sys.stdout.write(': %.3f-%.3f' %(out[0],out[1]))
+            self.sys.stdout.write(' DONE\n')
         return out
         
     
     def calculate(self):
         """calls the calculation functions"""
         self.sf = self.molecularformula() # generates a string version of the molecular formula
-        self.em = self.exactmass(self.comp,charge=self.charge) # monoisotopic mass (will not work for large number of carbons)
-        self.fwhm,self.sigma = self.sigmafwhm()
+        #self.em = self.roughexactmass(self.comp,charge=self.ks['charge']) # monoisotopic mass (will not work for large number of carbons)
+        #self.fwhm,self.sigma = self.sigmafwhm()
         self.mw,self.pcomp = self.molecularweight() # molecular weight and elemental percent composition
-        self.rawip = self.rawisotopepattern(self.comp,dec=2,verbose=False) # generates a raw isotope pattern (charge of 1)
-        self.barip = self.barisotopepattern(self.rawip,self.charge) # bar isotope pattern based on the generated raw pattern
-        #self.gausip = self.gaussianisotopepattern(self.barip,self.em,res=self.res) # simulated normal distribution of the bar isotope pattern
+        self.rawip = self.rawisotopepattern(self.comp,dec=self.ks['decpl']) # generates a raw isotope pattern (charge of 1)
+        self.barip = self.barisotopepattern(self.rawip,self.ks['charge']) # bar isotope pattern based on the generated raw pattern
+        self.em = self.preciseexactmass()
+        self.fwhm,self.sigma = self.sigmafwhm()
+        #self.gausip = self.gaussianisotopepattern(self.barip,self.em,res=self.ks['res']) # simulated normal distribution of the bar isotope pattern
         ## gausip is rarely used and is a bit more time consuming, so it now requires a specific call. If call is desired on generation, uncomment the above line
     
     def checkinnist(self,comp):
@@ -276,8 +251,9 @@ class Molecule(object):
             self.gaussianisotopepattern()
         yvals = []
         res = []
-        #tot = []
         maxy = float(max(exp[1]))
+        if maxy == 0.:
+            return 'could not calculate'
         for ind,val in enumerate(exp[1]): # normalize y values
             yvals.append(float(val)/maxy*100.)
         #avgy = sum(exp[1])/len(exp[1])
@@ -391,10 +367,9 @@ class Molecule(object):
                 for ind,val in enumerate(formula):
                     if formula[ind].isalpha() is True: # if isotope encountered, return that isotope with n=1
                         return '',{formula:1}
-                self.charge,self.sign = self.interpretcharge(formula) # otherwise, interpret as charge and return empty dict
+                self.ks['charge'],self.ks['sign'] = self.interpretcharge(formula) # otherwise, interpret as charge and return empty dict
                 return '',{}
                 
-        
         def abbreviations(dic):
             """looks for predefined common abbreviations"""
             from _formabbrvs import abbrvs # import dictionary of common abbreviations
@@ -428,7 +403,8 @@ class Molecule(object):
                 else:
                     comptemp[key] = dic[key]
             return comptemp
-        
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('Determining composition from supplied molecular formula')
         comp = {}
         while len(formula) > 0: # chew through formula
             ftemp,nomdict = chewformula(formula) # find the next block   
@@ -439,32 +415,15 @@ class Molecule(object):
                     comp[ele] = nomdict[ele]
             formula = ftemp
         comp = abbreviations(comp) # look for common abbreviations    
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write(' DONE\n')
         return comp
     
     def default(self):
         """saves the original values when the class was called"""
         self.original = dict(self.__dict__)
     
-    def exactmass(self,comp,charge=1):
-        """
-        a quick estimation of the exact mass given a molecular formula
-        This may not be exact for high mass species
-        """
-        em = 0.
-        for key in comp:
-            try:
-                em += self.md[key][0][0]*comp[key]
-            except KeyError:
-                ele,iso = self.isotope(key)
-                em += self.md[ele][iso][0]*comp[key]
-        ## accounts for the mass of an electron (barely affects the mass)
-        #if self.sign == '+': 
-        #    em -= (9.10938356*10**-28)*charge
-        #if self.sign == '_':
-        #    em += (9.10938356*10**-28)*charge
-        return em/charge
-    
-    def gaussianisotopepattern(self,verbose=False):
+    def gaussianisotopepattern(self):
         """
         simulates the isotope pattern obtained in a mass spectrometer by applying a gaussian distribution to a bar isotope pattern with a given resolution
         """
@@ -487,16 +446,18 @@ class Molecule(object):
             y *= height #scale to height
             return [x.tolist(),y.tolist()]
         
-        if verbose is True:
-            import sys
-        self.nsp = Spectrum(3,startmz=min(self.barip[0])-self.fwhm*2,endmz=max(self.barip[0])+self.fwhm*2) # generate Spectrum object to encompass the entire region
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('Generating simulated isotope pattern')
+        self.nsp = Spectrum(3,min(self.barip[0])-self.fwhm*2,max(self.barip[0])+self.fwhm*2) # generate Spectrum object to encompass the entire region
         for ind,val in enumerate(self.barip[0]): # generate normal distributions for each peak
-            if verbose is True:
-                sys.stdout.write('\rSumming m/z %.3f %d/%d' %(val,ind+1,len(self.barip[0])))
+            #if verbose is True:
+            #    sys.stdout.write('\rSumming m/z %.3f %d/%d' %(val,ind+1,len(self.barip[0])))
             nd = normaldist(val,self.fwhm,self.barip[1][ind]) # generate normal distribution for that peak
             self.nsp.addspectrum(nd[0],nd[1]) # add the generated spectrum to the total spectrum
         self.nsp.normalize() # normalize
         self.gausip = self.nsp.trim() # trim None values and output
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write(' DONE\n')
         return self.gausip 
     
     def interpretcharge(self,string):
@@ -532,15 +493,30 @@ class Molecule(object):
 
     def molecularformula(self):
         """generates the molecular formula as the string"""
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('Molecular formula: ')
         out = ''
-        for key,val in sorted(self.comp.items()):
-            out += key
-            if self.comp[key] > 1:
-                out += str(self.comp[key])
+        if self.comp.has_key('C'): # carbon and hydrogen first according to hill formula
+            out += 'C'
+            if self.comp['C'] > 1:
+                out += str(self.comp['C'])
+        if self.comp.has_key('H'):
+            out += 'H'
+            if self.comp['H'] > 1:
+                out += str(self.comp['H'])
+        for key,val in sorted(self.comp.items()): # alphabetically otherwise
+            if key != 'C' and key != 'H':
+                out += key
+                if self.comp[key] > 1:
+                    out += str(self.comp[key])
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('%s DONE\n' %out)
         return out
     
     def molecularweight(self):
         """determines the molecular weight from natural abundances"""
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('Calculating molecular weight')
         mwout = 0
         pcompout = {}
         for element in self.comp:
@@ -559,6 +535,8 @@ class Molecule(object):
                 pcompout[ele] = self.md[ele][iso][0]*self.comp[element]
         for element in pcompout: # determines the percent composition of each element
             pcompout[element] = pcompout[element]/mwout
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write(': %.6f DONE\n' %mwout)
         return mwout,pcompout
     
     def printdetails(self):
@@ -582,7 +560,7 @@ class Molecule(object):
     def plotbar(self):
         """quickly plots a bar plot of the isotope bar pattern"""
         import pylab as pl
-        fwhm = self.em/self.res
+        fwhm = self.em/self.ks['res']
         pl.bar(self.barip[0], self.barip[1], width=fwhm, align='center')
         pl.xlabel('m/z', style='italic')
         pl.ylabel('normalized intensity')
@@ -595,7 +573,7 @@ class Molecule(object):
         try:
             pl.plot(self.gausip[0],self.gausip[1],linewidth=1)
         except AttributeError:
-            self.gausip = self.gaussianisotopepattern(verbose=False)
+            self.gausip = self.gaussianisotopepattern()
             pl.plot(self.gausip[0],self.gausip[1],linewidth=1)
         if exp is not None: # plots experimental if supplied
             y = []
@@ -621,7 +599,12 @@ class Molecule(object):
         pl.ticklabel_format(useOffset=False)
         pl.show()
     
-    def rawisotopepattern(self,comp,thresh=0.01,dec=5,verbose=False):
+    def preciseexactmass(self):
+        """determines the precise exact mass from the bar isotope pattern"""
+        ind = self.barip[1].index(100.)
+        return self.barip[0][ind]
+    
+    def rawisotopepattern(self,comp,thresh=0.01,dec=5):
         """
         generates an isotope pattern given a molecular formula
         operates using values obtained from the provided mass dictionary in __init__ (default NIST database)
@@ -637,9 +620,8 @@ class Molecule(object):
         ...}
         """
         from _Spectrum import Spectrum
-        if verbose is True:
-            import sys
-            sys.stdout.write('Generating raw isotope pattern.\n')
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('Generating raw isotope pattern.\n')
         out = [[0.],[100.]]
         for key in comp: # for each element
             if self.md.has_key(key) is True: # if natural abundance
@@ -647,14 +629,16 @@ class Molecule(object):
                 for mass in self.md[key]:
                     bnds.append(self.md[key][mass][0]) # pull all the masses (used for Spectrum object generation)
                 for n in range(comp[key]): # for n number of atoms of each element
-                    if verbose is True:
-                        sys.stdout.write('\rProcessing element %s %d/%d' %(key,n+1,comp[key]))
-                    spec = Spectrum(dec,startmz=min(out[0])+min(bnds),endmz=max(out[0])+max(bnds)) # generate spectrum object
+                    if self.ks['verbose'] is True:
+                        self.sys.stdout.write('\rProcessing element %s %d/%d' %(key,n+1,comp[key]))
+                    start = min(out[0])+round(min(bnds),dec)-10**-dec
+                    end = max(out[0])+round(max(bnds),dec)+10**-dec
+                    spec = Spectrum(dec,start,end,empty=self.ks['emptyspec']) # generate spectrum object
                     for mass in self.md[key]:# for each mass of that element 
                         if mass != 0:
                             if self.md[key][mass][1] != 0: # if intensity is nonzero
                                 for ind,val in enumerate(out[0]): # for every current mass in the building isotope pattern
-                                    spec.addvalue(out[0][ind]+self.md[key][mass][0],out[1][ind]*self.md[key][mass][1]) # add intensity at the appropriate mass
+                                    spec.addvalue(out[0][ind]+round(self.md[key][mass][0],dec),out[1][ind]*self.md[key][mass][1]) # add intensity at the appropriate mass
                     spec.normalize(top=100.) # normalize spectrum
                     spec.threshold(thresh) # drop values below threshold
                     out = spec.trim()
@@ -664,25 +648,53 @@ class Molecule(object):
                 for ind,val in enumerate(out[0]):
                     temp.append(out[0][ind]+self.md[ele][iso][0])
                 out = [list(temp),out[1]]
-            if verbose is True:
-                sys.stdout.write('\n')
+            if self.ks['verbose'] is True:
+                self.sys.stdout.write('\n')
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('DONE\n')
         return out
     
     def reset(self):
         """resets values to when the instance was created"""
         self.__dict__ = self.original
     
+    def roughexactmass(self):
+        """
+        a quick estimation of the exact mass given a molecular formula
+        This may not be exact for high mass species
+        """
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('Estimating exact mass: ')
+        em = 0.
+        for key in self.comp:
+            try:
+                em += self.md[key][0][0]*self.comp[key]
+            except KeyError:
+                ele,iso = self.isotope(key)
+                em += self.md[ele][iso][0]*self.comp[key]
+        ## accounts for the mass of an electron (if you have access to an orbitrap this might affect you)
+        #if self.ks['sign'] == '+': 
+        #    em -= (9.10938356*10**-28)*charge
+        #if self.ks['sign'] == '-':
+        #    em += (9.10938356*10**-28)*charge
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('%.5f DONE\n' %(em/self.ks['charge']))
+        return em/self.ks['charge']
+    
     def sigmafwhm(self):
         """determines the full width at half max and sigma for a normal distribution"""
         import math
-        fwhm = self.em/self.res
+        fwhm = self.em/self.ks['res']
         sigma = fwhm/(2*math.sqrt(2*math.log(2))) # based on the equation FWHM = 2*sqrt(2ln2)*sigma
         return fwhm,sigma
     
     
 if __name__ == '__main__': # for testing and troubleshooting
-    string = 'Ar+I'
-    charge = 1
-    res = 774
-    mol = Molecule(string,charge=charge,res=res)
+    mol = Molecule(
+    'B(OH)4', # input string formula
+    #charge = 2, # specify charge (if not specified in formula)
+    #res=5000, # specify spectrometer resolution (default 5000)
+    #verbose=True,
+    #decpl=2,
+    )
     mol.printdetails()

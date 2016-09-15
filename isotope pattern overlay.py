@@ -3,57 +3,56 @@
   overlays a supplied predicted isotope pattern onto an acquired spectrum
   
 new/changed:
-    completely rewritten so that the actual plotting could be a standalone function
-    this script now just handles the appropriate functions to accomplish a plotted mass spectrum with isotope pattern overlays
-    tweaking of the figure is now handled by keyword arguments
-    ---12.0---
-    changed bw override to specify the exact width of the bar ('auto' does 2*fwhm)
-    adjusted the output of stats and mass delta to be on a new line below the species title
-    lowered the resolution output to be below the top of the chart
-    top padding is only modified if species labels are called for
-    modified mass delta calculation to look for the maximum within the width of the entire predicted pattern
-    modified the resolution calculation to check mulitple locations in the spectrum (default 10)
-    added explicit keys for showing/hiding axis labels, values, and lines
     ---12.1---
-    ---12.2
-
-to add:
-    databridge for masslynx conversion (is this even useful?)
+    fixed determination of bar overlap and bottom heights
+    added ability to specify the width to look in when auto-normalizing isotope patterns
+    ---12.2---
 """
 # provide the experimental spectrum xlsx
 # the script will automatically use the first sheet
-spectrum = 'Zr'
+spectrum = 'L2PdArAr Jessamyn (for organometallics)'
 
 # number of lines to skip in the excel file
 # (e.g. if there are spectrum details above the actual spectrum values)
 skiplines = 0
 
 # sheet name in the excel file (if this is not specified, the script will use the first sheet in the file)
-#sheetname = 'Cp2ZrMe'
+#sheetname = 'L2PdArI'
 
 # provide species to be simulated in dictionary format
 # 'molecular formula':{'colour': ... ,'alpha':0-1}
 # colour can be (R,G,B), (C,M,Y,K), or 'hex'
 simdict = {
-'Cp2ZrMe2':{'colour':(0,0,255),'alpha':0.5}
+#'L2PdAr+I':{'colour':'#6a3d9a','alpha':0.5},
+#'L2PdAr+(2+)':{'colour':'#e41a1c','alpha':0.5},
+'L2PdAr+C6H4CH3':{'colour':'#ff7f00','alpha':0.5},
+#'L2PdAr+IMeOH':{'colour':(146,102,194),'alpha':0.5},
+#'(Ar+I)2PF6':{'colour':'#1f78b4','alpha':0.5},
+#'L2PdAr+CH3C6H4MeOH':{'colour':'#ff7f00','alpha':0.5}
+#'L2PdAr+OH':{'colour':'66c2a5','alpha':0.5},
+#'L2Pd2(Ar+)2(OMe)2(2+)':{'colour':'ed5da5','alpha':0.5},
 }
 
 # choose a figure type for auto settings
 # options: 'pub', 'pubsvg', 'inset', 'insetsvg', 'thesis', 'detailed'
 # additional presets can be added in the presets() function below
-setting = 'detailed'
+setting = 'inset'
 
 # preset settings can be overridden here (see presets() function for details)
 override = {
-#'bw':0.9, # bar width (in units of m/z)
-#'exten':'svg' # change to scalable vector graphic
-#'mz': [1008,1028], # modify the m/z bounds of the figure
-#'offsetx':False # apply a slight offset to the x axis
-#'simtype': 'gaussian' # generate a gaussian spectrum
-#'size':[4,3] # change the size of the image
+#'norm':False,
+#'bw':0.3, # bar width (in units of m/z)
+'exten':'svg', # change to scalable vector graphic
+'mz': [1069,1081], # modify the m/z bounds of the figure
+#'offsetx':False, # apply a slight offset to the x axis
+#'simtype': 'gaussian', # generate a gaussian spectrum
+'size':[1.8,1.3], # change the size of the image
 #'specfont':'Calibri', # change the font of the labels
-#'stats':False,
+'stats':False,
+'xlabel':False,
 #'spectype':'centroid',
+#'normwindow':1.,
+'fs':8,
 }
 
 
@@ -104,6 +103,10 @@ def presets(typ):
     norm: whether the script should normalize the supplied spectrum
         default: True
         True/False
+    
+    normwindow: what m/z window width should the autonormalization look
+        default 'fwhm' (look within the full width at half max)
+        otherwise, hand this an m/z value
     
     offsetx: offsets the x axis to better show low-intensity species
         default: True
@@ -161,6 +164,9 @@ def presets(typ):
         default: False
         True/False
     
+    verbose: chatty
+        bool
+    
     xlabel: show x label
         default: True
     
@@ -192,12 +198,10 @@ def presets(typ):
         raise KeyError('\nThe specified figure setting "%s" is not defined.\nPlease check your spelling' %setting)
 
 if __name__ == '__main__':
-    import os,sys
-    if os.path.dirname(os.path.realpath(__file__))+'/_classes' not in sys.path:
-        sys.path.append(os.path.dirname(os.path.realpath(__file__))+'/_classes')
-    from _XLSX import XLSX
+    import sys
+    from _classes._XLSX import XLSX
     from tome_v02 import plotms
-    xlfile = XLSX(spectrum) # load excel file
+    xlfile = XLSX(spectrum,verbose=True) # load excel file
     
     try: # if sheet name was specified
         sname = sheetname
@@ -205,7 +209,7 @@ if __name__ == '__main__':
         sname = xlfile.wb.get_sheet_names()[0]
     
     keywords = presets(setting) # pull preset
-    keywords.update({'outname':xlfile.bookname[:-5]}) # set default output filename
+    keywords.update({'outname':xlfile.bookname[:-5]+' ('+sname+')'}) # set default output filename
     keywords.update(override) # apply any user overrides
     
     exp = xlfile.pullspectrum(sname,skiplines=skiplines)[0] # load spectrum from first sheet in workbook

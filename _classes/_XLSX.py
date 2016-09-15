@@ -1,38 +1,28 @@
 """
 Class for opening and handling excel files with commonly used data formats
-v 1.0
+v 1
+CHANGELOG:
 
-new:
-    loads workbook
-    accepts incomplete extensions
-    pulls spectra
-    saves spectra
-    pulls rsim parameters for use with summing program
-    ---1.0---
-    generalized and added rsim output
-    generalized and created output for multiple spectra in a single sheet
-    added pullmultispectrum function to read multiple spectra from sheet
-    consolidated createwb into loadwb
-    fixed workbook creation to not return a write-only workbood (this would break cell calls)
-    ---1.1---
-    added skiplines function to pullspectrum
-    added pause for user input if the file is open (no longer requires rerunning entire script after closing)
-    added function to convert row and column indicies into excel coordinates
-    tweaked pullspectrum to warn users of non-numerical values
-    ---1.2---
-    ---1.3
-
-to add:
-    pull rsim raw data
-    dynamic creation of workbook (if it's there, load it, if not create)
-    pull from pyrsim output sheets
+---1.4
 """
 
 class XLSX(object):
-    def __init__(self,bookname,create=False):
-        self.bookname = bookname
-        self.loadop()
-        self.wb,self.bookname = self.loadwb(self.bookname,create=create)
+    def __init__(self,bookname,**kwargs):
+        self.ks = { # default keyword arguments
+        'verbose': True, # toggle verbose
+        'create': False, # create new workbook if supplied name is not found in directory
+        }
+        if set(kwargs.keys()) - set(self.ks.keys()): # check for invalid keyword arguments
+            string = ''
+            for i in set(kwargs.keys()) - set(self.ks.keys()):
+                string += ` i`
+            raise KeyError('Unsupported keyword argument(s): %s' %string)
+        self.ks.update(kwargs) # update defaules with provided keyword arguments
+        
+        if self.ks['verbose'] is True:
+            self.sys = __import__('sys')
+        self.loadop() # check that lxml is present and load openpyxl
+        self.wb,self.bookname = self.loadwb(bookname)
 
     def __str__(self):
         return 'Loaded excel file "%s"' %self.bookname
@@ -67,27 +57,42 @@ class XLSX(object):
         except ImportError:
             raise ImportError('lxml does not appear to be installed.\nThe XLSX class requires this package to function, please install it.')
     
-    def loadwb(self,bookname,create=False):
+    def get_sheet(self,sheetname):
+        """tries to retrieve the specified sheet name, otherwise returns None"""
+        try:
+            return self.wb.get_sheet_by_name(sheetname)
+        except KeyError:
+            return None
+    
+    def loadwb(self,bookname):
         """loads specified workbook into class"""
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('\rLoading workbook "%s" into memory' %bookname)
         try:
             wb = self.op.load_workbook(bookname) #try loading specified excel workbook
         except IOError:
             bookname = self.correctextension(bookname) # attempts to correct the extension of the provided workbook
+            if self.ks['verbose'] is True:
+                self.sys.stdout.write('\rLoading workbook "%s" into memory'%bookname)
             try:
                 wb = self.op.load_workbook(bookname)
             except IOError:
-                if create is True:
+                if self.ks['create'] is True:
                     """
                     Due to write-only mode, creating and using that book breaks the cell calls
                     The workbook is therefore created, saved, and reloaded
                     The remove sheet call is to remove the default sheet
                     """
+                    if self.ks['verbose'] is True:
+                        self.sys.stdout.write('Creating workbook "%s" and loading it into memory' % bookname)
                     wb = self.op.Workbook(bookname,write_only=False) # create workbook
                     wb.save(bookname) # save it
                     wb = self.op.load_workbook(bookname) # load it
                     wb.remove_sheet(wb.worksheets[0]) # remove the old "Sheet"
                 else:
                     raise IOError('\nThe excel file "%s" could not be found in the current working directory.' %(self.bookname))
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write(' DONE\n')
         return wb,bookname
     
     def pullmultispectrum(self,sheetname):
@@ -104,11 +109,36 @@ class XLSX(object):
                 ind += 1
             loc += 4
         return out
-        
+    
+    def pullrsim(self,sheet):
+        """
+        pulls rsim data from the specified sheet
+        """
+        cs = self.wb.get_sheet_by_name(sheet)
+        tic = []
+        time = []
+        data = {}
+        for col,colval in enumerate(cs.columns):
+            for row,rowval in enumerate(colval):
+                if row == 0: #skip first row
+                    continue
+                elif colval[0].value == 'Time': # if column is Time, append to that list
+                    time.append(cs.cell(row = (row+1), column = (col+1)).value)
+                elif colval[0].value == 'TIC': # if column is tic, append to that list
+                    tic.append(cs.cell(row = (row+1), column = (col+1)).value)
+                else: # all other columns
+                    if colval[row].value is not None:
+                        if data.has_key(str(colval[0].value)) is False:
+                            data['%s' %str(colval[0].value)] = {'raw':[]}
+                        data['%s' %str(colval[0].value)]['raw'].append(cs.cell(row = (row+1), column = (col+1)).value)
+        return data,time,tic  
+                
     def pullspectrum(self,sheet='spectrum',skiplines=0):
         """
         extracts a spectrum from the specified sheet
         skiplines allows that number of lines to be ignored
+        
+        output: spectrum, xunit, yunit
         """
         def tofloat(value,row,col):
             """attempts to convert to float and raises exception if an error is encountered"""
@@ -116,6 +146,8 @@ class XLSX(object):
                 return float(value)
             except ValueError:
                 raise ValueError('The value "%s" (cell %s) in "%s" could not be interpreted as a float.\nCheck the value in this cell or change the number of lines skipped' %(value,self.rowandcolumn(row,col),self.bookname))
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write('Pulling spectrum from sheet "%s"' % sheet)
         skiplines -= 1
         specsheet = self.wb.get_sheet_by_name(sheet)
         spectrum = [[],[]]
@@ -128,6 +160,8 @@ class XLSX(object):
                 if row[0].value is not None and row[1].value is not None:
                     spectrum[0].append(tofloat(row[0].value,ind,0)) # append values
                     spectrum[1].append(tofloat(row[1].value,ind,1))
+        if self.ks['verbose'] is True:
+            self.sys.stdout.write(' DONE\n')
         return spectrum,xunit,yunit
     
     def pullrsimparams(self,sheet='parameters'):
@@ -136,16 +170,17 @@ pulls parameters for reconstructed single ion monitoring processing
         
 The expected structure for the excel sheet is:
 row 1: headers only (not read by this script)
+the headers tell the function what to find in that column
 
-Column #1: name of species (this will be the column heading in the output sheets)
-    (not needed if the molecular formula is specified)
-Column #2: molecular formula of this species 
-    (not required, but can bypass the need for start and end values)
-Column #3: what spectrum to find this species in (+,-,UV)
-Column #4: start value (m/z or wavelength)
-Column #5: end value (m/z or wavelength)
+Valid column headers:
+Name: name of the species
+Formula: molecular formula of the species (if this is specified, it overrides start and end)
+Function: what function to find the species in (optional if affinity is specified)
+Affinity: what MS mode (+ or -) to find the species (or UV)
+start: the start x value to find the species at
+end: the end x value to find the species at (if end is specified, the function will integrate between those values; if end is not specified, the function will retrieve the closest value to the start value)
 
-The start value (col#4) is expected to be less than the end value (col#5)
+at least one of name, formula, start, or end must be specified for each species
         """
         def othernames(oldsheet):
             """tries to find another common name for the parameters sheet"""
@@ -155,54 +190,108 @@ The start value (col#4) is expected to be less than the end value (col#5)
                     return name
             raise KeyError('There is no "%s" sheet in "%s".'%(oldsheet,self.bookname))
         
+        def lowercase(string):
+            """tries to return the lowercase of the supplied value, and avoids NoneType errors of .lower()"""
+            if string is None:
+                return None
+            return string.lower()
+        
         if sheet not in self.wb.get_sheet_names(): # if the sheet can't be found, try other common names
             sheet = othernames(sheet)
         
         s = self.wb.get_sheet_by_name(sheet) #load sheet in specified excel file
         
+        names = ['name'] # valid name column headers
+        formulas = ['formula','form','mf'] # valid molecular formula column headers
+        affinities = ['affin','affinity'] # valid affinity column headers
+        functions = ['fn','func','function'] # valid function column headers
+        levels = ['level','lvl'] # valid level column headers
+        smz = ['startmz','start mz','start m/z','startm/z','start'] #valid start m/z column headers
+        emz = ['endmz','end mz','end m/z','endm/z','end'] # valid end m/z column headers
+        
+        self.rsimh = {}
+        for ind,col in enumerate(s.columns):
+            if lowercase(col[0].value) in names:
+                self.rsimh['name'] = ind
+            if lowercase(col[0].value) in formulas:
+                self.rsimh['formula'] = ind
+            if lowercase(col[0].value) in affinities:
+                self.rsimh['affin'] = ind
+            if lowercase(col[0].value) in functions:
+                self.rsimh['function'] = ind
+            if lowercase(col[0].value) in levels:
+                self.rsimh['level'] = ind
+            if lowercase(col[0].value) in smz:
+                self.rsimh['bounds'] = [ind,None]
+            if lowercase(col[0].value) in emz:
+                self.rsimh['bounds'][1] = ind
+        
         out = {} # output dictionary
         for ind,row in enumerate(s.rows):
             if ind == 0: # skip header row
                 continue
-            if row[0].value is None:
-                name = str(row[1].value)
+            
+            # figure out what to name the species
+            name = None
+            if self.rsimh.has_key('name') and row[self.rsimh['name']].value is not None: # if there is a name column and the value is not None
+                name = row[self.rsimh['name']].value
+            elif name is None and self.rsimh.has_key('formula') and row[self.rsimh['formula']].value is not None: # if there is instead a formula
+                name = row[self.rsimh['formula']].value
+            elif name is None and self.rsimh.has_key('bounds') and row[self.rsimh['bounds'][0]].value is not None: # if there are bounds
+                if self.rsimh['bounds'][1] is None:
+                    name = row[self.rsimh['bounds'][0]].value
+                else:
+                    name = '%.1f - %.1f' %(row[self.rsimh['bounds'][0]].value,row[self.rsimh['bounds'][0]].value)
             else:
-                name = str(row[0].value) # species name for dictionary key
-            out[name] = {'bounds':[None,None],'affin':None,'formula':None,'match':None} # basic structure
+                raise ValueError('A name could not be determined for row #%d\n%s' %(ind+1,self.pullrsimparams.__doc__))
+            out[name] = {} # create name key
             
-            if row[1].value is not None: # set molecular formula if present
-                out[name]['formula'] = row[1].value
-            
-            affin = {'(+)MS':['+','pos','positive','Pos','Positive'], # positive mode valid inputs
-            '(-)MS':['-','neg','negative','Neg','Negative'], # negative mode valid inputs
-            'UV':['UV','UV-Vis','UVVis','uv','uvvis','uv-vis']} # UV-Vis valid inputs
-            try: # set affinity
-                if row[2].value in affin['(+)MS']: # sets affinity to positive spectra
+            for key in self.rsimh: # go through the headers for that row and pull and values provided
+                if key == 'name':
+                    continue
+                if key == 'bounds':
+                    if row[self.rsimh[key][0]].value is not None:
+                        out[name]['bounds'] = [float(row[self.rsimh[key][0]].value),None]
+                    if row[self.rsimh[key][1]].value is not None:
+                        out[name]['bounds'][1] = float(row[self.rsimh[key][1]].value)
+                    continue
+                if row[self.rsimh[key]].value is not None:
+                    out[name][key] = row[self.rsimh[key]].value
+                
+        pos = ['+','pos','positive','Pos','Positive'] # positive mode valid inputs
+        neg = ['-','neg','negative','Neg','Negative'] # negative mode valid inputs
+        uv = ['UV','UV-Vis','UVVis','uv','uvvis','uv-vis'] # UV-Vis valid inputs
+        for name in out:
+            if out[name].has_key('affin'): # change affinity to valid ones used by mzML
+                if out[name]['affin'] in pos:
                     out[name]['affin'] = '+'
-                elif row[2].value in affin['(-)MS']: # sets affinity to negative spectra
-                    out[name]['affin'] = '-'
-                elif row[2].value in affin['UV']: # sets affinity to negative spectra
-                    out[name]['affin'] = 'UV'
-                else: # sets affinity to positive (default)
+                elif out[name]['affin'] in neg:
                     out[name]['affin'] = '+'
-            except IndexError: # if there is no affinity column
-                out[name]['affin'] = '+'
+                elif out[name]['affin'] in uv:
+                    out[name]['affin'] = '+'
+                else:
+                    raise ValueError('The affinity "%s" for species "%s" is not valid\n%s' %(out[name]['affin'],name,self.pullrsimparams.__doc__))
             
-            if row[3].value is not None: # set start value if present
-                out[name]['bounds'][0] = float(row[3].value)
+            if out[name].has_key('function'): # if function is specified, convert to integer
+                out[name]['function'] = int(out[name]['function'])
             
-            if row[4].value is not None: # set end value if present
-                out[name]['bounds'][1] = float(row[4].value)
+            if out[name].has_key('affin') is False and out[name].has_key('function') is False: # if no affinity or function, assume 1st function
+                out[name]['function'] = 1
+           
+            if out[name].has_key('level'): # if level is specified, convert to integer
+                out[name]['level'] = int(out[name]['level'])
             
-        for key in out: #checks that start value is less than end value
-            if out[key]['bounds'][0] is not None:
-                if out[key]['affin'] == 'UV':
-                    if out[key]['bounds'][1] is None: # ignore single value bounds
-                        continue
-                if out[key]['bounds'][1] is None:
-                    raise ValueError('\nThere is no end value specified for row "%s".\nStart: %s\n%s'%(key,str(out[key]['bounds'][0]),self.pullrsimparams.__doc__))
-                if out[key]['bounds'][0] > out[key]['bounds'][1]:
-                    raise ValueError('\nThe end value is larger than the start value for row "%s".\nStart: %s\nEnd: %s\n%s'%(key,str(out[key]['bounds'][0]),str(out[key]['bounds'][1]),self.pullrsimparams.__doc__))
+            if out[name].has_key('bounds'): # if bounds are specified, check that end is not less than start
+                if out[name]['bounds'][1] is None:
+                    pass
+                elif out[name]['bounds'][0] > out[name]['bounds'][1]:
+                    raise ValueError('\nThe end value is larger than the start value for species "%s".\nStart: %s\nEnd: %s\n%s'%(name,str(out[name]['bounds'][0]),str(out[name]['bounds'][1]),self.pullrsimparams.__doc__))
+            
+            if not out[name].has_key('formula') and not out[name].has_key('bounds'):
+                raise ValueError('The species "%s" does not have a formula or integration bounds' %(name))
+            
+            if out[name].has_key('formula') is False: # create formula key if not specified (required for pyrsir)
+                out[name]['formula'] = None
         return out
     
     def removesheets(self,delete):
@@ -243,20 +332,29 @@ The start value (col#4) is expected to be less than the end value (col#5)
             out += alphabet[i-1]
         return out+str(row+1)    
     
-    def save(self):
+    def save(self,outname=None):
         """commits changes to the workbook"""
-        try:
-            self.wb.save(self.bookname)
-        except IOError:
+        def version_input(string):
+            """checks the python version and uses the appropriate version of user input"""
             import sys
             if sys.version.startswith('2.7'):
-                raw_input('\nThe excel file could not be written. Please close "%s" and press any key to retry save.' %self.bookname)
+                return raw_input('%s' %string)
             if sys.version.startswith('3.'):
-                input('\nThe excel file could not be written. Please close "%s" and press any key.' %self.bookname)
+                return input('%s' %string)
+            else:
+                raise EnvironmentError('The version_input method encountered an unsupported version of python.')
+        
+        if outname is None:
+            outname = self.bookname
+        
+        try:
+            self.wb.save(outname)
+        except IOError:
+            version_input('\nThe excel file could not be written. Please close "%s" and press any key to retry save.' %outname)
             try:
-                self.wb.save(self.bookname)
+                self.wb.save(outname)
             except IOError:
-                raise IOError('\nThe excel file "%s" could not be written.' %self.bookname)
+                raise IOError('\nThe excel file "%s" could not be written.' %outname)
     
     def updatersimparams(self,sp,sheet='parameters'):
         """
@@ -365,4 +463,4 @@ The start value (col#4) is expected to be less than the end value (col#5)
         
 if __name__ == '__main__':
     name = 'useless delete this'
-    xl = XLSX(name,True)
+    xl = XLSX(name,create=True)

@@ -10,10 +10,6 @@ new:
     ---2.1---
     ---2.2
 
-to do:
-    figure out why these CMYK values do not match photoshop values
-    update to accept RGB values greater than 255
-    add functionality to be handed hls, hsv, yiq tuples
 """
 
 class Colour(object):
@@ -197,5 +193,5 @@ l_: light colour (ex. 'lb' = light blue)
             
         
 if __name__ == '__main__':
-    col = Colour('e41a1c')
+    col = Colour((89,89,89))
     col.printdetails()   
