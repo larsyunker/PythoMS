@@ -60,6 +60,8 @@ class Molecule(object):
         self.checkinnist(self.comp) # checks that all the composition keys are valid
         self.calculate()
         self.default()
+        if self.ks['verbose'] is True:
+            self.printdetails()
     
     def __str__(self):
         return "Molecule {}".format(self.formula)
@@ -689,7 +691,7 @@ class Molecule(object):
     
 if __name__ == '__main__': # for testing and troubleshooting
     mol = Molecule(
-    'C28H18N2S2Na', # input string formula
+    'B(OH)4', # input string formula
     #charge = 2, # specify charge (if not specified in formula)
     #res=5000, # specify spectrometer resolution (default 5000)
     #verbose=True,

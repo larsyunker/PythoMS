@@ -10,44 +10,49 @@ new/changed:
 """
 # provide the experimental spectrum xlsx
 # the script will automatically use the first sheet
-spectrum = '2016-08-02 08'
+spectrum = 'L2PdArAr Jessamyn (for organometallics)'
 
 # number of lines to skip in the excel file
 # (e.g. if there are spectrum details above the actual spectrum values)
 skiplines = 0
 
 # sheet name in the excel file (if this is not specified, the script will use the first sheet in the file)
-sheetname = 'reacting solution'
+#sheetname = 'L2PdArI'
 
 # provide species to be simulated in dictionary format
 # 'molecular formula':{'colour': ... ,'alpha':0-1}
 # colour can be (R,G,B), (C,M,Y,K), or 'hex'
 simdict = {
-'L2PdAr+I':{'colour':'#6a3d9a','alpha':0.5},
+#'L2PdAr+I':{'colour':'#6a3d9a','alpha':0.5},
+#'L2PdAr+(2+)':{'colour':'#e41a1c','alpha':0.5},
+'L2PdAr+C6H4CH3':{'colour':'#ff7f00','alpha':0.5},
 #'L2PdAr+IMeOH':{'colour':(146,102,194),'alpha':0.5},
-'(Ar+I)2PF6':{'colour':'#1f78b4','alpha':0.5},
+#'(Ar+I)2PF6':{'colour':'#1f78b4','alpha':0.5},
 #'L2PdAr+CH3C6H4MeOH':{'colour':'#ff7f00','alpha':0.5}
-#'L2PdAr+OMe':{'colour':'66c2a5','alpha':0.5},
+#'L2PdAr+OH':{'colour':'66c2a5','alpha':0.5},
 #'L2Pd2(Ar+)2(OMe)2(2+)':{'colour':'ed5da5','alpha':0.5},
 }
 
 # choose a figure type for auto settings
 # options: 'pub', 'pubsvg', 'inset', 'insetsvg', 'thesis', 'detailed'
 # additional presets can be added in the presets() function below
-setting = 'pub'
+setting = 'inset'
 
 # preset settings can be overridden here (see presets() function for details)
 override = {
-'norm':False,
-#'bw':0.5, # bar width (in units of m/z)
-#'exten':'svg', # change to scalable vector graphic
-#'mz': [1101,1118], # modify the m/z bounds of the figure
-#'offsetx':False # apply a slight offset to the x axis
-#'simtype': 'gaussian' # generate a gaussian spectrum
-#'size':[4,3] # change the size of the image
+#'norm':False,
+#'bw':0.3, # bar width (in units of m/z)
+'exten':'svg', # change to scalable vector graphic
+'mz': [1069,1081], # modify the m/z bounds of the figure
+#'offsetx':False, # apply a slight offset to the x axis
+#'simtype': 'gaussian', # generate a gaussian spectrum
+'size':[1.8,1.3], # change the size of the image
 #'specfont':'Calibri', # change the font of the labels
 'stats':False,
+'xlabel':False,
 #'spectype':'centroid',
+#'normwindow':1.,
+'fs':8,
 }
 
 

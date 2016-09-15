@@ -193,5 +193,5 @@ l_: light colour (ex. 'lb' = light blue)
             
         
 if __name__ == '__main__':
-    col = Colour('e41a1c')
+    col = Colour((89,89,89))
     col.printdetails()   

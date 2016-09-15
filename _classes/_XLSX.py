@@ -3,7 +3,7 @@ Class for opening and handling excel files with commonly used data formats
 v 1
 CHANGELOG:
 
----1.3
+---1.4
 """
 
 class XLSX(object):
