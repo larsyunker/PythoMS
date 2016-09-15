@@ -1,29 +1,9 @@
 """
 Class for opening and handling excel files with commonly used data formats
-v 1.0
+v 1
+CHANGELOG:
 
-new:
-    loads workbook
-    accepts incomplete extensions
-    pulls spectra
-    saves spectra
-    pulls rsim parameters for use with summing program
-    ---1.0---
-    generalized and added rsim output
-    generalized and created output for multiple spectra in a single sheet
-    added pullmultispectrum function to read multiple spectra from sheet
-    consolidated createwb into loadwb
-    fixed workbook creation to not return a write-only workbood (this would break cell calls)
-    ---1.1---
-    added skiplines function to pullspectrum
-    added pause for user input if the file is open (no longer requires rerunning entire script after closing)
-    added function to convert row and column indicies into excel coordinates
-    tweaked pullspectrum to warn users of non-numerical values
-    ---1.2---
-    user input in save() is now handled by a function
-    changed the behaviour of rsim parameter pulling to accept any input in any column
-    added kwarg handling
-    ---1.3
+---1.3
 """
 
 class XLSX(object):
@@ -77,6 +57,13 @@ class XLSX(object):
         except ImportError:
             raise ImportError('lxml does not appear to be installed.\nThe XLSX class requires this package to function, please install it.')
     
+    def get_sheet(self,sheetname):
+        """tries to retrieve the specified sheet name, otherwise returns None"""
+        try:
+            return self.wb.get_sheet_by_name(sheetname)
+        except KeyError:
+            return None
+    
     def loadwb(self,bookname):
         """loads specified workbook into class"""
         if self.ks['verbose'] is True:
@@ -122,7 +109,30 @@ class XLSX(object):
                 ind += 1
             loc += 4
         return out
-        
+    
+    def pullrsim(self,sheet):
+        """
+        pulls rsim data from the specified sheet
+        """
+        cs = self.wb.get_sheet_by_name(sheet)
+        tic = []
+        time = []
+        data = {}
+        for col,colval in enumerate(cs.columns):
+            for row,rowval in enumerate(colval):
+                if row == 0: #skip first row
+                    continue
+                elif colval[0].value == 'Time': # if column is Time, append to that list
+                    time.append(cs.cell(row = (row+1), column = (col+1)).value)
+                elif colval[0].value == 'TIC': # if column is tic, append to that list
+                    tic.append(cs.cell(row = (row+1), column = (col+1)).value)
+                else: # all other columns
+                    if colval[row].value is not None:
+                        if data.has_key(str(colval[0].value)) is False:
+                            data['%s' %str(colval[0].value)] = {'raw':[]}
+                        data['%s' %str(colval[0].value)]['raw'].append(cs.cell(row = (row+1), column = (col+1)).value)
+        return data,time,tic  
+                
     def pullspectrum(self,sheet='spectrum',skiplines=0):
         """
         extracts a spectrum from the specified sheet
