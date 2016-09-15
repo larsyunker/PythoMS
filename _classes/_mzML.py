@@ -122,7 +122,7 @@ class mzML(object):
             """prints the number of warnings if merited"""
             if len(self.warned) > 0:
                 import sys
-                sys.stdout.write('The following peaks exceeded the bounds of the spectrum n number of times:\n(number of scans in the file: %d)\n'%self.nscans)
+                sys.stdout.write('The following peaks exceeded the bounds of the spectrum n number of times:\n')
                 for name in self.warned:
                     sys.stdout.write('"%s": %d\n' %(name,self.warned[name]))
         def warn(self,name,intstart,intend,mzstart,mzend):
@@ -587,7 +587,6 @@ class mzML(object):
                 return input('%s' %string)
             else:
                 raise EnvironmentError('The version_input method encountered an unsupported version of python.')
-        
         valid = ['.raw','.mzml.gz','.mzml'] # supported extensions
         if fn.lower().endswith('.raw') is True: # extension is raw
             if self.file_present(fn[:-4]+'.mzML.gz') is True: # if corresponding gzipped mzml is present
