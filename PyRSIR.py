@@ -4,16 +4,17 @@
  PyRSIR (Python Reconstructed Single Ion Recording; previously SOAPy/PyRSIM)
  pronounced "piercer"
  
- version 027
- new:
-    updated to work with mzML v 2.4
-    removed spectrum object generation prior to pull_species_data (isotope patterns are now retrieved from the sumspec object)
-    removed raw key generation prior to pull_species_data (this is now generated in the mzml function)
-    now outputs summed spectra for every mass spec function (multi-spectrum output on sheet Summed Spectra)
-    several changes to accept a more general sp input from excel pulling
-    added kwargs calling (plot, verbose)
-    
-    ---27.6 incompatible with mzML v2.4 or greater
+version 027
+CHANGELOG:
+- updated to work with mzML v 2.4
+- removed spectrum object generation prior to pull_species_data (isotope patterns are now retrieved from the sumspec object)
+- removed raw key generation prior to pull_species_data (this is now generated in the mzml function)
+- now outputs summed spectra for every mass spec function (multi-spectrum output on sheet Summed Spectra)
+- several changes to accept a more general sp input from excel pulling
+- added kwargs calling (plot, verbose)
+- fixed pulling of existing data from excel file (I think)
+
+---27.6 incompatible with mzML v2.4 or greater
 
 If you use this python script to process data, you should cite this paper
 (of the folks who wrote the msconvert program)
@@ -44,10 +45,10 @@ Column #5: end value (m/z or wavelength)
 """
 
 # input *.raw filename
-filename = 'LY-2016-08-01 03'
+filename = 'MultiTest'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = '2016-08-01 03 standard hydrolysis'
+xlsx = 'pyrsir_validation - Copy'
 
 # set number of scans to sum (integer or list of integers)
 n = [3]
@@ -196,7 +197,7 @@ def pyrsir(filename,xlsx,n,**kwargs):
                     dct[species]['affin'] = mzml.functions[fn]['mode']
                 if mzml.functions[fn]['type'] == 'UV':
                     dct[species]['affin'] = 'UV'
-            if dct[species]['formula'] is not None:
+            if dct[species].has_key('formula') and dct[species]['formula'] is not None:
                 try:
                     dct[species]['mol'].res = res # sets resolution in Molecule object
                 except NameError:
@@ -212,6 +213,7 @@ def pyrsir(filename,xlsx,n,**kwargs):
     ks = { # default keyword arguments
     'plot': True, # plot the data for a quick look
     'verbose': True, # chatty
+    'bounds confidence': 0.99, # confidence interval for automatically generated bounds
     }
     if set(kwargs.keys()) - set(ks.keys()): # check for invalid keyword arguments
         string = ''
@@ -241,55 +243,43 @@ def pyrsir(filename,xlsx,n,**kwargs):
     sp = xlfile.pullrsimparams()
     
     mskeys = ['+','-']
-    for key in sp: # append list places for chrom, summed chrom, and normalized chrom
+    for key in sp:
         if sp[key]['formula'] is not None: # if formula is specified
             sp[key]['mol'] = Molecule(sp[key]['formula']) # create Molecule object
-            sp[key]['bounds'] = sp[key]['mol'].bounds(0.99) # generate bounds from molecule object with this confidence interval
-        #if sp[key]['affin'] in mskeys:
-        #    for num in n:
-        #        sp[key]['%s' %(str(num)+'sum')] = []
-        #        sp[key]['%s' %(str(num)+'norm')] = []
+            sp[key]['bounds'] = sp[key]['mol'].bounds(ks['bounds confidence']) # generate bounds from molecule object with this confidence interval
     if ks['verbose'] is True:
         sys.stdout.write(' DONE\n')
     
     
     rtime = {} # empty dictionaries for time and tic
     tic = {}
-    rd = None
+    rd = False
     for mode in mskeys: # look for existing positive and negative mode raw data
         try:
-            rd = xlfile.wb.get_sheet_by_name('Raw Data ('+mode+')')
+            modedata,modetime,modetic = xlfile.pullrsim('Raw Data ('+mode+')')
         except KeyError:
             continue
+        if ks['verbose'] is True:
+            sys.stdout.write('Existing (%s) mode raw data were found, grabbing those values.'%mode)
+            sys.stdout.flush()
+        rd = True # bool that rd is present
         modekey = 'raw'+mode
-        if rd is not None: # if raw data is present, grab for processing
-            if ks['verbose'] is True:
-                sys.stdout.write('Existing (%s) mode raw data were found, grabbing those values.'%mode)
-                sys.stdout.flush()
-            rtime[modekey] = [] # generate empty lists required for data processing
-            tic[modekey] = []
-            for col,colval in enumerate(rd.columns):
-                for row,rowval in enumerate(colval):
-                    if row == 0: #skip first row
-                        continue
-                    elif colval[0].value == 'Time': # if column is Time, append to that list
-                        rtime[modekey].append(rd.cell(row = (row+1), column = (col+1)).value)
-                    elif colval[0].value == 'tic': # if column is tic, append to that list
-                        tic[modekey].append(rd.cell(row = (row+1), column = (col+1)).value)
-                    else: # all other columns
-                        sp['%s' %str(colval[0].value)]['raw'].append(rd.cell(row = (row+1), column = (col+1)).value)
-                if colval[0].value not in ['Time','tic']: # define affinity of species
-                    sp['%s' %str(colval[0].value)]['affin'] = mode
-            if ks['verbose'] is True:
-                sys.stdout.write(' DONE\n')
-            
+        sp.update(modedata) # update sp dictionary with raw data
+        for key in modedata: # check for affinities
+            if sp[key].has_key('affin') is False:
+                sp[key]['affin'] = mode
+        rtime[modekey] = list(modetime) # update time list
+        tic[modekey] = list(modetic) # update tic list
+        if ks['verbose'] is True:
+            sys.stdout.write(' DONE\n')
     
+    sp = prepformula(sp)
     newpeaks = False
-    if rd is not None:
+    if rd is True:
         newsp = {}
         sumspec = None
         for key in sp: # checks whether there is a MS species that does not have raw data
-            if len(sp[key]['raw']) is 0 and sp[key]['affin'] is not 'UV': #!!!!!! check whether the not UV if is needed
+            if sp[key].has_key('raw') is False:
                 newsp[key] = sp[key] # create references in the namespace
         if len(newsp) is not 0:
             newpeaks = True
@@ -299,7 +289,7 @@ def pyrsir(filename,xlsx,n,**kwargs):
             for species in ips: # set spectrum list
                 sp[species]['spectrum'] = [ips[species]['x'],ips[species]['y']]
             mzml = mzML(filename) # load mzML class
-            newsp = prepformula(newsp) # prep formula species for summing
+            #newsp = prepformula(newsp) # prep formula species for summing
             for species in newsp:
                 if newsp[species].has_key('spectrum') is False:
                     newsp[species]['spectrum'] = Spectrum(3,newsp[species]['bounds'][0],newsp[species]['bounds'][1])
@@ -307,10 +297,10 @@ def pyrsir(filename,xlsx,n,**kwargs):
         else:
             if ks['verbose'] is True:
                 sys.stdout.write('No new peaks were specified. Proceeding directly to summing and normalization.\n')
-        
-    if rd is None: # if no raw data is present, process mzML file
+    
+    if rd is False: # if no raw data is present, process mzML file
         mzml = mzML(filename,verbose=ks['verbose']) # load mzML class
-        sp = prepformula(sp)
+        #sp = prepformula(sp)
         sp,sumspec = mzml.pull_species_data(sp,True) # pull relevant data from mzML
         chroms = mzml.pull_chromatograms() # pull chromatograms from mzML
         rtime = {}
@@ -336,7 +326,7 @@ def pyrsir(filename,xlsx,n,**kwargs):
                 sys.stdout.write('\r%d Summing species traces.' %num)
             sumkey = str(num)+'sum'
             for ind,key in enumerate(sp): # bin each species
-                if mzml.functions[sp[key]['function']]['type'] == 'MS': # if species is MS related
+                if sp[key]['affin'] in mskeys or mzml.functions[sp[key]['function']]['type'] == 'MS': # if species is MS related
                     sp[key][sumkey] = bindata(num,1,sp[key]['raw'])
             for mode in mskeys: 
                 sumkey = str(num)+'sum'+mode
@@ -358,8 +348,7 @@ def pyrsir(filename,xlsx,n,**kwargs):
             modekey = 'raw'+mode
             if modekey in rtime.keys(): # if there is data for that mode
                 for key in sp: # for each species
-                    func = sp[key]['function']
-                    if mzml.functions[func]['type'] == 'MS': # if species has affinity
+                    if sp[key]['affin'] in mskeys or mzml.functions[sp[key]['function']]['type'] == 'MS': # if species has affinity
                         sp[key][normkey] = []
                         for ind,val in enumerate(sp[key][sumkey]):
                             #sp[key][normkey].append(val/(mzml.function[func]['tic'][ind]+0.01)) #+0.01 to avoid div/0 errors
