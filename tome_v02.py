@@ -72,12 +72,13 @@ def autoresolution(x,y,v=True):
                 out.append(sci.where(section==maxy)[0][0]+split*ind)
         return out
         
-    def resolution(x,y,index=None):
+    def resolution(x,y,index=None,threshold=5):
         """
         Finds the resolution and full width at half max of a spectrum
         x: list of mz values
         y: corresponding list of intensity values
         index: index of maximum intensity (optional; used if the resolution of a specific peak is desired)
+        threshold: signal to noise threshold required to output a resolution
         
         returns resolution
         """
@@ -87,7 +88,7 @@ def autoresolution(x,y,v=True):
             index = sci.where(y==maxy)[0][0]
         else:
             maxy = y[index]
-        if maxy/(sum(y)/len(y)) < 10: # if intensity to average is below this threshold (rough estimate of signal/noise)
+        if maxy/(sum(y)/len(y)) < threshold: # if intensity to average is below this threshold (rough estimate of signal/noise)
             return None
         halfmax = maxy/2
         indleft = int(index)-1 # generate index counters for left and right walking
@@ -436,6 +437,7 @@ def plotms(realspec,simdict={},**kwargs):
     'padding':'auto', # padding for the output plot
     'verbose':True, # verbose setting
     'normwindow':'fwhm', # the width of the window to look for a maximal value around the expected exact mass for a peak
+    'annotations': None, # annotations for the spectrum in dictionary form {'thing to print':[x,y],}
     }
     
     if set(kwargs.keys()) - set(settings.keys()): # check for invalid keyword arguments
@@ -584,7 +586,17 @@ def plotms(realspec,simdict={},**kwargs):
             dist.append(realspec[0][ind]-realspec[0][ind-1])
         dist = sum(dist)/len(dist) # average distance
         ax.bar(realspec[0], realspec[1], dist*0.75, linewidth=0, color=Colour(settings['speccolour']).mpl, align='center', alpha=0.8)
-
+    
+    if settings['annotations'] is not None:
+        for label in settings['annotations']:
+            ax.text(
+            settings['annotations'][label][0],
+            settings['annotations'][label][1],
+            label,
+            horizontalalignment='center',
+            **font
+            )    
+    
     # show or hide axis values/labels as specified
     if settings['yvalues'] is False: # y tick marks and values
         ax.tick_params(axis='y', labelleft='off',length=0)
