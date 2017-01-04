@@ -13,10 +13,11 @@ CHANGELOG:
 - several changes to accept a more general sp input from excel pulling
 - added kwargs calling (plot, verbose)
 - fixed pulling of existing data from excel file (I think)
+- moved prepformula calls to after mzml object is created
 
 ---27.6 incompatible with mzML v2.4 or greater
 
-If you use this python script to process data, you should cite this paper
+If you use this python script to convert to mzML, you should cite this paper
 (of the folks who wrote the msconvert program)
 
 Chambers, M.C. Nature Biotechnology 2012, 30, 918-920
@@ -45,17 +46,13 @@ Column #5: end value (m/z or wavelength)
 """
 
 # input *.raw filename
-filename = 'MultiTest'
+filename = 'LY-2016-11-28 03'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = 'pyrsir_validation - Copy'
+xlsx = '2016-11-28 03 (temp) - Copy'
 
 # set number of scans to sum (integer or list of integers)
-n = [3]
-
-# ----------------------------------------------------------
-# -------------------FUNCTION DEFINITIONS-------------------
-# ----------------------------------------------------------
+n = [3,5]
 
 def pyrsir(filename,xlsx,n,**kwargs):    
     def checkinteger(val,name):
@@ -161,7 +158,15 @@ def pyrsir(filename,xlsx,n,**kwargs):
         
         for key,val in sorted(sp.items()): # write isotope patterns
             if sp[key]['affin'] in mskeys:
-                xlfile.writemultispectrum(sp[key]['spectrum'][0],sp[key]['spectrum'][1],'m/z','intensity','Isotope Patterns',key)
+                xlfile.writemultispectrum(
+                    sp[key]['spectrum'][0], # x values
+                    sp[key]['spectrum'][1], # y values
+                    'm/z', # x unit
+                    'intensity', # y unit
+                    'Isotope Patterns', # sheet name
+                    key, # name of the spectrum
+                    chart=True, # output excel chart
+                    )
         
         if rd is None:
             for key,val in sorted(chroms.items()): # write chromatograms
@@ -210,10 +215,12 @@ def pyrsir(filename,xlsx,n,**kwargs):
     # ----------------------------------------------------------
     # -------------------PROGRAM BEGINS-------------------------
     # ----------------------------------------------------------
+    
     ks = { # default keyword arguments
     'plot': True, # plot the data for a quick look
     'verbose': True, # chatty
     'bounds confidence': 0.99, # confidence interval for automatically generated bounds
+    'sumspec': True, # whether or not to output a summed spectrum
     }
     if set(kwargs.keys()) - set(ks.keys()): # check for invalid keyword arguments
         string = ''
@@ -239,7 +246,7 @@ def pyrsir(filename,xlsx,n,**kwargs):
     if ks['verbose'] is True:
         sys.stdout.write('Loading processing parameters from excel file')
         sys.stdout.flush()
-    xlfile = XLSX(xlsx)
+    xlfile = XLSX(xlsx,verbose=ks['verbose'])
     sp = xlfile.pullrsimparams()
     
     mskeys = ['+','-']
@@ -273,7 +280,7 @@ def pyrsir(filename,xlsx,n,**kwargs):
         if ks['verbose'] is True:
             sys.stdout.write(' DONE\n')
     
-    sp = prepformula(sp)
+    #sp = prepformula(sp)
     newpeaks = False
     if rd is True:
         newsp = {}
@@ -289,7 +296,8 @@ def pyrsir(filename,xlsx,n,**kwargs):
             for species in ips: # set spectrum list
                 sp[species]['spectrum'] = [ips[species]['x'],ips[species]['y']]
             mzml = mzML(filename) # load mzML class
-            #newsp = prepformula(newsp) # prep formula species for summing
+            sp = prepformula(sp) # prep formula etc for summing
+            newsp = prepformula(newsp) # prep formula species for summing
             for species in newsp:
                 if newsp[species].has_key('spectrum') is False:
                     newsp[species]['spectrum'] = Spectrum(3,newsp[species]['bounds'][0],newsp[species]['bounds'][1])
@@ -300,8 +308,8 @@ def pyrsir(filename,xlsx,n,**kwargs):
     
     if rd is False: # if no raw data is present, process mzML file
         mzml = mzML(filename,verbose=ks['verbose']) # load mzML class
-        #sp = prepformula(sp)
-        sp,sumspec = mzml.pull_species_data(sp,True) # pull relevant data from mzML
+        sp = prepformula(sp)
+        sp,sumspec = mzml.pull_species_data(sp,ks['sumspec']) # pull relevant data from mzML
         chroms = mzml.pull_chromatograms() # pull chromatograms from mzML
         rtime = {}
         tic = {}
@@ -327,13 +335,13 @@ def pyrsir(filename,xlsx,n,**kwargs):
             sumkey = str(num)+'sum'
             for ind,key in enumerate(sp): # bin each species
                 if sp[key]['affin'] in mskeys or mzml.functions[sp[key]['function']]['type'] == 'MS': # if species is MS related
-                    sp[key][sumkey] = bindata(num,1,sp[key]['raw'])
+                    sp[key][sumkey] = bindata(num,sp[key]['raw'])
             for mode in mskeys: 
                 sumkey = str(num)+'sum'+mode
                 modekey = 'raw'+mode
                 if modekey in rtime.keys(): # if there is data for that mode
-                    rtime[sumkey] = bindata(num,num,rtime[modekey])
-                    tic[sumkey] = bindata(num,1,tic[modekey])
+                    rtime[sumkey] = bindata(num,rtime[modekey],num)
+                    tic[sumkey] = bindata(num,tic[modekey])
         if ks['verbose'] is True:
             sys.stdout.write(' DONE\n')
             sys.stdout.flush()
@@ -365,7 +373,13 @@ def pyrsir(filename,xlsx,n,**kwargs):
     #pickle.dump(sp,open("sp.p","wb"))
     
     output() # write data to excel file
-    #xlfile.updatersimparams(sp) # update summing parameters
+    
+    if ks['verbose'] is True:
+        sys.stdout.write('\rUpdating paramters')
+        sys.stdout.flush()
+    xlfile.updatersimparams(sp) # update summing parameters
+    if ks['verbose'] is True:
+        sys.stdout.write(' DONE\n') 
     
     if ks['verbose'] is True:
         sys.stdout.write('\rSaving "%s" (this may take some time)' %xlfile.bookname)
