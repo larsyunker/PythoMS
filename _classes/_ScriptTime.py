@@ -2,19 +2,11 @@
 ScriptTime class
 records timepoints in a python script
 
-new:
-    functional
-    added periter to print the average time per supplied number of iterations
-    created formattime to handle times less than 1 ms
-    removed secondstostr and replaced all calls with formattime
-    added function profiling
-    added toggle for profiling
-    changed from time.time() to time.clock() which seems to give much higher resolution
-    ---1.0---
-    removed timepoint function (now redundant with profiling capability)
-    updated print profile data function to be more detailed and easier to read
-    ---1.1---
-    ---1.2
+CHANGELOG
+---1.1---
+- added plots method so the user can check whether the function call time increases over time
+- modified profile printing to return 'n/a' if the number of calls is less than 3
+---1.2
 
 to add:
     use time.time() in unix and time.clock() in windows
@@ -99,6 +91,15 @@ class ScriptTime(object):
         """
         self.sys.stdout.write('Average time per iteration: %s\n' %(self.formattime(self.elap/float(num))))
     
+    def plots(self):
+        """plots the duration of each function call against the function call number"""
+        import pylab as pl
+        import scipy as sp
+        for key in self.profiles:
+            pl.plot(sp.arange(self.profiles[key][0])+1,self.profiles[key][1],label=key)
+        pl.legend()
+        pl.show()
+    
     def printelapsed(self):
         """prints the elapsed time of the object"""
         if self.__dict__.has_key('end_time') is False:
@@ -119,7 +120,11 @@ class ScriptTime(object):
         self.sys.stdout.write('%15s  %6s  %13s  %13s  %13s  %13s\n' %('function','called','avg','stdev','max','min'))
         for fname, data in self.profiles.items():
             avg = sum(data[1])/len(data[1])
-            self.sys.stdout.write('%15s  %6d  %13s  %13s  %13s  %13s\n' %(fname,data[0], self.formattime(avg), self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))), self.formattime(max(data[1])), self.formattime(min(data[1]))))
+            if len(data[1]) < 3: # if the number of calls is less than 3, standard deviation is not applicable
+                stdev = 'n/a'
+            else:
+                stdev = self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1)))
+            self.sys.stdout.write('%15s  %6d  %13s  %13s  %13s  %13s\n' %(fname,data[0], self.formattime(avg), stdev, self.formattime(max(data[1])), self.formattime(min(data[1]))))
             #self.sys.stdout.write('Function %s called %d times. ' % (fname, data[0]))
             #self.sys.stdout.write('Execution time max: %s, min: %s, average: %s, stdev: %s\n' % (self.formattime(max(data[1])), self.formattime(min(data[1])), self.formattime(avg),self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))) ))
     
