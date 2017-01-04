@@ -18,21 +18,47 @@ def test_pyrsir():
 def test_molecule():
     sys.stdout.write('Testing Molecule class...')
     from _classes._Molecule import Molecule
-    mol1 = Molecule('L2PdAr+I')
+    mol1 = Molecule('L2PdAr+I',
+    decpl=4,
+    dropmethod='consolidate',
+    threshold=0.01,
+    )
     if mol1.sf != 'C61H51IP3Pd':
         raise ValueError('Bad string formula generation')
-    if mol1.em != 1109.12832052557:
+    if mol1.em != 1109.1292680704037:
         raise ValueError('Bad exact mass calculation')
-    if mol1.barip != [
-    [1156.21,1157.21,1158.2001922415977,1159.2075274860124,1160.2033155288823,1161.2020504146174,1162.2003014864583,1163.200072566986,1164.2066774602326,1165.208663672193,1166.209393895099,1167.21,1168.21],
-    [2.2945353033055147,1.5138412943167003,25.55112366668965,66.86927422750642,100.0,52.44501730463592,75.10171505680198,42.34934508332113,39.483066353566024,20.077321620243318,6.008127007653248,1.1883833361405927,0.1612963991856637]
-    ]:
+    if mol1.barip != [[1105.1293,
+        1106.1327255556112,
+        1107.1278614829419,
+        1108.1293953498039,
+        1109.1292680704037,
+        1110.1317941659881,
+        1111.1290932334798,
+        1112.131521133883,
+        1113.1307883654117,
+        1114.1330515289933,
+        1115.1360333576954,
+        1116.1391,
+        1117.1425],
+        [2.2877943976215174,
+        1.5228133756325208,
+        25.476059354317048,
+        66.81938661932918,
+        100.0,
+        52.65050639843118,
+        74.88108058795113,
+        42.57304732262849,
+        39.36707265932171,
+        20.17253048748246,
+        5.990476280101693,
+        1.1848920932846567,
+        0.16082254122736056]]:
         raise ValueError('Bad bar isotope pattern generation')
     mol1 - 'PPh3' # test subtraction
     mol1 + 'PPh3' # test addition
     mol2 = Molecule('N(Et)2(CH2(13C)H2(2H))2')
     mol1 + mol2 # test class addition
-    mol1.gaussianisotopepattern()
+    mol1.gaussianisotopepattern(mol1.barip)
     sys.stdout.write(' PASS\n')
     
 def test_mzml():
@@ -53,7 +79,7 @@ def test_mzml():
         return p["MS:1000016"]
     if testperspec() != [0.0171000008, 0.135733336, 0.254333347, 0.372983336, 0.491699994, 0.0510833338, 0.169750005, 0.288383335, 0.407000005, 0.525833309, 0.0847499967, 0.20341666, 0.322033346, 0.440683335]:
         raise ValueError('For each scan or cvparam function failed')
-    if sum(mzml.sum_scans()[1]) != 162806964:
+    if sum(mzml.sum_scans()[1]) != 162804754:
         raise ValueError('sum_scans function failed')
     if sum((mzml[2])[1]) != 6742121:
         raise ValueError('scan indexing failed')
@@ -64,11 +90,11 @@ def test_mzml():
 def test_xlsx():
     sys.stdout.write('Testing XLSX class...')
     from _classes._XLSX import XLSX
-    xlfile = XLSX('xlsx_validation')
+    xlfile = XLSX('xlsx_validation',verbose=False)
     spec,xunit,yunit = xlfile.pullspectrum('example MS spectrum')
     multispec = xlfile.pullmultispectrum('example multi-spectrum')
     rsimparams = xlfile.pullrsimparams()
-    xlout = XLSX('xlsxtestout.xlsx',create=True)
+    xlout = XLSX('xlsxtestout.xlsx',create=True,verbose=False)
     xlout.writespectrum(spec[0],spec[1],'test single spectrum out',xunit,yunit)
     for key,val in sorted(multispec.items()):
         xlout.writemultispectrum(multispec[key]['x'],multispec[key]['y'],multispec[key]['xunit'],multispec[key]['yunit'],'Function Chromatograms',key)
@@ -84,7 +110,7 @@ def test_spectrum():
     spec2 = Spectrum(3)
     spec2.addvalue(443.1,1000)
     spec += spec2
-    spec3 = Spectrum(3,50,2500)
+    spec3 = Spectrum(3,start=50,end=2500)
     spec3.addvalue(2150.954,1000)
     spec += spec3
     output = spec.trim(True)
