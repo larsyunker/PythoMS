@@ -2,15 +2,13 @@
   isotope pattern check program v011 beta (dependant on tome)
   overlays a supplied predicted isotope pattern onto an acquired spectrum
   
-new/changed:
-    ---12.1---
-    fixed determination of bar overlap and bottom heights
-    added ability to specify the width to look in when auto-normalizing isotope patterns
-    ---12.2---
+CHANGELOG:
+- added databridge to extract spectra directly from a raw or mzml.gz file (validated)
+---12.3
 """
 # provide the experimental spectrum xlsx
 # the script will automatically use the first sheet
-spectrum = 'L2PdArAr Jessamyn (for organometallics)'
+spectrum = 'LY-2016-11-28 13 perfectly calibrated isotope patterns'
 
 # number of lines to skip in the excel file
 # (e.g. if there are spectrum details above the actual spectrum values)
@@ -23,9 +21,11 @@ skiplines = 0
 # 'molecular formula':{'colour': ... ,'alpha':0-1}
 # colour can be (R,G,B), (C,M,Y,K), or 'hex'
 simdict = {
+'Ar+I':{'colour':'1f78b4','alpha':0.5},
 #'L2PdAr+I':{'colour':'#6a3d9a','alpha':0.5},
 #'L2PdAr+(2+)':{'colour':'#e41a1c','alpha':0.5},
-'L2PdAr+C6H4CH3':{'colour':'#ff7f00','alpha':0.5},
+#'Pd(PPh2)Ar+':{'colour':'696969','alpha':0.5},
+#'L2PdAr+C6H4CH3':{'colour':'#ff7f00','alpha':0.5},
 #'L2PdAr+IMeOH':{'colour':(146,102,194),'alpha':0.5},
 #'(Ar+I)2PF6':{'colour':'#1f78b4','alpha':0.5},
 #'L2PdAr+CH3C6H4MeOH':{'colour':'#ff7f00','alpha':0.5}
@@ -36,23 +36,23 @@ simdict = {
 # choose a figure type for auto settings
 # options: 'pub', 'pubsvg', 'inset', 'insetsvg', 'thesis', 'detailed'
 # additional presets can be added in the presets() function below
-setting = 'inset'
+setting = 'insetsvg'
 
 # preset settings can be overridden here (see presets() function for details)
 override = {
 #'norm':False,
 #'bw':0.3, # bar width (in units of m/z)
-'exten':'svg', # change to scalable vector graphic
-'mz': [1069,1081], # modify the m/z bounds of the figure
+#'exten':'svg', # change to scalable vector graphic
+#'mz': [1069,1081], # modify the m/z bounds of the figure
 #'offsetx':False, # apply a slight offset to the x axis
 #'simtype': 'gaussian', # generate a gaussian spectrum
-'size':[1.8,1.3], # change the size of the image
+'size':[3.37,2.38], # change the size of the image [width,height]
 #'specfont':'Calibri', # change the font of the labels
 'stats':False,
 'xlabel':False,
 #'spectype':'centroid',
 #'normwindow':1.,
-'fs':8,
+#'fs':8,
 }
 
 
@@ -199,21 +199,26 @@ def presets(typ):
 
 if __name__ == '__main__':
     import sys
-    from _classes._XLSX import XLSX
     from tome_v02 import plotms
-    xlfile = XLSX(spectrum,verbose=True) # load excel file
+    keywords = presets(setting) # pull preset kwargs
     
-    try: # if sheet name was specified
-        sname = sheetname
-    except NameError: # otherwise use the first sheet
-        sname = xlfile.wb.get_sheet_names()[0]
+    if spectrum.lower().endswith('.mzml.gz') or spectrum.lower().endswith('.raw'): # if supplied with a mass spec file
+        from _classes._mzML import mzML
+        mzml = mzML(spectrum)
+        exp = mzml.sum_scans()
+        keywords.update({'outname':mzml.filename.split('.')[0]}) # set default output filename 
     
-    keywords = presets(setting) # pull preset
-    keywords.update({'outname':xlfile.bookname[:-5]+' ('+sname+')'}) # set default output filename
+    else: # otherwise assume that it is an excel file
+        from _classes._XLSX import XLSX
+        xlfile = XLSX(spectrum,verbose=True) # load excel file
+        try: # if sheet name was specified
+            sname = sheetname
+        except NameError: # otherwise use the first sheet
+            sname = xlfile.wb.get_sheet_names()[0]
+        exp = xlfile.pullspectrum(sname,skiplines=skiplines)[0] # load spectrum from first sheet in workbook
+        keywords.update({'outname':xlfile.bookname[:-5]+' ('+sname+')'}) # set default output filename
+    
     keywords.update(override) # apply any user overrides
-    
-    exp = xlfile.pullspectrum(sname,skiplines=skiplines)[0] # load spectrum from first sheet in workbook
-    
     plotms(exp,simdict,**keywords)
     import gc
     gc.collect()
