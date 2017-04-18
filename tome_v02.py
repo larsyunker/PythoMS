@@ -202,10 +202,10 @@ def binnspectra(lst, n, dec=3, start=50., end=2000.):
     from _Spectrum import Spectrum
     out = []
     delta = 0
-    spec = Spectrum(dec,start=start,end=end)
-    for x,y in lst: # for each timepoint
+    spec = Spectrum(dec,start=start-1,end=end+1,reusable=True)
+    for ind,(x,y) in enumerate(lst): # for each timepoint
         delta += 1
-        sys.stdout.write('\rBinning spectrum #%i/%i  %.1f%%' %(delta,len(lst),float(delta)/float(len(lst))*100.))
+        sys.stdout.write('\rBinning spectrum #%i/%i  %.1f%%' %(ind+1,len(lst),float(ind)/float(len(lst))*100.))
         spec.addspectrum(x,y) # add spectrum
         if delta == n: # critical number is reached
             out.append(spec.trim(zeros=True)) # append list
@@ -747,16 +747,20 @@ def plotms(realspec,simdict={},**kwargs):
     
     settings.update(kwargs) # update settings from keyword arguments
     
-    res = autoresolution(realspec[0],realspec[1]) # calculate resolution
+    if settings['spectype'] != 'centroid':
+        res = autoresolution(realspec[0],realspec[1]) # calculate resolution
+    else: 
+        res = 5000
     
     simdict = checksimdict(simdict) # checks the simulation dictionary
     for species in simdict: # generate Molecule object and set x and y lists
         simdict[species]['colour'] = Colour(simdict[species]['colour'])
         simdict[species]['mol'] = Molecule(species, res=res) 
+        #simdict[species]['mol'] = Molecule(species, res=res, dropmethod='threshold') 
         if settings['simtype'] == 'bar':
             simdict[species]['x'],simdict[species]['y'] = simdict[species]['mol'].barip
         if settings['simtype'] == 'gaussian':
-            simdict[species]['mol'].gaussianisotopepattern()
+            simdict[species]['mol'].gaussianisotopepattern(simdict[species]['mol'].rawip)
             simdict[species]['x'],simdict[species]['y'] = simdict[species]['mol'].gausip
         
     if settings['mz'] == 'auto': # automatically determine m/z range
@@ -775,6 +779,8 @@ def plotms(realspec,simdict={},**kwargs):
         if settings['verbose'] is True:
             sys.stdout.write(': %i - %i\n' %(int(mz[0]),int(mz[1])))
             sys.stdout.flush()
+    else:
+        mz = settings['mz']
     
     realspec[0],realspec[1] = trimspectrum(realspec[0],realspec[1],settings['mz'][0]-1,settings['mz'][1]+1) # trim real spectrum for efficiency
     
@@ -797,7 +803,7 @@ def plotms(realspec,simdict={},**kwargs):
         if settings['delta'] is True:
             est = estimatedem(realspec[0],realspec[1],simdict[species]['mol'].em,min(simdict[species]['x']),max(simdict[species]['x'])) # try to calculate exact mass
             if type(est) is float:
-                simdict[species]['delta'] = simdict[species]['mol'].em - est
+                simdict[species]['delta'] = '%.3f (%.1f ppm)' %(simdict[species]['mol'].em - est,simdict[species]['mol'].compareem(est))
             else:
                 simdict[species]['delta'] = est
     
@@ -869,11 +875,7 @@ def plotms(realspec,simdict={},**kwargs):
             if settings['stats'] is True: # standard error of regression
                 string += 'SER: %.2f ' %simdict[species]['mol'].compare(realspec)
             if settings['delta'] is True: # mass delta
-                string += 'mass delta: '
-                if type(simdict[species]['delta']) is float:
-                    string += '%.3f' %simdict[species]['delta']
-                else:
-                    string += '%s' %simdict[species]['delta']
+                string += 'mass delta: %s' %simdict[species]['delta']
             ax.text(simdict[species]['x'][bpi],top*(1.01),string, color = simdict[species]['colour'].mpl, horizontalalignment='center', **font)
     
     if settings['spectype'] == 'continuum':
@@ -919,6 +921,7 @@ def plotms(realspec,simdict={},**kwargs):
     if settings['xlabel'] is True: # x unit
         ax.set_xlabel('m/z', style='italic', **font)
     
+    pl.ticklabel_format(useOffset=False) # don't use the stupid shorthand thing
     if settings['padding'] == 'auto':
         pl.tight_layout(pad=0.5) # adjust subplots
         if settings['simlabels'] is True or settings['stats'] is True or settings['delta'] is True: 

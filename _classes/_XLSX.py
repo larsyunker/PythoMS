@@ -1,16 +1,9 @@
 """
 Class for opening and handling excel files with commonly used data formats
 IGNORE:
-v 1
 CHANGELOG:
-- added FAIL output if workbook loading fails
-- updated and corrected conversion of pythonic indicies to excel cell names and vice versa
-- updated docstrings
-- added number formatter to write spectrum
-- added cell locking to cell name determination
-- added normalized spectrum output to writespectrum
-- added basic charting functionality to writespectrum (enabled by default) and writemultispectrum (not default)
----1.4
+- converted several arguments in writemultispectrum to keyword arguments
+---1.5
 IGNORE
 """
 
@@ -146,13 +139,58 @@ class XLSX(object):
         return sheet+' ('+`i`+')'
     
     def correctextension(self,bookname):
-        """attempts to correct the extension of the supplied filename"""
+        """attempts to correct the extension of the supplied workbook name"""
         oops = {'.xls':'x','.xl':'sx','.x':'lsx','.':'xlsx','.xlsx':''} # incomplete extensions
         for key in oops:
             if bookname.endswith(key) is True:
                 bookname += oops[key]
                 return bookname
         return bookname+'.xlsx' # absent extension
+    
+    def evaluate(self,string,sheet):
+        """
+        Attempts to interpret and evaluate the contents of a cell containing basic transformations
+        
+        **Parameters**
+        
+        string: *string*
+            The contents of a cell
+        
+        sheet: *string*
+            The current sheet
+        
+        **Returns**
+        
+        return item: *type*
+            description
+        
+        """
+        if string.startswith('=') is False: # if not an equation
+            raise ValueError('The string %s is not an evaluable string' %contents)
+        contents = string[1:]
+        
+        rd = { # replacement dictionary
+        '^':'**', # power
+        }
+        
+        cs = self.get_sheet(sheet)
+        
+        evalstring = ''
+        address  = ''
+        for ind,val in enumerate(contents):
+            if val.isalpha() or val.isdigit(): # if part of an address
+                address += val
+                continue
+            if val in rd: # if in replacement dictionary
+                if len(address) > 0:
+                    cell_contents= cs[address]
+                    # !! check if cell contents are a value, if not, call another instance of evaluate
+                    
+                evalstring +=  rd[val]
+            else:
+                evalstring += val
+        
+        return eval(evalstring)
     
     def inds_to_cellname(self,row,col,lock=None):
         """
@@ -186,6 +224,8 @@ class XLSX(object):
             'O56'
             >>> XLSX.inds_to_cellname(12,25)
             'Z13'
+            >>> XLSX.inds_to_cellname(12,25,'cell')
+            '$Z$13'
             >>> XLSX.inds_to_cellname(18268,558)
             'UM18269'
         
@@ -204,12 +244,12 @@ class XLSX(object):
             out = ''
             if lock == 'col' or lock == 'cell':
                 out += '$'
-            out += string[::-1]
+            out += string[::-1] # string order must be reversed to be accurate
             if lock == 'row' or lock == 'cell':
                 out += '$'
             out += str(row+1)
             return out
-        return string[::-1]+str(row+1) # string order must be reversed
+        return string[::-1]+str(row+1)
     
     def loadop(self):
         """loads openpyxl and checks for lxml"""
@@ -252,7 +292,8 @@ class XLSX(object):
                     """
                     if self.ks['verbose'] is True:
                         self.sys.stdout.write('Creating workbook "%s" and loading it into memory' % bookname)
-                    wb = self.op.Workbook(bookname,write_only=False) # create workbook
+                    #wb = self.op.Workbook(bookname,write_only=False) # create workbook
+                    wb = self.op.Workbook(bookname) # create workbook
                     wb.save(bookname) # save it
                     wb = self.op.load_workbook(bookname) # load it
                     wb.remove_sheet(wb.worksheets[0]) # remove the old "Sheet"
@@ -441,7 +482,7 @@ class XLSX(object):
             try:
                 return float(value)
             except ValueError:
-                raise ValueError('The value "%s" (cell %s) in "%s" could not be interpreted as a float.\nCheck the value in this cell or change the number of lines skipped' %(value,self.ind_to_rowandcolumn(row,col),self.bookname))
+                raise ValueError('The value "%s" (cell %s) in "%s" could not be interpreted as a float.\nCheck the value in this cell or change the number of lines skipped' %(value,self.inds_to_cellname(row,col),self.bookname))
         if self.ks['verbose'] is True:
             self.sys.stdout.write('Pulling spectrum from sheet "%s"' % sheet)
         skiplines -= 1
@@ -612,7 +653,7 @@ class XLSX(object):
                 if out[name]['affin'] in pos:
                     out[name]['affin'] = '+'
                 elif out[name]['affin'] in neg:
-                    out[name]['affin'] = '+'
+                    out[name]['affin'] = '-'
                 elif out[name]['affin'] in uv:
                     out[name]['affin'] = '+'
                 else:
@@ -734,7 +775,7 @@ class XLSX(object):
         
         """
         if sheet not in self.wb.get_sheet_names(): # if the sheet can't be found, try other common names
-            sheet = self.pullrsimparameters.othernames(sheet)
+            sheet = self.pullrsimparams.othernames(sheet)
         
         s = self.wb.get_sheet_by_name(sheet) #load sheet in specified excel file
         
@@ -764,7 +805,7 @@ class XLSX(object):
             #        s.cell(row=1,column=6).value = 'std err of reg'
             #    s.cell(row=ind+1,column=6).value = sp[key]['match']
         
-    def writemultispectrum(self,xlist,ylist,xunit,yunit,sheetname,specname,chart=False):
+    def writemultispectrum(self,xlist,ylist,specname,xunit='x',yunit='y',sheetname='spectra',chart=False):
         """
         Writes multiple spectra to a single workbook sheet. 
         This can be called multiple times, and the class instance will remember 
@@ -826,7 +867,7 @@ class XLSX(object):
         
         if chart is True:
             chart = self.op.chart.ScatterChart() # generate the chart object 
-            chart.title = specname
+            chart.title = str(specname) # convert title to string to avoid TypeError
             xvals = self.op.chart.Reference(cs, min_col=self.wms[sheetname]+1, min_row=2, max_row=len(xlist)+1) #define the x values
             chart.x_axis.title = xunit # x axis title
             yvals = self.op.chart.Reference(cs, min_col=self.wms[sheetname]+2, min_row=2, max_row=len(xlist)+1)
@@ -944,7 +985,8 @@ class XLSX(object):
         if norm is True:
             ws['C1'] = 'Normalized'
             ws['D1'] = 'Maximum y value'
-            ws['D2'] = max(y)
+            #ws['D2'] = max(y)
+            ws['D2'] = '=MAX(B:B)'
         for ind,val in enumerate(x):
             ws[self.inds_to_cellname(1+ind,0)] = x[ind]
             ws[self.inds_to_cellname(1+ind,0)].number_format = '0.000'

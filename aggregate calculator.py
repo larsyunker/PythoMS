@@ -12,7 +12,7 @@ pos = 'Na'
 neg = 'I'
 
 # ion mode being observed
-mode = '+'
+mode = '-'
 
 # range to calculate exact masses over
 rng = [50,2000]
@@ -21,6 +21,12 @@ rng = [50,2000]
 output = False
 # if output is to be generated, what is the instrument manufacturer
 instrument = 'waters'
+
+# keyword arguments for molecule
+kw = {
+#'dropmethod': 'threshold', # this increases calculation speed at the expense of accuracy
+#'verbose': True,
+}
 
 if output is True:
     distributors = {
@@ -43,8 +49,8 @@ print 'Calculating aggregates of %s(n)%s(m) over m/z %d-%d' %(pos,neg,rng[0],rng
 print 'n\tm\texact mass'
 from _classes._Molecule import Molecule
 for i in range(200):
-    molpos = Molecule(pos) # positive molecule object
-    molneg = Molecule(neg) # negative molecule object
+    molpos = Molecule(pos, **kw) # positive molecule object
+    molneg = Molecule(neg, **kw) # negative molecule object
     if mode == '+': # define integers
         n = i + 1
         m = i

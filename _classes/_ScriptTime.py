@@ -3,10 +3,9 @@ ScriptTime class
 records timepoints in a python script
 
 CHANGELOG
----1.1---
-- added plots method so the user can check whether the function call time increases over time
-- modified profile printing to return 'n/a' if the number of calls is less than 3
----1.2
+---1.2---
+- added progress tracker and time to completion estimator (it's not perfect, but it's a start)
+---1.3
 
 to add:
     use time.time() in unix and time.clock() in windows
@@ -25,6 +24,8 @@ class ScriptTime(object):
         self.start = self.time.localtime()
         self.profile = profile # toggle for profiling functions
         self.profiles = {}
+        self.prog = {} # progress dictionary
+        
         
     def __str__(self):
         """The string that is returned when printed"""
@@ -33,7 +34,7 @@ class ScriptTime(object):
     def __repr__(self):
         """The representation that is returned"""
         return "{}({})".format(self.__class__.__name__,self.time.strftime('%I:%M:%S %p',self.start))
-        
+    
     def clearprofiles(self):
         """clears the profile data"""
         self.profiles = {}
@@ -151,6 +152,20 @@ class ScriptTime(object):
             return with_profiling # returns the decorated function
         else:
             return fn
+    
+    def progress(self,current,last,name,start=1):
+        """
+        estimates the completion time of a given series of calculations
+        assumes that each calculation takes approximately the same time
+        """
+        if name not in self.prog: # if this function has not been called for the name
+            self.prog[name] = [self.time.clock(),[]] # set inititial time
+            return '...' # return placeholder
+        elapsed = self.time.clock()
+        self.prog[name][1].append(elapsed/(current-start)) # append per-cycle timing
+        avgtime = sum(self.prog[name][1])/len(self.prog[name][1]) # average time
+        estimate = (last-current)*avgtime # estimate the time to complete the remaining things
+        return self.formattime(estimate)
     
     def triggerend(self):
         """triggers endpoint and calculates elapsed time since start"""

@@ -1,14 +1,11 @@
 """
 IGNORE:
 CHANGELOG:
-- removed obsolete functions (from a couple versions ago)
-- added catch in integrate if the bounds are inverted (if there is no data to integrate, this will be the case)
-- added within kwarg to locate_in_list that will return None if there are no values within the specified value
-- if a single start value is given, and it is not in the list, returns 0
----2.6 building
+- 
+---2.7 building
     
-    to add:
-        try to extract timepoints and tic from chromatogramList (x values are sorted, so this probably won't work)
+to add:
+    try to extract timepoints and tic from chromatogramList (x values are sorted, so this probably won't work)
 IGNORE
 """
 
@@ -96,7 +93,7 @@ class mzML(object):
             raise KeyError('Unsupported keyword argument(s): %s' %string)
         self.ks.update(kwargs) # update defaules with provided keyword arguments
         
-        # import required functions
+        # import required modules
         self.sys = __import__('sys')
         self.os = __import__('os')
         self.filename = self.check_for_file(filename)
@@ -109,6 +106,8 @@ class mzML(object):
         
         # load file and determine key properties
         if self.ks['verbose'] is True:
+            from _Progress import Progress # load progress class
+            self.Progress = Progress
             self.sys.stdout.write('Loading %s into memory' %self.filename)
             self.sys.stdout.flush()
         if self.filename.lower().endswith('.mzml.gz'): # if mzml is gzipped
@@ -203,11 +202,10 @@ class mzML(object):
                 self.warned[name] += 1
 
     class cvparam(object):
-        """interprets all cvparameter tags within the provided branch and can provide details as required with flexible input"""
         def __init__(self,branch):
             """
-            A class which interprets and stores all the cvparam keys in 
-            an XML branch. 
+            A class which interprets and stores all the controlled vocabulary 
+            (CV) parameter keys (cvparam) in an XML branch. 
             cvparam keys are used to signify any parameters associated 
             with a particular scan. After initialization, the cvparam 
             object can be used in a __getitem__ fashion to retrieve 
@@ -550,24 +548,30 @@ class mzML(object):
         the decorated function will return a list of outputs of the supplied function where each index corresponds to a scan
         
         e.g.::
-        
-            @mzML.foreachchrom
+            loaded = mzML(filename)
+            
+            @loaded.foreachchrom
             def do_this(chrom):
                 # extract the attributes using the mzML.attributes() method
-                attr = mzML.attributes(chrom) 
+                attr = loaded.attributes(chrom) 
                 return attr['id'] # return the name of the chromatogram
+            
+            do_this()
         
         """
         def foreachchrom(*args,**kwargs):
             """decorates the supplied function to run for every scan"""
+            from _Progress import Progress
+            prog = Progress(string = 'Applying function "%s" to chromatogram' %fn.__name__,last=self.nchroms)
             out = []
             for chromatogram in self.tree.getElementsByTagName('chromatogram'):
-                current = int(chromatogram.getAttribute('index'))+1
                 if self.ks['verbose'] is True:
-                    self.sys.stdout.write('\rApplying function "%s" to chromatogram #%d/%d %.1f%%' %(fn.__name__,current,self.chroms,float(current)/float(self.nchroms)*100.))
+                    prog.write(int(chromatogram.getAttribute('index'))+1)
+                    #self.sys.stdout.write('\rApplying function "%s" to chromatogram #%d/%d %.1f%%' %(fn.__name__,current,self.chroms,float(current)/float(self.nchroms)*100.))
                 out.append(fn(chromatogram,*args,**kwargs))
             if self.ks['verbose'] is True:
-                self.sys.stdout.write(' DONE\n')
+                prog.fin()
+                #self.sys.stdout.write(' DONE\n')
             return out
         return foreachchrom
     
@@ -579,21 +583,31 @@ class mzML(object):
         
         e.g.::
         
-            @mzML.foreachscan
+            loaded = mzML(filename)
+            
+            @loaded.foreachscan
             def do_this(scan):
-                p = self.cvparam(scan) # pull spectrum's cvparameters
-                return p['MS:1000016'] # return the start scan time
+                p = loaded.cvparam(scan) # pull spectrum's cvparameters
+                sst = p['MS:1000016'] # start scan time
+                x,y = loaded.extract_spectrum(scan,False) # extract the x,y spectrum
+                # return the start scan time, x list, and y list
+                return sst,x,y
+            
+            do_this() # do it
         """
         def foreachscan(*args,**kwargs):
             """decorates the supplied function to run for every scan"""
+            from _Progress import Progress
+            prog = Progress(string = 'Applying function "%s" to scan' %fn.__name__,last=self.nscans)
             out = []
             for spectrum in self.tree.getElementsByTagName('spectrum'):
-                current = int(spectrum.getAttribute('index'))+1
                 if self.ks['verbose'] is True:
-                    self.sys.stdout.write('\rApplying function "%s" to scan #%d/%d %.1f%%' %(fn.__name__,current,self.nscans,float(current)/float(self.nscans)*100.))
+                    prog.write(int(spectrum.getAttribute('index'))+1)
+                    #self.sys.stdout.write('\rApplying function "%s" to scan #%d/%d %.1f%%' %(fn.__name__,current,self.nscans,float(current)/float(self.nscans)*100.))
                 out.append(fn(spectrum,*args,**kwargs))
             if self.ks['verbose'] is True:
-                self.sys.stdout.write(' DONE\n')
+                prog.fin()
+                #self.sys.stdout.write(' DONE\n')
             return out
         return foreachscan        
     
@@ -808,10 +822,14 @@ class mzML(object):
                 ran = int(random()*self.functions[fn]['nscans']) + self.functions[fn]['sr'][0]
                 if ran-10 >= self.functions[fn]['sr'][0] and ran+10 <= self.functions[fn]['sr'][1]:
                     ranges.append([ran-10,ran+10])
+        if self.ks['verbose'] is True:
+            from _Progress import Progress
+            prog = Progress(string='Estimating resolution of the instrument',fraction=False,last=n)
         summed = []
         for ind,rng in enumerate(ranges):
             if self.ks['verbose'] is True:
-                self.sys.stdout.write('\rEstimating resolution of the instrument %.0f%%' %(float(ind+1)/float(n)*100.))
+                prog.write(ind+1)
+                #self.sys.stdout.write('\rEstimating resolution of the instrument %.0f%%' %(float(ind+1)/float(n)*100.))
             summed.append(self.sum_scans(rng[0],rng[1],fn,2,True)) # sum those scans and append output
         res = []
         for spec in summed: # calculate resolution for each scan range
@@ -819,6 +837,7 @@ class mzML(object):
             for ind in inds: # for each of those peaks
                 res.append(resolution(spec[0],spec[1],ind))
         if self.ks['verbose'] is True:
+            prog.fin()
             self.sys.stdout.write(' DONE\n')
         res = [y for y in res if y is not None] # removes None values (below S/N)
         return sum(res)/len(res) # return average
@@ -947,6 +966,9 @@ class mzML(object):
         extracts timepoints and tic lists for each function
         this function is separate from mzml contents because it would increase load times significantly (~6x)
         """
+        if self.ks['verbose'] is True:
+            from _Progress import Progress
+            prog = Progress(string='Extracting timepoints and total ion current values from mzML',fraction=False)
         for func in self.functions: # add timepoint and tic lists
             self.functions[func]['timepoints'] = [] # list for timepoints
             self.functions[func]['tic'] = [] # list for total ion current values
@@ -956,14 +978,16 @@ class mzML(object):
             attr = self.attributes(spectrum)
             func,proc,scan = self.fps(spectrum) # determine function, process, and scan numbers
             if self.ks['verbose'] is True:
-                self.sys.stdout.write('\rExtracting timepoints and total ion current values from mzML %.1f%%' %(float(attr['index']+1)/float(self.nscans)*100.))
+                prog.write(attr['index']+1)
+                #self.sys.stdout.write('\rExtracting timepoints and total ion current values from mzML %.1f%%' %(float(attr['index']+1)/float(self.nscans)*100.))
             p = self.cvparam(spectrum) # pull spectrum's cvparameters
             self.functions[func]['timepoints'].append(p['MS:1000016']) # start scan time
             self.functions[func]['tic'].append(p['MS:1000285']) # total ion current
             if p.has_key('MS:1000045'):
                 self.functions[func]['ce'].append(p['MS:1000045']) # collision energy
         if self.ks['verbose'] is True:
-            self.sys.stdout.write(' DONE\n')
+            prog.fin()
+            #self.sys.stdout.write(' DONE\n')
         self.ks['ftt'] = True
             
     def integrate(self,name,start,end,x,y):
@@ -1073,16 +1097,21 @@ class mzML(object):
         'yunit': unit of the y values
         }
         """
+        if self.ks['verbose'] is True:
+            from _Progress import Progress
+            prog = Progress(string='Extracting chromatogram',last=self.nchroms)
         chroms = {} #dictionary of chromatograms
         for chromatogram in self.tree.getElementsByTagName('chromatogram'):
             attr = self.attributes(chromatogram) # pull attributes
             if self.ks['verbose'] is True:
-                self.sys.stdout.write('\rExtracting chromatogram #%s/%i  %.1f%%' %(attr['index']+1,self.nchroms,float(attr['index']+1)/float(self.nchroms)*100.))
-                self.sys.stdout.flush()
+                prog.write(attr['index']+1)
+                #self.sys.stdout.write('\rExtracting chromatogram #%s/%i  %.1f%%' %(attr['index']+1,self.nchroms,float(attr['index']+1)/float(self.nchroms)*100.))
+                #self.sys.stdout.flush()
             x,y,xunit,yunit = self.extract_spectrum(chromatogram,True) # extract x list, y list, and units
             chroms[attr['id']] = {'x':x, 'y':y, 'xunit':xunit, 'yunit':yunit}
         if self.ks['verbose'] is True:
-            self.sys.stdout.write(' DONE\n')
+            prog.fin()
+            #self.sys.stdout.write(' DONE\n')
         return chroms
 
     def pull_species_data(self,sp,sumspec=False):
@@ -1126,11 +1155,18 @@ class mzML(object):
         if self.ks['ftt'] is False: # if timepoints and tic values have not been extracted yet, extract those
             self.function_timetic()
         self.BE = self.BoundsError() # load warning instance for integration
+        if self.ks['verbose'] is True:
+            prog = self.Progress( # generate progress instance
+                string='Extracting species data from spectrum', 
+                last=self.nscans, 
+                writeevery=5
+                )
         for spectrum in self.tree.getElementsByTagName('spectrum'):
             func,proc,scan = self.fps(spectrum) # pull function, process, and scan numbers
             attr = self.attributes(spectrum) # get attributes
             if self.ks['verbose'] is True:
-                self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
+                prog.write(attr['index']+1) # outtput progress
+                #self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
             x,y = self.extract_spectrum(spectrum) # generate spectrum
             if sumspec is True and func == 1:
                 spec[func].addspectrum(x,y)
@@ -1141,7 +1177,8 @@ class mzML(object):
                     if self.functions[func]['type'] == 'UV':
                         sp[key]['raw'].append(self.integrate(key,sp[key]['bounds'][0],sp[key]['bounds'][1],x,y)/1000000.) # integrates and divides by 1 million bring it into au
         if self.ks['verbose'] is True:
-            self.sys.stdout.write(' DONE\n')
+            prog.fin() # write done
+            #self.sys.stdout.write(' DONE\n')
         self.BE.printwarns() # print bounds warnings (if any)
         if sumspec is True:
             return sp,spec  
@@ -1218,7 +1255,7 @@ class mzML(object):
             subprocess.call(callstring)
         return outname
     
-    def retrieve_scans(self,start=None,end=None,fn=1,mute=False):
+    def retrieve_scans(self,start=None,end=None,mzstart=None,mzend=None,fn=1,mute=False,outside=False):
         """
         retrieves the specified scans or time range from the specified function
         
@@ -1229,10 +1266,18 @@ class mzML(object):
         end: (optional) integer or float
             the end point to stop retrieving scans
             same options as start
+        mzstart: (optional) integer or float
+            left m/z bound
+        mzend: (optional) integer or float
+            right m/z bound
         fn: integer
             the function to pull scans from (default 1)
         mute: bool
             overrides the verbose setting of the mzml instance
+        outside: bool
+            Whether to include the next point outside of the specified m/z bounds. 
+            This is useful for line continuity if the spectrum is to be used for 
+            rendering images. 
         
         returns a list with each index corresponding to a scan, with two sublists for x and y data
         """
@@ -1241,9 +1286,11 @@ class mzML(object):
             raise ValueError('The function "%d" is not in this mzml file.' %fn)
         start = self.scan_index(start,fn,bias='greater')
         end = self.scan_index(end,fn,bias='lesser')
-        
         if self.ks['ftt'] is False: # extract the timepoints and etc from the mzml
             self.function_timetic()
+        if self.ks['verbose'] is True and mute is False:
+            from _Progress import Progress
+            prog = Progress(string='Extracting scan data from spectrum',last=self.nscans)
         out = []
         for spectrum in self.tree.getElementsByTagName('spectrum'): # go through each spectrum
             attr = self.attributes(spectrum)
@@ -1252,11 +1299,24 @@ class mzML(object):
             if attr['index'] > end:
                 break
             if self.ks['verbose'] is True and mute is False:
-                self.sys.stdout.write('\rExtracting scan data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
+                prog.write(attr['index']+1)
+                #self.sys.stdout.write('\rExtracting scan data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
             if attr['index'] >= start and attr['index'] <= end: # within the index bounds
-                out.append(self.extract_spectrum(spectrum))
+                x,y = self.extract_spectrum(spectrum)
+                if mzstart is not None or mzend is not None:
+                    if mzstart is None:
+                        l = min(x)
+                    else:
+                        l = mzstart
+                    if mzend is None:
+                        r = max(x)
+                    else:
+                        r = mzend
+                    spec = self.trimspectrum(x,y,l,r,outside)
+                out.append(spec)
         if self.ks['verbose'] is True and mute is False:
-            self.sys.stdout.write(' DONE\n')
+            prog.fin()
+            #self.sys.stdout.write(' DONE\n')
         if len(out) == 0: # if only one scan, return that scan
             return out[0]
         return out
@@ -1375,24 +1435,40 @@ class mzML(object):
         from _Spectrum import Spectrum
         spec = Spectrum(dec,start=self.functions[fn]['window'][0],end=self.functions[fn]['window'][1]) # create Spectrum object
         
+        if self.ks['verbose'] is True and mute is False:
+            from _Progress import Progress
+            prog = Progress(string='Combining spectrum',fraction=False,first=start,last=end)
+        
         for spectrum in self.tree.getElementsByTagName('spectrum'): # go through each spectrum
             attr = self.attributes(spectrum) # get attributes
             if attr['index'] > end:
                 break
             if self.ks['verbose'] is True and mute is False:
-                self.sys.stdout.write('\rCombining spectrum #%d (scan range: %d-%d)  %.1f%%' %(attr['index']+1,start,end,(float(attr['index']-start))/(float(end-start))*100.))
+                prog.write(attr['index']+1)
+                #self.sys.stdout.write('\rCombining spectrum #%d (scan range: %d-%d)  %.1f%%' %(attr['index']+1,start,end,(float(attr['index']-start))/(float(end-start))*100.))
             if attr['index'] >= start and attr['index'] <= end: # if within the specified bounds
                 x,y = self.extract_spectrum(spectrum) # pull spectrum
                 spec.addspectrum(x,y) # add spectrum to Spectrum object
         out = spec.trim()
         if self.ks['verbose'] is True and mute is False:
-            self.sys.stdout.write(' DONE\n')
+            prog.fin()
+            #self.sys.stdout.write(' DONE\n')
         return out
 
-    def trimspectrum(self,x,y,left,right):
-        """trims a spectrum to the left and right bounds"""
+    def trimspectrum(self,x,y,left,right,outside=False):
+        """
+        Trims an x,y spectrum to the left and right bounds
+        
+        outside: bool
+            Whether to include the next point outside of the trimmed spectrum 
+            (this provides continuity if the spectrum is to be used for image 
+            generation)
+        """
         l,r = self.locate_in_list(x,left,'greater'),self.locate_in_list(x,right,'lesser') # find indicies
-        return x[l:r],y[l:r] # trim spectrum
+        if outside is True:
+            l-=1
+            r+=1
+        return x[l:r+1],y[l:r+1] # trim spectrum
                     
 if __name__ == '__main__':
     filename = 'MultiTest'

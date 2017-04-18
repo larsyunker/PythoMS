@@ -17,23 +17,9 @@ manipulations are available, see below for details.
 
 IGNORE:
 CHANGELOG
----2.4---
-- added toggle for generating an empty spectrum object (this is good for spectra with few items, but awful for many items, as each new item needs to be indexed and inserted)
-- added function to keep top n number of peaks
-- modified threshold function to either drop by absolute value or relative to top of spectrum
-- removed yimm calls (these haven't been used in a long time)
-- added addelement method to add the masses and abundances of an element to the spectrum object
-- added shiftx method to shift the x values by a specified values
-- added keyword for filler item (allows addelement to function)
-- converted to use of keyword arguments
-- validated and returned to calculation of index
-- converted self.x back to list (no longer an array)
-- improved addition and subtraction methods
-- added bisect left search method for empty spectra
-- added consolidate method for combining intensities below a threshold into adjacent peaks
-- added methods to drop all values above or below a certain x value
-- added function to find and return the x and y location of the maximum value in the spectrum
----2.5
+---2.5---
+- added the ability to not provide start and end points for an unfilled spectrum
+---2.6
 IGNORE
 """
 
@@ -42,26 +28,6 @@ st = ScriptTime(profile=True)
 
 class Spectrum(object):
     def __init__(self,decpl,**kwargs):
-        """
-        A class for manipulating a spectrum with the specified number of decimal places
-        
-        decpl: (int) REQUIRED
-            number of decimal places to track
-        start: (float)
-            start m/z of list
-            default 50
-        end: (float)
-            end m/z of list
-            default 2000
-        specin: [[x values],[y values]]
-            can supply an original spectrum on initialization
-            list of lists of index-matched x and y values
-        empty: bool
-            toggles whether the object should be filled with x values or not
-        filler: 
-            item to populate the list with
-            default None
-        """
         """
         A class for combining and otherwise manipulating spectra with non-equal dimensions. 
         The object will track x values to a specified decimal place and can efficiently 
@@ -107,6 +73,11 @@ class Spectrum(object):
             of some of the functions in this class. If ``Spectrum.addelement()`` is to be 
             used (e.g. by the Molecule class), filler must be ``0.``. 
         
+        reusable: False
+            If the same y list is to be reset and reused multiple times, set this to True. 
+            The method resety() can then be called to reset the y list without having to 
+            recreate the Spectrum instance. 
+        
         
         **Examples**
         
@@ -129,6 +100,7 @@ class Spectrum(object):
         'specin': None, # supplied spectrum on initialization
         'empty': False, # whether the spectrum object should be filled or empty
         'filler': None, # thing to fill the spectrum with
+        'reusable': False, # whether the same y list is to be reused
         #'profile': False, # profile the functions
         }
         if set(kwargs.keys()) - set(self.kw.keys()): # check for invalid keyword arguments
@@ -140,10 +112,20 @@ class Spectrum(object):
         
         
         self.decpl = decpl
-        self.start = round(self.kw['start'],self.decpl)
-        self.end = round(self.kw['end'],self.decpl)
-        self.filler = self.kw['filler']
         self.sp = __import__('scipy')
+        if self.kw['start'] is None: # if no start is specified
+            if self.kw['empty'] is False:
+                raise ValueError('A start value must be specified for a filled Spectrum object')
+            self.start = -self.sp.inf
+        else:
+            self.start = round(self.kw['start'],self.decpl)
+        if self.kw['end'] is None: # if no end is specified
+            if self.kw['empty'] is False:
+                raise ValueError('An end value must be specified for a filled Spectrum object')
+            self.end = self.sp.inf
+        else:
+            self.end = round(self.kw['end'],self.decpl)
+        self.filler = self.kw['filler']
         if self.kw['empty'] is True:
             from bisect import bisect_left
             self.bl = bisect_left
@@ -152,9 +134,12 @@ class Spectrum(object):
         #    self.st = ScriptTime(profile=True)
         #    self.st.printstart()
         specin = self.kw.pop('specin')
-        self.x,self.y = self.fullspeclist(self.start,self.end) # m/z and intensity lists (these are intended to remain immutable)
-        #self.x,self.yimm = self.fullspeclist(self.start,self.end) # m/z and intensity lists (these are intended to remain immutable)
-        #self.y = list(self.yimm) # create the list that will be actively modified
+        if self.kw['reusable'] is True:
+            self.x,self.yimm = self.fullspeclist(self.start,self.end) # m/z and intensity lists (these are intended to remain immutable)
+            self.y = list(self.yimm) # create the list that will be actively modified
+        else:
+            self.x,self.y = self.fullspeclist(self.start,self.end) # m/z and intensity lists
+        
         if specin is not None:
             self.addspectrum(specin[0],specin[1])
     
@@ -482,7 +467,9 @@ class Spectrum(object):
                     self.addvalue(self.x[cur],self.y[cur],True) # subtract the current value
                     self.addvalue(self.x[closest],self.y[closest],True) # subtract the adjacent value
                     self.addvalue(wx,wy) # add the weighted average to the spectrum
-                    cur = closest # set current index to the one being tested
+                    cur = self.index(wx) # set current index to that of the new value
+                    #cur = closest # set current index to the one being tested
+                    closest = adjacent(cur)
         self.threshold(threshold,method) # drop any peaks that could not be combined
         
     def cp(self):
@@ -677,19 +664,27 @@ class Spectrum(object):
         #    if inten is not None:
         #        self.y[ind] = inten/m*top
     
-    def shiftx(self,val):
+    def resety(self):
+        """
+        Resets the y list. The reusable kwarg must be true to use this method. 
+        """
+        self.y = list(self.yimm)
+    
+    def shiftx(self,value):
         """
         Offsets all x values by a the specified value. 
         
         **Parameters**
         
-        val: *float*
+        value: *float*
             The amount to offset the x values by. 
         """
         for ind,val in enumerate(self.x):
-            self.x[ind] += val
-        self.start += val
-        self.end += val
+            self.x[ind] += value
+        if self.start != -self.sp.inf:
+            self.start += value
+        if self.end != self.sp.inf:
+            self.end += value
     
     def sum(self):
         """
@@ -765,10 +760,17 @@ class Spectrum(object):
                 if inten is not None:
                     xout.append(round(self.x[ind],self.decpl)) # rounded to avoid array floating point weirdness
                     yout.append(inten)
-                elif zeros is True: # if zeros at the edges of spectrum are desired
-                    if self.x[ind] == xbounds[0] or self.x[ind] == xbounds[1]: # at the edges of the output spectrum
-                        xout.append(self.x[ind])
-                        yout.append(0)
+                #elif zeros is True: # if zeros at the edges of spectrum are desired
+                #    if self.x[ind] == xbounds[0] or self.x[ind] == xbounds[1]: # at the edges of the output spectrum
+                #        xout.append(self.x[ind])
+                #        yout.append(0)
+        if zeros is True:
+            if xout[0] != self.start:
+                xout.insert(0,self.start)
+                yout.insert(0,0.)
+            if xout[-1] != self.end:
+                xout.append(self.end)
+                yout.append(0.)
         return [xout,yout]
 
 def checkindexing(n=1000,dec=3):

@@ -19,40 +19,46 @@ def test_molecule():
     sys.stdout.write('Testing Molecule class...')
     from _classes._Molecule import Molecule
     mol1 = Molecule('L2PdAr+I',
-    decpl=4,
-    dropmethod='consolidate',
-    threshold=0.01,
+    #decpl=4,
+    #dropmethod='consolidate',
+    #threshold=0.01,
     )
     if mol1.sf != 'C61H51IP3Pd':
         raise ValueError('Bad string formula generation')
-    if mol1.em != 1109.1292680704037:
+    if mol1.em != 1109.1303776667514:
         raise ValueError('Bad exact mass calculation')
-    if mol1.barip != [[1105.1293,
-        1106.1327255556112,
-        1107.1278614829419,
-        1108.1293953498039,
-        1109.1292680704037,
-        1110.1317941659881,
-        1111.1290932334798,
-        1112.131521133883,
-        1113.1307883654117,
-        1114.1330515289933,
-        1115.1360333576954,
-        1116.1391,
-        1117.1425],
-        [2.2877943976215174,
-        1.5228133756325208,
-        25.476059354317048,
-        66.81938661932918,
+    if mol1.barip != [[1105.1304418,
+        1106.1338223494815,
+        1107.1290318632552,
+        1108.130515182168,
+        1109.1303776667514,
+        1110.1328896203245,
+        1111.1302404110806,
+        1112.132637641164,
+        1113.1319333869242,
+        1114.1341549662084,
+        1115.137151901555,
+        1116.1403684682987,
+        1117.1436663423106,
+        1118.1469889913205,
+        1119.1502750634809,
+        1120.1534694],
+        [2.2855073137216264,
+        1.5212910351820117,
+        25.459435969443284,
+        66.75651043139929,
         100.0,
-        52.65050639843118,
-        74.88108058795113,
-        42.57304732262849,
-        39.36707265932171,
-        20.17253048748246,
-        5.990476280101693,
-        1.1848920932846567,
-        0.16082254122736056]]:
+        52.83757222099844,
+        75.16317471176205,
+        42.72403820863219,
+        39.685904925538146,
+        20.31615697845775,
+        6.1694175764333625,
+        1.2842197722332993,
+        0.20022034300192526,
+        0.024670825781130442,
+        0.0024698214870115874,
+        0.0001983611246228382]]:
         raise ValueError('Bad bar isotope pattern generation')
     mol1 - 'PPh3' # test subtraction
     mol1 + 'PPh3' # test addition
@@ -67,13 +73,13 @@ def test_mzml():
     mzml = mzML('MultiTest',verbose=False)
     if mzml.functions.keys() != [1,3,4]:
         raise ValueError('Did not pull the correct functions')
-    @mzml._foreachchrom
+    @mzml.foreachchrom
     def testperchrom(chromatogram):
         attr = mzml.attributes(chromatogram)
         return attr['id']
     if testperchrom() != [u'TIC', u'SRM SIC Q1=200 Q3=100 function=2 offset=0']:
         raise ValueError('For each chromatogram or attributes function failed')
-    @mzml._foreachscan
+    @mzml.foreachscan
     def testperspec(spectrum):
         p = mzml.cvparam(spectrum)
         return p["MS:1000016"]

@@ -489,7 +489,7 @@ class Molecule(object):
             self.rawip = self.isotope_pattern(self.comp)
         self.barip = self.barisotopepattern(self.rawip,self.kw['charge'],self.fwhm) # bar isotope pattern based on the generated raw pattern
         self.em = self.estimated_exact_mass()
-        self.sigma = self.stdev(self.fwhm)
+        self.sigma = self.sigma(self.fwhm)
         self.error = self.validatemw(self.mw,self.rawip)
         #self.gausip = self.gaussianisotopepattern(self.barip,self.em,res=self.kw['res']) # simulated normal distribution of the bar isotope pattern
         ## gausip is rarely used and is a bit more time consuming, so it now requires a specific call. If call is desired on generation, uncomment the above line
@@ -1155,39 +1155,122 @@ class Molecule(object):
             from _Progress import Progress
             prog = Progress(string='Adding isotope combination to queue',last=iterations) # create a progress instance
         
+        """
+        http://stackoverflow.com/questions/8804830/python-multiprocessing-pickling-error
+        http://stackoverflow.com/questions/11515944/how-to-use-multiprocessing-queue-in-python
+        https://docs.python.org/2/library/multiprocessing.html#pipes-and-queues
+
         
+        """
+        # multiprocess must be used because multiprocessing tries to pickle everything (and fails)
+        from multiprocess import Queue,Process,Pool,cpu_count
         
+        @st.profilefn
+        def process_combination(queue):
+            #if queue.empty():
+            #    return None
+            while True:
+                comb = queue.get() # get combination
+                num = 1 # number of combinations counter
+                x = 0. # mass value
+                y = 1. # intensity value
+                for tup in comb: # for each element combination
+                    element = isos[tup[0]]
+                    num *= num_permu(tup,isosets[element]) # multiple the number by the possible permutations
+                    for isotope in tup: # for each isotope
+                        x += self.md[element][isotope][0] # shift x
+                        y *= self.md[element][isotope][1] # multiply intensity
+                #return x,y*num
+                #addval(x,y*num)
+                spec.addvalue(x,y*num) # add the x and y combination factored by the number of times that combination will occur
+                
+        #queue = Queue(cpu_count()) # create Queue instance
+        ##queue = Queue()
+        #
+        ##pc = Pool(cpu_count(), process_combination,(queue,))
+        #pc = Process(target=process_combination, args=((queue),)) # inititate the process instance
+        #pc.start() # start the processing
         
-        
+        queue = Queue()
+        procs = []
+        for i in range(cpu_count()):
+            pc = Process(target=process_combination, args=((queue),)) # inititate the process instance
+            procs.append(pc)
+            pc.start()
         
         for comb in product(*iterators):
+            queue.put(comb) # put the combination in the queue
             if self.kw['verbose'] is True:
                 counter += 1
+                prog.write(counter)
+                #prog.write(counter) # update progress
+        import time
+        print queue.qsize()
+        for i in range(4):
+            time.sleep(0.5)
+            print queue.qsize()
+        queue.close()
+        
+        for i in procs:
+            print i
+            #i.join(1)
+            i.terminate()
+            print i
+        pc.join()
+        #
+        #print queue.empty()
+        #for i in range(12):
+        #    time.sleep(1)
+        #    if queue.empty():
+        #        pc.join()
+        #        break
                 #remaining = st.progress(counter,iterations,'combinations')
-                #self.sys.stdout.write('\rProcessing isotope combination #%d/%d %.1f%% (remaining: %s)' %(counter,iterations,float(counter)/float(iterations)*100.,remaining))
-                if len(comp) == 1:
-                    string = 'for %s%d ' %(comp.keys()[0],comp[comp.keys()[0]])
-                else:
-                    string = ''
-                try:
-                    self.sys.stdout.write('\rProcessing isotope combination #%d/%d %.1f%% %s' %(counter,iterations,float(counter)/float(iterations)*100.,string))
-                except ValueError:
-                    pass
-            num = 1 # number of combinations counter
-            x = 0. # mass value
-            y = 1. # intensity value
-            for tup in comb: # for each element combination
-                element = isos[tup[0]]
-                #counts = [tup.count(x) for x in isosets[element]] # count the number of occurances of each isotope
-                #num *= num_permu(tup,counts) # determine the number of permutations of the set
-                #for ind,isotope in enumerate(isosets[element]):
-                #    x += self.md[element][isotope][0] * counts[ind]
-                #    y *= self.md[element][isotope][1] ** counts[ind]
-                num *= num_permu(tup,isosets[element]) # multiple the number by the possible permutations
-                for isotope in tup: # for each isotope
-                    x += self.md[element][isotope][0] # shift x
-                    y *= self.md[element][isotope][1] # multiply intensity
-            spec.addvalue(x,y*num) # add the x and y combination factored by the number of times that combination will occur
+        #pc.join() # wait for processes to finish
+        
+        #print 'the queue is empty?',queue.empty()
+        #if queue.empty() is False:
+        #    import time
+        #    for i in range(queue.qsize()):
+        #        if queue.qsize() == 0:
+        #            break
+        #        print queue.get()
+        #    #while queue.empty() is False:
+        #    #    print queue.qsize()
+        #    #    time.sleep(0.1)
+        
+        prog.fin() # print done
+        
+        
+        
+        
+        #for comb in product(*iterators):
+        #    if self.kw['verbose'] is True:
+        #        counter += 1
+        #        #remaining = st.progress(counter,iterations,'combinations')
+        #        #self.sys.stdout.write('\rProcessing isotope combination #%d/%d %.1f%% (remaining: %s)' %(counter,iterations,float(counter)/float(iterations)*100.,remaining))
+        #        if len(comp) == 1:
+        #            string = 'for %s%d ' %(comp.keys()[0],comp[comp.keys()[0]])
+        #        else:
+        #            string = ''
+        #        try:
+        #            self.sys.stdout.write('\rProcessing isotope combination #%d/%d %.1f%% %s' %(counter,iterations,float(counter)/float(iterations)*100.,string))
+        #        except ValueError:
+        #            pass
+        #    num = 1 # number of combinations counter
+        #    x = 0. # mass value
+        #    y = 1. # intensity value
+        #    for tup in comb: # for each element combination
+        #        element = isos[tup[0]]
+        #        #counts = [tup.count(x) for x in isosets[element]] # count the number of occurances of each isotope
+        #        #num *= num_permu(tup,counts) # determine the number of permutations of the set
+        #        #for ind,isotope in enumerate(isosets[element]):
+        #        #    x += self.md[element][isotope][0] * counts[ind]
+        #        #    y *= self.md[element][isotope][1] ** counts[ind]
+        #        num *= num_permu(tup,isosets[element]) # multiple the number by the possible permutations
+        #        for isotope in tup: # for each isotope
+        #            x += self.md[element][isotope][0] # shift x
+        #            y *= self.md[element][isotope][1] # multiply intensity
+        #    spec.addvalue(x,y*num) # add the x and y combination factored by the number of times that combination will occur
             
         
         if speciso is True: # if an isotope was specified
@@ -1287,8 +1370,8 @@ class Molecule(object):
                 if spec is None: # if spectrum object has not been defined
                     spec = Spectrum(
                         self.kw['decpl'], # decimal places
-                        start = (self.md[ele][iso][0]*float(comp[key]))-10**-self.kw['decpl'], # minimum mass
-                        end = (self.md[ele][iso][0]*float(comp[key]))+10**-self.kw['decpl'], # maximum mass
+                        start = (self.md[ele][iso][0]*float(comp[key]))-10**-self.kw['dec'], # minimum mass
+                        end = (self.md[ele][iso][0]*float(comp[key]))+10**-self.kw['dec'], # maximum mass
                         specin = [[self.md[ele][iso][0]*float(comp[key])],[1.]], # supply masses and abundances as initialization spectrum
                         empty = self.kw['emptyspec'], # whether or not to use emptyspec
                         filler = 0. # fill with zeros, not None
@@ -1309,7 +1392,7 @@ class Molecule(object):
         """resets values to when the instance was created"""
         self.__dict__ = self.original
     
-    def stdev(self,fwhm):
+    def sigma(self,fwhm):
         """determines the standard deviation for a normal distribution with the full width at half max specified"""
         sigma = fwhm/(2*self.np.sqrt(2*self.np.log(2))) # based on the equation FWHM = 2*sqrt(2ln2)*sigma
         return sigma
@@ -1416,9 +1499,9 @@ if __name__ == '__main__': # for testing and troubleshooting
     #'LPdAr+PhB(OH)3', # denmark monomer 20, 589.19171
     #'L2PdAr+PhBO2H', # denmark 11
     #'TiCp2MeCNOMe',
-    #'Mo(CO)4Ph4P2CH2',
+    'Mo(CO)4Ph4P2CH2',
     #'W100',
-    'Pin',
+    #'L2PdAr+I',
     #charge= 2, # specify charge (if not specified in formula)
     #res=1050000, # specify spectrometer resolution (default 5000)
     verbose=True,
