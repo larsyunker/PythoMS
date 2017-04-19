@@ -27,29 +27,31 @@ to add:
 """
 
 # input *.raw filename
-filename = '20160325EXPT2.raw'
+filename = 'LY-2015-09-15 06'
 
 # species to track and plot
 # sub and superscripts can be denoted by TeX formatting
 # e.g. an Ar group with a positive charge is denoted by 'Ar$^+$', and CH2 would be denoted CH$_2$ (see http://matplotlib.org/users/mathtext.html#subscripts-and-superscripts for more info)
 # m/z bounds, the desired colour, and affinity must be specified for every species
 sp = {
-' ':{'bounds':[825.223,837.0],'colour':(0,128,0),'affin':'+'}, #[Ru](PPh$_3$)$_2$(PEt$_2$H)
-'  ':{'bounds':[838.277,851.0],'colour':(255,0,0),'affin':'+'}, # [Ru](PPh$_3$)$_2$(NCPh)
-'   ':{'bounds':[921.34,934.0],'colour':(0,0,255),'affin':'+'} # [Ru](PPh$_3$)$_2$(PPh$_2$H)
+'Ar$^+$I':{'bounds':[478.865,481.622],'colour':'#2078b4','affin':'+'},
+'Ar$^+$Ar':{'bounds':[443.016,446.711],'colour':'#34a048','affin':'+'},
+#' ':{'bounds':[825.223,837.0],'colour':(0,128,0),'affin':'+'}, #[Ru](PPh$_3$)$_2$(PEt$_2$H)
+#'  ':{'bounds':[838.277,851.0],'colour':(255,0,0),'affin':'+'}, # [Ru](PPh$_3$)$_2$(NCPh)
+#'   ':{'bounds':[921.34,934.0],'colour':(0,0,255),'affin':'+'} # [Ru](PPh$_3$)$_2$(PPh$_2$H)
 }
 
 # set number of scans to sum
-n = 1
+n = 2
 
 # define scan range
 # (scan range that you wish to render)
-scr = [208,878]
+scr = [1,2147]
 #scr = [261,427]
 
 # define mz range for spectrum image
 # (these will be the bounds of the x-axis)
-mz = [820.,939.]
+mz = [440.,489.]
 
 # left-right scalar for scan info placement
 # 0 is fuly right, 1 is fully left
@@ -57,12 +59,12 @@ infop = 0.1
 
 # reaction start point (eg. catalyst injection)
 # provide time in minutes
-inj = 5.074
+inj = 4.612
 
 # provide timepoints for injections/additions
-# give the form [['injection name',time in min],etc...]
+# give the form 'injection name':time in min, for each timepoint (use actual time, not shifted time)
 timepoints = {
-'phosphines added':5.074
+'catalyst injection':4.612
 }
 
 # axis line width
@@ -72,7 +74,7 @@ axwidth = 1.0
 fs = 13
 
 # save an image every n scans 
-save = 1
+save = 2
 
 def spectrumtrace(filename,sp,scr='all',n=1,mz='all',inj=0.,save=1):
     """
@@ -91,6 +93,7 @@ def spectrumtrace(filename,sp,scr='all',n=1,mz='all',inj=0.,save=1):
     save: save every # number of scans
         integer
     """
+    from PyRSIR import pyrsir
     from tome_v02 import bindata,binnspectra
     from _classes._mzML import mzML
     from _classes._ScriptTime import ScriptTime
@@ -210,7 +213,6 @@ def spectrumtrace(filename,sp,scr='all',n=1,mz='all',inj=0.,save=1):
                     maxtime = rtime[sumkey][index]
         return mintime,maxtime
     
-    st.printstart()
     
     # axis line width
     axwidth = 1.0
@@ -222,17 +224,31 @@ def spectrumtrace(filename,sp,scr='all',n=1,mz='all',inj=0.,save=1):
     if save < n: # if the script is told to save more often than it sums
         save = n
     
+    
+    pyrsirkw = {
+    'plot': False, # plot the data for a quick look
+    'verbose': True, # chatty
+    'bounds confidence': 0.99, # confidence interval for automatically generated bounds
+    'sumspec': False, # whether or not to output a summed spectrum
+    'return': True, # whether to return data (if the data from the function is required by another function)
+    }
+    mzml,sp,rtime = pyrsir(filename,sp,1,**pyrsirkw)[:3] # run pyrsir
+    
     mskeys = ['+','-']
-    for key in sp: # append list places for chrom, summed chrom, and normalized chrom
-        sp[key]['raw'] = []
-        sp[key]['spectrum'] = Spectrum(3,startmz=sp[key]['bounds'][0],endmz=sp[key]['bounds'][1])
-        sp[key]['%s' %(str(n)+'sum')] = []
-        sp[key]['%s' %(str(n)+'norm')] = []
-    
-    mzml = mzML(filename) # load mzML class
-    
-    sp,TIC,rtime = mzml.pullspeciesdata(sp) # integrate species
-    spec,sr,mz = mzml.pullspectra(mzrange=mz) # pull all spectra
+    #for key in sp: # append list places for chrom, summed chrom, and normalized chrom
+    #    sp[key]['raw'] = []
+    #    sp[key]['spectrum'] = Spectrum(3,start=sp[key]['bounds'][0],end=sp[key]['bounds'][1])
+    #    sp[key]['%s' %(str(n)+'sum')] = []
+    #    sp[key]['%s' %(str(n)+'norm')] = []
+    #
+    #mzml = mzML(filename) # load mzML class
+    sstart = mzml.scan_index(scr[0]) # index of start scan
+    send = mzml.scan_index(scr[1]) # index of last scan
+    for key in sp:
+        sp[key]['raw'] = sp[key]['raw'][sstart:send+1] # trim to scan range
+    for key in rtime:
+        rtime[key] = rtime[key][sstart:send+1] # trim to scan range
+    spec = mzml.retrieve_scans(scr[0],scr[1],mz[0],mz[1],outside=True) # pull all spectra within scan range
     
     # run combine, regardless if called for (in order for keys to be correct
     #if n > 1: # run combine functions if n > 1
@@ -241,7 +257,7 @@ def spectrumtrace(filename,sp,scr='all',n=1,mz='all',inj=0.,save=1):
     normkey = str(n)+'norm'
     sumsp = []
     for key in sp:
-        sp[key][sumkey] = bindata(n,1,sp[key]['raw']) # bin each species
+        sp[key][sumkey] = bindata(n,sp[key]['raw']) # bin each species
         sp[key]['colour'] = Colour(sp[key]['colour']).mpl # convert colour into matplotlib format
         for ind,val in enumerate(sp[key][sumkey]): # for normalization
             try:
@@ -253,10 +269,10 @@ def spectrumtrace(filename,sp,scr='all',n=1,mz='all',inj=0.,save=1):
         sumkey = str(n)+'sum'+mode
         modekey = 'raw'+mode
         if modekey in rtime.keys(): # if there is data for that mode
-            rtime[sumkey] = bindata(n,n,rtime[modekey])
+            rtime[sumkey] = bindata(n,rtime[modekey],n)
             for ind,val in enumerate(rtime[sumkey]):
                 rtime[sumkey][ind] = val - inj # shift time data to zero at injection point
-            TIC[sumkey] = bindata(n,1,TIC[modekey])
+            #TIC[sumkey] = bindata(n,1,TIC[modekey])
             for key in sp: # for each species
                 if sp[key]['affin'] in mskeys: # if species has affinity
                     spkey = str(n)+'sum'
@@ -266,7 +282,7 @@ def spectrumtrace(filename,sp,scr='all',n=1,mz='all',inj=0.,save=1):
     sys.stdout.write(' DONE\n')
     sys.stdout.flush()
 
-    spec = binnspectra(spec,n,startmz=mz[0],endmz=mz[1]) # bin mass spectra
+    spec = binnspectra(spec,n,start=mz[0],end=mz[1]) # bin mass spectra
 
     if os.path.isdir('imgs') == False: # check for /img directory and create if missing
         os.makedirs('imgs')
@@ -275,7 +291,6 @@ def spectrumtrace(filename,sp,scr='all',n=1,mz='all',inj=0.,save=1):
         if curspec >= scr[0] and curspec <= scr[1]: # if index is within scanrange to output
             sys.stdout.write('\rRendering scan #%i %.1f%% (scan range: %i to %i)' %(curspec,(float(curspec)-float(scr[0]))/(float(scr[1])-float(scr[0]))*100.,scr[0],scr[1]))
             val[1] = msfignorm(val[0],val[1]) # normalize spectrum
-            
             itr = str(100000+curspec)
             mintime,maxtime = timelimits(ind)
             plotit(val[0],val[1],ind)

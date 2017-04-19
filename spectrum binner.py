@@ -35,7 +35,7 @@ def sumspectra(filename,start=None, end=None,excel=None):
     
 if __name__ == '__main__':
     sumspectra(
-    'LY-2015-01-20 02', # raw filename to use
+    'KH-2015-03-02-05', # raw filename to use
     start = None, # start scan number
-    end = None, # end scan number
+    end =   None, # end scan number
     )    
