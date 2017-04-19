@@ -2,10 +2,19 @@
 ScriptTime class
 records timepoints in a python script
 
-CHANGELOG
----1.2---
-- added progress tracker and time to completion estimator (it's not perfect, but it's a start)
----1.3
+new:
+    functional
+    added periter to print the average time per supplied number of iterations
+    created formattime to handle times less than 1 ms
+    removed secondstostr and replaced all calls with formattime
+    added function profiling
+    added toggle for profiling
+    changed from time.time() to time.clock() which seems to give much higher resolution
+    ---1.0---
+    removed timepoint function (now redundant with profiling capability)
+    updated print profile data function to be more detailed and easier to read
+    ---1.1---
+    ---1.2
 
 to add:
     use time.time() in unix and time.clock() in windows
@@ -24,8 +33,6 @@ class ScriptTime(object):
         self.start = self.time.localtime()
         self.profile = profile # toggle for profiling functions
         self.profiles = {}
-        self.prog = {} # progress dictionary
-        
         
     def __str__(self):
         """The string that is returned when printed"""
@@ -34,7 +41,7 @@ class ScriptTime(object):
     def __repr__(self):
         """The representation that is returned"""
         return "{}({})".format(self.__class__.__name__,self.time.strftime('%I:%M:%S %p',self.start))
-    
+        
     def clearprofiles(self):
         """clears the profile data"""
         self.profiles = {}
@@ -92,15 +99,6 @@ class ScriptTime(object):
         """
         self.sys.stdout.write('Average time per iteration: %s\n' %(self.formattime(self.elap/float(num))))
     
-    def plots(self):
-        """plots the duration of each function call against the function call number"""
-        import pylab as pl
-        import scipy as sp
-        for key in self.profiles:
-            pl.plot(sp.arange(self.profiles[key][0])+1,self.profiles[key][1],label=key)
-        pl.legend()
-        pl.show()
-    
     def printelapsed(self):
         """prints the elapsed time of the object"""
         if self.__dict__.has_key('end_time') is False:
@@ -121,11 +119,7 @@ class ScriptTime(object):
         self.sys.stdout.write('%15s  %6s  %13s  %13s  %13s  %13s\n' %('function','called','avg','stdev','max','min'))
         for fname, data in self.profiles.items():
             avg = sum(data[1])/len(data[1])
-            if len(data[1]) < 3: # if the number of calls is less than 3, standard deviation is not applicable
-                stdev = 'n/a'
-            else:
-                stdev = self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1)))
-            self.sys.stdout.write('%15s  %6d  %13s  %13s  %13s  %13s\n' %(fname,data[0], self.formattime(avg), stdev, self.formattime(max(data[1])), self.formattime(min(data[1]))))
+            self.sys.stdout.write('%15s  %6d  %13s  %13s  %13s  %13s\n' %(fname,data[0], self.formattime(avg), self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))), self.formattime(max(data[1])), self.formattime(min(data[1]))))
             #self.sys.stdout.write('Function %s called %d times. ' % (fname, data[0]))
             #self.sys.stdout.write('Execution time max: %s, min: %s, average: %s, stdev: %s\n' % (self.formattime(max(data[1])), self.formattime(min(data[1])), self.formattime(avg),self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))) ))
     
@@ -152,20 +146,6 @@ class ScriptTime(object):
             return with_profiling # returns the decorated function
         else:
             return fn
-    
-    def progress(self,current,last,name,start=1):
-        """
-        estimates the completion time of a given series of calculations
-        assumes that each calculation takes approximately the same time
-        """
-        if name not in self.prog: # if this function has not been called for the name
-            self.prog[name] = [self.time.clock(),[]] # set inititial time
-            return '...' # return placeholder
-        elapsed = self.time.clock()
-        self.prog[name][1].append(elapsed/(current-start)) # append per-cycle timing
-        avgtime = sum(self.prog[name][1])/len(self.prog[name][1]) # average time
-        estimate = (last-current)*avgtime # estimate the time to complete the remaining things
-        return self.formattime(estimate)
     
     def triggerend(self):
         """triggers endpoint and calculates elapsed time since start"""

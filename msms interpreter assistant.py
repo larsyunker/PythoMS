@@ -1,16 +1,12 @@
 #filename = 'LY-2016-08-10 29'
-#filename = 'LY-2016-11-28 14'
-filename = 'LY-2017-02-23 06'
+filename = 'LY-2014-06-12 11'
+    
 
 specific_components = { # a set of cpeific components in the solution
-'Ar+',
-'I',
-'Pd',
-'PPh3',
-'MeCN'
+'NC5H4NMe2',
 }
 
-def mia(filename,dec=0,show=True,specific_components={},write=True,save=False):
+def mia(filename,dec=0):
     """MS/MS interpreter assistant"""
     def indexes(x,y, thres=0.3, min_dist=None):
         '''
@@ -103,29 +99,29 @@ def mia(filename,dec=0,show=True,specific_components={},write=True,save=False):
         string = '\t'
         for ind in inds:
             string += '%.1f\t' %x[ind]
-        sys.stdout.write(string+'\n')
+        print string
+        #string = ''
         for ind,row in enumerate(diffs):
             string = '%.1f\t' %round(x[inds[ind]],1)
             for col in diffs[ind]:
                 string += '%.1f\t' %round(col,1)
-            sys.stdout.write(string+'\n')
+            print string+'\n'
     
     def guess(diffs):
         """searches for common integer losses amoung the differences matrix and prints them"""
         loss = com_loss(0,specific_components) # grab dictionary of loss values and their probable representation
-        out = []
+        print 'possible fragment assignments (from common losses):'
         for ind,peak in enumerate(diffs):
             for ind2,otherpeak in enumerate(diffs[ind]):
                 val = int(round(otherpeak))
                 if val > 0 and val in loss:
-                    out.append([x[inds[ind]],x[inds[ind2]],val,loss[val]])
-        return out
+                    print `x[inds[ind]]`+' -> '+`x[inds[ind2]]`+':',val, loss[val]
     
     import numpy as np
     from _classes._mzML import mzML
     
-    mzml = mzML(filename) # load the mzML
-    x,y = mzml.sum_scans() # sum all the scans
+    mzml = mzML(filename)
+    x,y = mzml.sum_scans()
     
     # if not all peaks are being detected, decrease the last value handed to indexes
     inds = indexes(x,y,0.01,7)
@@ -136,60 +132,24 @@ def mia(filename,dec=0,show=True,specific_components={},write=True,save=False):
         for j in inds: # append the difference
             difline.append(x[i]-x[j])
         diffs.append(difline)
-    
-    guesses = guess(diffs)
-    if write is True: # if the script is to print the results
-        import sys
-        tabulate(diffs) #tabulate differences in console
-        sys.stdout.write('\npossible fragment assignments (from common losses):\n')
-        for i in guesses:
-            sys.stdout.write('%f -> %f: %d %s\n' %tuple(i))
         
+    tabulate(diffs) #tabulate differences in console
     guess(diffs) # guess at what the differences might mean
     
     annotations = {}
     top = max(y)
     for i in inds:
         annotations[str(x[i])] = [x[i],float(y[i])/float(top)*100.]
-    if show is True:
-        from tome_v02 import plotms
-        plotms([x,y],annotations=annotations,output='show')
-    
-    if save is True:
-        from _classes._XLSX import XLSX
-        xlfile = XLSX(filename,create=True)
-        xlfile.writespectrum(x,y,'MSMS',
-            #norm=False, # don't normalized data
-            #chart=False, # don't save basic chart to sheet
-            )
-        cs = xlfile.wb.get_sheet_by_name('MSMS')
-        cs.cell(row=1,column=6).value = 'differences'
-        for ind,val in enumerate(inds): # write column headers using cell references
-            cs[xlfile.inds_to_cellname(0,6+ind)] = '=%s' %xlfile.inds_to_cellname(val,0) # across
-            cs[xlfile.inds_to_cellname(1+ind,5)] = '=%s' %xlfile.inds_to_cellname(val,0) # down
-        for ind,val in enumerate(inds): # write differences based on cell references
-            for ind2,val2 in enumerate(inds):
-                cs[xlfile.inds_to_cellname(1+ind,6+ind2)] = '=%s-%s' %(xlfile.inds_to_cellname(val,0),xlfile.inds_to_cellname(val2,0)) # value
-                cs[xlfile.inds_to_cellname(1+ind,6+ind2)].number_format='0' # number format
-        
-        # write guesses
-        cs[xlfile.inds_to_cellname(3+ind,5)] = 'from'
-        cs[xlfile.inds_to_cellname(3+ind,6)] = 'to'
-        cs[xlfile.inds_to_cellname(3+ind,7)] = 'difference'
-        cs[xlfile.inds_to_cellname(3+ind,8)] = 'guess'
-        for i,val in enumerate(guesses):
-            cs[xlfile.inds_to_cellname(4+ind+i,5)] = val[0]
-            cs[xlfile.inds_to_cellname(4+ind+i,6)] = val[1]
-            cs[xlfile.inds_to_cellname(4+ind+i,7)] = val[2]
-            cs[xlfile.inds_to_cellname(4+ind+i,8)] = val[3]
-        
-        xlfile.save()
+    from tome_v02 import plotms
+    plotms([x,y],annotations=annotations,output='show')
     
 
 if __name__ == '__main__':
-    mia(
-    filename,
-    save=True,
-    show=False,
-    )
+    mia(filename)
     
+    
+
+
+
+
+

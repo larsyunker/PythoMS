@@ -9,7 +9,7 @@ abbrvs = {
 'Ac':{'C':2,'H':3,'O':1}, # acetyl
 'Ar+':{'C':25,'H':21,'P':1}, # phosphonium tagged aryl group
 'Bn':{'C':7,'H':7}, # benzyl
-'Bu':{'C':4,'H':9}, # butyl
+'Bu':{'C':4,'H':8}, # butyl
 'Cod':{'C':8,'H':12}, # cyclooctadiene
 'Cp':{'C':5,'H':5}, # cyclopenadienyl
 'Cp*':{'C':10,'H':15}, # pentamethylcyclopentadienyl
@@ -26,8 +26,7 @@ abbrvs = {
 'Me':{'C':1,'H':3}, # methyl
 'Mes':{'C':9,'H':12}, # mesitylene
 'Ph':{'C':6,'H':5}, # phenyl
-'Pin':{'C':6,'H':12,'O':2}, # pinacol ester
-'Pr':{'C':3,'H':7}, # propyl
+'Pr':{'C':3,'H':6}, # propyl
 'Py':{'C':5,'H':5,'N':1}, # pyridine
 'Tf':{'C':1,'F':3,'O':2,'S':1}, # trifluoromethanesulfonyl
 'Thf':{'C':4,'H':8,'O':1}, # tetrahydrofuran
