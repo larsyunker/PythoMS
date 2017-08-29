@@ -361,7 +361,7 @@ def plotms(realspec,simdict={},**kwargs):
         try:
             return max(y[l:r])
         except ValueError:
-            print "No maximum value found in range, perhaps wrong window region?"
+            raise ValueError("No maximum value found in range, perhaps wrong window region?")
     
     def trimspectrum(x,y,left,right):
         """trims a spectrum to the left and right bounds"""
