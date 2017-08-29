@@ -2,71 +2,57 @@
   isotope pattern check program v011 beta (dependant on tome)
   overlays a supplied predicted isotope pattern onto an acquired spectrum
   
-CHANGELOG:
-- added databridge to extract spectra directly from a raw or mzml.gz file (validated)
----12.3
+new/changed:
+    ---12.1---
+    fixed determination of bar overlap and bottom heights
+    added ability to specify the width to look in when auto-normalizing isotope patterns
+    ---12.2---
 """
 # provide the experimental spectrum xlsx
 # the script will automatically use the first sheet
-spectrum = 'L2PdArCl'
+spectrum = 'L2PdArAr Jessamyn (for organometallics)'
+
 # number of lines to skip in the excel file
 # (e.g. if there are spectrum details above the actual spectrum values)
 skiplines = 0
 
 # sheet name in the excel file (if this is not specified, the script will use the first sheet in the file)
-#sheetname = 'JW-RH-08-203 +'
+#sheetname = 'L2PdArI'
 
 # provide species to be simulated in dictionary format
 # 'molecular formula':{'colour': ... ,'alpha':0-1}
 # colour can be (R,G,B), (C,M,Y,K), or 'hex'
 simdict = {
-#'Ar+I':{'colour':'1f78b4','alpha':0.5},
 #'L2PdAr+I':{'colour':'#6a3d9a','alpha':0.5},
-'L2PdAr+Cl':{'colour':'#006838','alpha':0.5},
 #'L2PdAr+(2+)':{'colour':'#e41a1c','alpha':0.5},
-#'Pd(PPh2)Ar+':{'colour':'696969','alpha':0.5},
-#'L2PdAr+C6H4CH3':{'colour':'#ff7f00','alpha':0.5},
+'L2PdAr+C6H4CH3':{'colour':'#ff7f00','alpha':0.5},
 #'L2PdAr+IMeOH':{'colour':(146,102,194),'alpha':0.5},
 #'(Ar+I)2PF6':{'colour':'#1f78b4','alpha':0.5},
 #'L2PdAr+CH3C6H4MeOH':{'colour':'#ff7f00','alpha':0.5}
 #'L2PdAr+OH':{'colour':'66c2a5','alpha':0.5},
-#'[NBu4]3PF6I':{'colour':'k','alpha':0.5},
-#'L2Pd2(Ar+)2(OH)2(2+)':{'colour':'b','alpha':0.5},
-#'L2Pd2(Ar+)2OHOMe(2+)':{'colour':'r','alpha':0.5},
-#'L2Pd2(Ar+)2(OMe)2(2+)':{'colour':'g','alpha':0.5},
-#'L2PdAr+OMe':{'colour':'b','alpha':0.5},
-#'C54H57O5P2Ru':{'colour':'b','alpha':0.5},
-#'C27H33N2O4':{'colour':'696969','alpha':0.5},
-#'TiCp2MeCNOMe':{'colour':'b','alpha':0.5}
+#'L2Pd2(Ar+)2(OMe)2(2+)':{'colour':'ed5da5','alpha':0.5},
 }
 
 # choose a figure type for auto settings
 # options: 'pub', 'pubsvg', 'inset', 'insetsvg', 'thesis', 'detailed'
 # additional presets can be added in the presets() function below
-setting = 'pub'
+setting = 'inset'
 
 # preset settings can be overridden here (see presets() function for details)
 override = {
 #'norm':False,
-#'bw':0.1, # bar width (in units of m/z)
-#'exten':'svg', # change to scalable vector graphic
-#'mz': [1015,1025], # modify the m/z bounds of the figure
+#'bw':0.3, # bar width (in units of m/z)
+'exten':'svg', # change to scalable vector graphic
+'mz': [1069,1081], # modify the m/z bounds of the figure
 #'offsetx':False, # apply a slight offset to the x axis
 #'simtype': 'gaussian', # generate a gaussian spectrum
-#'size':[10,4], # change the size of the image [width,height]
+'size':[1.8,1.3], # change the size of the image
 #'specfont':'Calibri', # change the font of the labels
 'stats':False,
-#'xlabel':False,
-'ylabel':False,
-#'yvalues':False,
-#'showy':False,
-#'norm':False,
-#'maxy':120,
-#'simnorm':120,
+'xlabel':False,
 #'spectype':'centroid',
 #'normwindow':1.,
-#'fs':8,
-#'output':'show',
+'fs':8,
 }
 
 
@@ -213,26 +199,21 @@ def presets(typ):
 
 if __name__ == '__main__':
     import sys
+    from _classes._XLSX import XLSX
     from tome_v02 import plotms
-    keywords = presets(setting) # pull preset kwargs
+    xlfile = XLSX(spectrum,verbose=True) # load excel file
     
-    if spectrum.lower().endswith('.mzml.gz') or spectrum.lower().endswith('.raw'): # if supplied with a mass spec file
-        from _classes._mzML import mzML
-        mzml = mzML(spectrum)
-        exp = mzml.sum_scans()
-        keywords.update({'outname':mzml.filename.split('.')[0]}) # set default output filename 
+    try: # if sheet name was specified
+        sname = sheetname
+    except NameError: # otherwise use the first sheet
+        sname = xlfile.wb.get_sheet_names()[0]
     
-    else: # otherwise assume that it is an excel file
-        from _classes._XLSX import XLSX
-        xlfile = XLSX(spectrum,verbose=True) # load excel file
-        try: # if sheet name was specified
-            sname = sheetname
-        except NameError: # otherwise use the first sheet
-            sname = xlfile.wb.get_sheet_names()[0]
-        exp = xlfile.pullspectrum(sname,skiplines=skiplines)[0] # load spectrum from first sheet in workbook
-        keywords.update({'outname':xlfile.bookname[:-5]+' ('+sname+')'}) # set default output filename
-    
+    keywords = presets(setting) # pull preset
+    keywords.update({'outname':xlfile.bookname[:-5]+' ('+sname+')'}) # set default output filename
     keywords.update(override) # apply any user overrides
+    
+    exp = xlfile.pullspectrum(sname,skiplines=skiplines)[0] # load spectrum from first sheet in workbook
+    
     plotms(exp,simdict,**keywords)
     import gc
     gc.collect()

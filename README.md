@@ -3,7 +3,7 @@
 ### What is it?
 This is a collection of scripts to aid in the processing and interpretation of mass spectrometric data. 
 
-The project was created by Lars Yunker at the University of Victoria, Victoria, B.C., Canada
+The project was created by Lars Yunker at the University of Victoria, Victoria, B.C.
 
 ### Requirements and Installation:
 The scripts were written for Python 2.7 but support for 3.x is in development.

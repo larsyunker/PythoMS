@@ -1,8 +1,6 @@
-
 """
 Tome v02 A compilation of all Lars' python scripts as callable functions
 
-IGNORE:
 functions:
     autoresolution (estimates the resolution of a spectrum)
     bindata (bins a list of values)
@@ -38,38 +36,24 @@ changelog:
     significant change to plotms
     moved alpha to XLSX class
     ---v02---
-IGNORE
 """
 # ----------------------------------------------------------
 # -------------------FUNCTION DEFINITIONS-------------------
 # ----------------------------------------------------------
 
-def autoresolution(x, y, n=10, v=True):
+def autoresolution(x,y,v=True):
     """
-    Attempts to determine the resolution of a provided spectrum by finding n pseudo-random
-    samples, then finding a peak in each of those samples to determine the resolution.
+    determines the resolution of a provided spectrum
     
+    x: list
+        list of x values
+    y: list
+        list of y values (paired with x values
+    v: bool
+        verbose toggle
     
-    **Parameters**
-    
-    x: *list*
-        List of x values (1D list)
-    
-    y: *list*
-        List of y values (1D list, must be the same length as *x*)
-    
-    n: *int*, optional
-        Number of sections to check in the supplied spectrum
-    
-    v: *Bool*, optional
-        Verbose toggle
-    
-    
-    **Returns**
-    
-    resolution: *float*
-        The average resolution value determined by the function
-    
+    resolution is based on the average resolution of 10 pseudo-random samples
+    each sample spectrum is split into 10 sections, finding 10 peaks in order to calculate the resolution
     """
     def findsomepeaks(y,n=10):
         """roughly locates n peaks by maximum values in the spectrum and returns their index"""
@@ -130,31 +114,14 @@ def autoresolution(x, y, n=10, v=True):
         sys.stdout.write(': %.1f\n' %res)
     return res # return average
 
-def bindata(n, lst, v=1):
+def bindata(n,v,lst):
     """
-    Bins a list of values into bins of size *n*. 
+    Function for summing a supplied list of data (binning)
     
-    **Parameters**
-    
-    n: *int*
-        Number of values to bin together. e.g. ``n = 4`` would bin the first four values into a single value, then the next 4, etc.
-    
-    lst: *list*
-        List of values to bin. 
-    
-    v: *int* or *float*, optional
-        Bin scalar. The calculated bin values will be divided by this value. e.g. if ``n = v`` the output values will be an average of each bin. 
-    
-    **Returns**
-    
-    binned list: *list*
-        A list of binned values. 
-    
-    
-    **Notes**
-    
-    - If the list is not divisible by `n`, the final bin will not be included in the output list. (The last values will be discarded.)
-    
+    input (n,v,lst,name)
+    n is number of values to sum
+    v is equal to n if an average value is required (e.g. for time values, usually it is equal to 1)
+    lst is the list of values for combination
     """
     out = []
     delta = 0
@@ -163,49 +130,38 @@ def bindata(n, lst, v=1):
         delta += 1
         ttemp += val # add current value to growing sum
         if delta == n: # critical number is reached
-            out.append(ttemp/float(v)) # append sum to list
+            out.append(ttemp/v) # append sum to list
             delta = 0 # reset critical count and sum
             ttemp = 0
     return out
 
-def binnspectra(lst, n, dec=3, start=50., end=2000.):
+def binnspectra(lst,n,dec=3,startmz=50.,endmz=2000.):
     """
-    Sums n spectra together. 
+    sums n mass spectra together into a single spectrum
     
-    **Parameters**
-    
-    lst: *list*
-        A list of paired lists of the form ``[ [[x1,x2,...,xn],[y1,y2,...,yn]] , [[],[]] ,...]`` 
-        where each index of the parent list is one paired spectrum of x and y values. 
-        The x values of one index do not have to be the same. The spectra will be combined based on the x value rounded to the nearest 10^-`dec`.
-    
-    n: *int*
-        The number of adjacent spectra to bin together. e.g. ``n = 4`` would bin the first four spectra into a single spectrum, then the next 4, etc.
-    
-    dec: *int*
-        The decimal place to track the x values to. e.g. ``dec = 3`` would track x values to the nearest 0.001 (10^-3)
-    
-    start: *float*, optional
-        The minimum x value to track in the summed spectra. 
-    
-    end: *float*, optional
-        The maximum x value to track in the summed spectra. 
-    
-    **Returns**
-    
-    binned spectrum list: *list*
-        A list of paired lists (similar to *lst*) where each index is a binned spectrum. 
-        If there is only one item in the binned spectra, this returns a single paired list 
-        of the form ``[[x values],[y values]]``. 
+    lst:
+        list of lists where each index is a paired set of x and y lists
+    n:
+        number of scans to sum
+    dec:
+        how many decimals to keep
+        default 3
+        increasing this does not typically yield better spectra
+    startmz:
+        lowest mz to sum
+        default 50
+    endmz:
+        highest mz to sum
+        default 2000
     """
     import sys
     from _Spectrum import Spectrum
     out = []
     delta = 0
-    spec = Spectrum(dec,start=start-1,end=end+1,reusable=True)
-    for ind,(x,y) in enumerate(lst): # for each timepoint
+    spec = Spectrum(dec,startmz=startmz,endmz=endmz)
+    for x,y in lst: # for each timepoint
         delta += 1
-        sys.stdout.write('\rBinning spectrum #%i/%i  %.1f%%' %(ind+1,len(lst),float(ind)/float(len(lst))*100.))
+        sys.stdout.write('\rBinning spectrum #%i/%i  %.1f%%' %(delta,len(lst),float(delta)/float(len(lst))*100.))
         spec.addspectrum(x,y) # add spectrum
         if delta == n: # critical number is reached
             out.append(spec.trim(zeros=True)) # append list
@@ -216,43 +172,24 @@ def binnspectra(lst, n, dec=3, start=50., end=2000.):
         return out[0]
     return out
 
-def bincidspectra(speclist, celist, dec=3, startmz=50., endmz=2000., threshold=0, fillzeros=False):
+def bincidspectra(speclist,celist,dec=3,startmz=50.,endmz=2000.,threshold=0,fillzeros=False):
     """
-    Bins mass spectra together based on the collision voltage of associated with each spectrum. 
+    bins mass spectra together based on their collision voltage
     
-    **Parameters**
-    
-    speclist: *list*
-        A list of lists of the form ``[ [[x1,x2,...,xn],[y1,y2,...,yn]] , [[],[]] ,...]`` 
-        where each index of the parent list is one paired spectrum of x and y values.
-        The x values of one index do not have to be the same. The spectra will be combined based on the x value rounded to the nearest 10^-`dec`.
-    
-    celist: *list*
-        A list of collision energy values, where each index corresponds to the spectrum at that index of *speclist*. This list must be the same length as *speclist*. 
-    
-    dec: *int*
-        The decimal place to track the x values to. e.g. ``dec = 3`` would track x values to the nearest 0.001 (10^-3)
-    
-    startmz: *float*, optional
-        The minimum mass to charge value to track in the summed spectra. 
-    
-    end: *float*, optional
-        The maximum mass to charge value to track in the summed spectra. 
-    
-    threshold: *float*, optional
-        The minimum y value intensity to track. 
-    
-    fillzeros: *bool*, optional
-        Whether to fill the resulting spectra with 0. for every value of x that does not have intensity. 
-    
-    **Returns**
-    
-    specout: *list*
-        A list of paired lists (similar to *speclst*) where each index is a binned spectrum. 
-    
-    cv: *list*
-        A sorted list of collision voltages with each index corresponding to that index in *specout*. 
-    
+    speclist:
+        list of lists where each index is a paired set of x and y lists
+    celist:
+        list of collision energies with indicies corresponding to the speclist
+    dec:
+        how many decimals to keep
+        default 3
+        increasing this does not typically yield better spectra
+    startmz:
+        lowest mz to sum
+        default 50
+    endmz:
+        highest mz to sum
+        default 2000
     """
     from _Spectrum import Spectrum
     import sys
@@ -286,53 +223,23 @@ def bincidspectra(speclist, celist, dec=3, startmz=50., endmz=2000., threshold=0
     
 def filepresent(filename,ftype='file'):
     """
-    Checks for the presence of the specified file or directory in the current working directory
-    
-    **Parameters**
-    
-    filename: *string*
-        The name of the file or directory to check
-    
-    ftype: 'file' or 'dir'
-        Specifies whether to look for a file or directory with the name *filename*.
-    
-    
-    **Returns**
-    
-    truth: *bool*
-        If the file or directory is present in the current working directory, the function will return True. 
-        Otherwise, the function will raise an IOError. 
+    function to check the presense of a file ('file') or directory ('dir')
+    in the current working directory
     """
     import os
     if ftype == 'dir':
         if os.path.isdir(filename) == False:
             raise IOError('\nThe directory "%s" could not be located in the current working directory'%(filename))
-        else:
-            return True
     if ftype == 'file':
         if os.path.isfile(filename) == False:
             raise IOError('\nThe file "%s" could not be located in the current working directory'%(filename))
-        else:
-            return True
 
 def find_all(fname,path):
     """
-    Finds all files matching a specified name within the directory specified. 
+    Finds all files of a given name within a specified directory.
+    Adapted from http://stackoverflow.com/questions/1724693/find-a-file-in-python
     
-    **Parameters**
-    
-    fname: *string*
-        The name of the file to be located
-    
-    path: *string*
-        The absolute directory path to search. 
-    
-    
-    **Returns**
-    
-    list of locations: *list*
-        A list of all possible paths matching the filename in the specified directory.  
-    
+    Module dependancies: os
     """
     import os
     locations = []
@@ -341,89 +248,47 @@ def find_all(fname,path):
             locations.append(os.path.join(root,fname))                   
     return locations
 
-def linmag(vali, magstart, magend, dur):
+def linmag(vali,magstart,magend,dur):
     """
-    Generates a ramp of values that is linear in magnification. 
-    
-    **Parameters**
-    
-    vali: *float*
-        The initial y value at the start of the ramp. 
-    
-    magstart: *float*
-        The magnification at the start of the ramp. 
-    
-    magend: *float*
-        The magnification at the end of the ramp. 
-    
-    dur: *int*
-        The desired number of steps to get from *magstart* to *magend*. 
-    
-    
-    **Returns**
-    
-    list of magnifications: *list*
-        A list of magnifications corresponding to the ramp. 
-    
+    funciton for generating a ramp of values that is linear in magnification
+    vali: initial value (globally)
+    magstart: magnification at the start of the ramp
+    magend: magnification at the end of the ramp
+    dur: number of steps (duration)
     """
     out = []
     for i in range(dur):
         out.append(float(vali)/((magend-magstart)/dur*i + magstart))
     return out
 
-def linramp(valstart, valend, dur):
+def linramp(valstart,valend,dur):
     """
-    Generates a linear ramp of values. 
-    
-    **Parameters**
-    
-    valstart: *float*
-        The value at the start of the ramp.
-    
-    valend: *float*
-        The value at the end of the ramp. 
-    
-    dur: *int*
-        The number of steps in the ramp. 
-    
-    
-    **Returns**
-    
-    List of ramped values: *list*
-    
+    Function for generating a linear ramp of values
+    valstart: value at the start of the ramp
+    valend: value at the end of the ramp
+    dur: number of steps (duration)
     """
     out = []
     for i in range(int(dur)):
         out.append( ((float(valend-valstart))/(float(dur)))*(i) + valstart )
     return out
 
-def locateinlist(lst, value, bias='closest'):
+def locateinlist(lst,value,bias='closest'):
     """
-    Finds the closest index of the specified *value* in the supplied list. 
+    Finds index in a sorted list of the value closest to a given value
     
-    **Parameters**
+    If two numbers are equally close, return the smallest number.
+    based on http://stackoverflow.com/questions/12141150/from-list-of-integers-get-number-closest-to-a-given-value
     
-    lst: *list*
-        List of values to be searched. This list must be sorted, otherwise the returned index is meaningless. 
-    
-    value: *float*
-        The value to index. 
-    
-    bias: 'lesser', 'greater', or 'closest', optional
-        The bias of the searching function. Lesser will locate the index less than the specified value, 
-        greater will locate the index greater than the specified value, and closest will locate the index 
-        closest to the specified value. 
-    
-    **Returns**
-    
-    index: *int*
-        The index in the supplied list for the value. 
-    
-    
-    **Notes**
-    
-    This function is based on http://stackoverflow.com/questions/12141150/from-list-of-integers-get-number-closest-to-a-given-value
-    
+    lst: list
+        list of values to search
+    value: float or int
+        value number to find
+    bias: 'lesser','greater', or 'closest'
+        default 'left'
+        'lesser' will return the position of the value just less than the provided value
+        'greater' will return the position of the value just greater than the provided value
+        'closest' will return the index of the nearest value to the one provided
     """                
     from bisect import bisect_left as bl
     pos = bl(lst, value)
@@ -447,69 +312,26 @@ def locateinlist(lst, value, bias='closest'):
         else:
             return pos
 
-def lyround(x, basen):
+def lyround(x,basen):
     """
-    Rounds the specified number using a specific base
-    
-    **Parameters**
-    
-    x: *float*
-        The value to be rounded
-    
-    basen: *int*
-        The number base to use for rounding
-    
-    
-    **Returns**
-    
-    value: *float*
-        The rounded value. 
-    
-    **Notes**
-    
-    This function is based on http://stackoverflow.com/questions/2272149/round-to-5-or-other-number-in-python
+    Function for rounding a given number using a specific base
+    based on http://stackoverflow.com/questions/2272149/round-to-5-or-other-number-in-python
     """
     base = basen**(int(len(str(int(x))))-1)
     return int(base * round(float(x)/base))
 
-def mag(initial, current):
+def mag(initial,final):
     """
-    Calculates the magnification of a specified value
-    
-    **Parameters**
-    
-    intial: *float*
-        initial value (magnificiation of 1)
-    
-    current: *float*
-        current value
-    
-    
-    **Returns**
-    
-    magnification: *float*
-        the magnification of the current value
+    calculate magnification for a value
     """
-    return float(initial)/float(current)
+    return float(initial)/float(final)
 
-def normalize(lst, maxval=1.):
+def normalize(lst,maxval):
     """
-    Normalizes a list of values with a specified value. 
-    
-    **Parameters**
-    
-    lst: *list*
-        List of values to be normalized
-    
-    maxval: *float*, optional
-        The maximum value that the list will have after normalization. 
-    
-    
-    **Returns**
-    
-    normalized list: *list*
-        A list of values normalized to the specified value. 
-    
+    function for normalizing a list of values to a given value
+    input:
+        lst: list of values
+        maxval: value to normalize to
     """
     listmax = max(lst)
     for ind,val in enumerate(lst):
@@ -518,141 +340,20 @@ def normalize(lst, maxval=1.):
 
 def plotms(realspec,simdict={},**kwargs):
     """
-    Plots and saves a publication quality mass spectrum with optional overlaid isotope patterns
+    plots a formatted mass spectrum and optionally overlays predicted isotope patterns
     
-    **Parameters**
+    realspec: the spectrum to plot
+        list of [[mzvalues],[intvalues]]
     
-    realspec: *list*
-        A paired list of x and y values of the form ``[[x values],[y values]]``
+    simdict: molecular formulae to predict and overlay
+        can be handed several options
+        - a dictionary of formulas (with each formula being its own dictionary with colour and alpha keys)
+        - a list of formulas (all overlays will default to black with 0.5 alpha)
+        - a single formula (black with 0.5 alpha)
     
-    simdict: *dictionary* or *list* or *string*, optional
-        This can either be a molecular formula to predict the isotope pattern of (string), 
-        a list of formulae, or a dictionary of the form 
-        ``simdict = {'formula1':{'colour':<hex or name or RGB tuple>, 'alpha':float}, ...}``. 
-        If this is dictionary is left empty, no isotope patterns will be overlaid on the output 
-        spectrum. 
-    
-    
-    **Returns**
-    
-    returns: ``None``
-        This function has not pythonic output. 
-    
-    
-    **\*\*kwargs**
-    
-    annotations: None
-        Annotations for the spectrum in dictionary form: ``{'thing to print':[x,y],}``. Options: dictionary or ``None``
-    
-    axwidth: 1.5
-        Line width for the axes and tick marks. Options: float. 
-     
-    bw: 'auto'
-        The width of the bar in *m/z* for bar isotope patterns. Options: 'auto' or float
-        This only has an affect if *simtype* is 'bar'. 
-        Auto make the bars equal to 2 times the full width at half max of the peak they are simulating. 
-    
-    delta: False
-        Whether to calculate and output the mass delta between the exact mass predicted by the isotope pattern
-        simulation and the location of the maximum intensity within the bounds specified by *normwindow*. 
-        Options: bool. 
-    
-    dpiout: 300
-        The dots per inch for the output figure. Options: integer. 
-    
-    exten: 'png'
-        The file extension for the output figure. Options: 'png', 'svg', or other supported by matplotlib. 
-    
-    fs: 16
-        Font size to use for labels. Options: integer or float. 
-    
-    lw: 1.5
-        Line width for the plotted spectrum. Options: float. 
-        
-    maxy: 'max'
-        The maximum y value for the spectrum. Options: 'max' or specify a value
-    
-    mz: 'auto'
-        The *m/z* bounds for the output spectrum. Default: 'auto', but can be supplied 
-        with a tuple or list of length 2 of the form ``[x start, x end]``. 
-        
-    norm: True
-        Normalize the spectrum. Options: bool
-    
-    normwindow: 'fwhm'
-        The *m/z* window width within with too look for a maximum intensity value. 
-        This will only have an effect if *delta* is ``True``. 
-        Options: 'fwhm' for full width at half max or float. 
-    
-    offsetx: True
-        Whether to offset the x-axis slightly. Options: bool. 
-        Enabling this shows makes it easier to see low intensity peaks. 
-    
-    outname: 'spectrum'
-        Name of the file to be saved.
-        
-    output: 'save'
-        Save ('save') or show ('show') the figure. 
-        
-    padding: 'auto'
-        This allows the user to specify the subplot padding of the output figure. 
-        Options: 'auto' or list of the form ``[left,right,bottom,top]`` scalars. 
-    
-    res: False
-        Whether to output the resolution of the spectrum onto the figure. Options: bool.
-    
-    showx: True
-        Whether to show the x-axis line. Options: bool. 
-    
-    showy: True
-        Whether to show the y-axis line. Options: bool. 
-    
-    simlabels: False
-        Whether to show the names of the simulated isotope patterns. Options: bool. 
-        The names will be exactly as supplied in ``simdict``. 
-    
-    simnorm: 'spec'
-        Normalize the isotope pattern simulations to what value. Options: 'top', 'spec', or specify a value. 
-        Top will normalize the patterns to ``maxy``, and will only function if maxy is not 'max'. 
-        Spec will normalize the patterns to the maximum spectrum y value within the x bounds of the 
-        simulated pattern. 
-        Specifying a value will normalize all isotope patterns to that value. 
-    
-    simtype: 'bar'
-        The type for the isotope pattern simulation overlay. Options: 'bar' or 'gaussian'. 
-    
-    size: [7.87,4.87]
-        The size in inches for the output figure. This must be a list of length 2 of the form 
-        ``[width,height]``. 
-    
-    speccolour: 'k'
-        The colour for the real spectrum , # colour for the spectrum to be plotted
-    
-    specfont: 'Arial'
-        The font to use for text in the plot. The specified font must be accepted by matplotlib. 
-    
-    spectype: 'continuum'
-        The type of spectrum being handed to the function. Options: 'continuum' or 'centroid'. 
-        
-    stats: False
-        Whether to calculate and output the goodness of fit between the predicted isotope pattern and
-        the supplied spectrum. This functionality is still a work in progress. Options: bool. 
-    
-    verbose: True
-        Verbose option for the script. Options: bool. 
-        
-    xlabel: True
-        Whether to show the label for the *m/z* axis. Options: bool. 
-    
-    xvalues: True
-        Whether to show the values of the x-axis. Options: bool.
-    
-    ylabel: True
-        Whether to show the y-axis label. Options: bool.
-    
-    yvalues: True
-        Whether to show the values of the y-axis. Options: bool. 
-    
+    kwargs:
+        many parameters can be changed to tweak the appearance of the plot
+        see the settings dictionary in this function for details     
     """
     def localmax(x,y,xval,lookwithin=1):
         """finds the local maximum within +/- lookwithin of the xval"""
@@ -707,39 +408,39 @@ def plotms(realspec,simdict={},**kwargs):
     from bisect import bisect_right as br
     
     settings = { # default settings
-        'mz':'auto', # m/z bounds for the output spectrum
-        'outname':'spectrum', # name for the output file
-        'output':'save', # 'save' or 'show' the figure
-        'simtype':'bar', # simulation overlay type ('bar' or 'gaussian')
-        'spectype':'continuum', # spectrum type ('continuum' or 'centroid')
-        'maxy':'max', # max or value
-        'norm':True, # True or False
-        'simnorm':'spec', # top, spec, or value
-        'xlabel':True, # show x label
-        'ylabel':True, # show y label
-        'xvalues':True, #show x values
-        'yvalues':True, # show y values
-        'showx':True, # show x axis
-        'showy':True, # how y axis
-        'offsetx':True, # offset x axis (shows low intensity species better)
-        'fs':16, # font size
-        'lw':1.5, # line width for the plotted spectrum
-        'axwidth':1.5, # axis width 
-        'simlabels':False, # show labels isotope for patterns
-        'bw':'auto', # bar width for isotope patterns (auto does 2*fwhm)
-        'specfont':'Arial', # the font for text in the plot
-        'size':[7.87,4.87], # size in inches for the figure
-        'dpiout':300, # dpi for the output figure
-        'exten':'png', # extension for the output figure
-        'res':False, # output the resolution of the spectrum
-        'delta':False, # output the mass delta between the spectrum and the isotope patterns
-        'stats':False, # output the goodness of match between the spectrum and the predicted isotope patterns,
-        'speccolour':'k', # colour for the spectrum to be plotted
-        'padding':'auto', # padding for the output plot
-        'verbose':True, # verbose setting
-        'normwindow':'fwhm', # the width of the window to look for a maximal value around the expected exact mass for a peak
-        'annotations': None, # annotations for the spectrum in dictionary form {'thing to print':[x,y],}
-        }
+    'mz':'auto', # m/z bounds for the output spectrum
+    'outname':'spectrum', # name for the output file
+    'output':'save', # 'save' or 'show' the figure
+    'simtype':'bar', # simulation overlay type ('bar' or 'gaussian')
+    'spectype':'continuum', # spectrum type ('continuum' or 'centroid')
+    'maxy':'max', # max or value
+    'norm':True, # True or False
+    'simnorm':'spec', # top, spec, or value
+    'xlabel':True, # show x label
+    'ylabel':True, # show y label
+    'xvalues':True, #show x values
+    'yvalues':True, # show y values
+    'showx':True, # show x axis
+    'showy':True, # how y axis
+    'offsetx':True, # offset x axis (shows low intensity species better)
+    'fs':16, # font size
+    'lw':1.5, # line width for the plotted spectrum
+    'axwidth':1.5, # axis width 
+    'simlabels':False, # show labels isotope for patterns
+    'bw':'auto', # bar width for isotope patterns (auto does 2*fwhm)
+    'specfont':'Arial', # the font for text in the plot
+    'size':[7.87,4.87], # size in inches for the figure
+    'dpiout':300, # dpi for the output figure
+    'exten':'png', # extension for the output figure
+    'res':False, # output the resolution of the spectrum
+    'delta':False, # output the mass delta between the spectrum and the isotope patterns
+    'stats':False, # output the goodness of match between the spectrum and the predicted isotope patterns,
+    'speccolour':'k', # colour for the spectrum to be plotted
+    'padding':'auto', # padding for the output plot
+    'verbose':True, # verbose setting
+    'normwindow':'fwhm', # the width of the window to look for a maximal value around the expected exact mass for a peak
+    'annotations': None, # annotations for the spectrum in dictionary form {'thing to print':[x,y],}
+    }
     
     if set(kwargs.keys()) - set(settings.keys()): # check for invalid keyword arguments
         string = ''
@@ -749,20 +450,16 @@ def plotms(realspec,simdict={},**kwargs):
     
     settings.update(kwargs) # update settings from keyword arguments
     
-    if settings['spectype'] != 'centroid':
-        res = autoresolution(realspec[0],realspec[1]) # calculate resolution
-    else: 
-        res = 5000
+    res = autoresolution(realspec[0],realspec[1]) # calculate resolution
     
     simdict = checksimdict(simdict) # checks the simulation dictionary
     for species in simdict: # generate Molecule object and set x and y lists
         simdict[species]['colour'] = Colour(simdict[species]['colour'])
         simdict[species]['mol'] = Molecule(species, res=res) 
-        #simdict[species]['mol'] = Molecule(species, res=res, dropmethod='threshold') 
         if settings['simtype'] == 'bar':
             simdict[species]['x'],simdict[species]['y'] = simdict[species]['mol'].barip
         if settings['simtype'] == 'gaussian':
-            simdict[species]['mol'].gaussianisotopepattern(simdict[species]['mol'].rawip)
+            simdict[species]['mol'].gaussianisotopepattern()
             simdict[species]['x'],simdict[species]['y'] = simdict[species]['mol'].gausip
         
     if settings['mz'] == 'auto': # automatically determine m/z range
@@ -781,8 +478,6 @@ def plotms(realspec,simdict={},**kwargs):
         if settings['verbose'] is True:
             sys.stdout.write(': %i - %i\n' %(int(mz[0]),int(mz[1])))
             sys.stdout.flush()
-    else:
-        mz = settings['mz']
     
     realspec[0],realspec[1] = trimspectrum(realspec[0],realspec[1],settings['mz'][0]-1,settings['mz'][1]+1) # trim real spectrum for efficiency
     
@@ -805,7 +500,7 @@ def plotms(realspec,simdict={},**kwargs):
         if settings['delta'] is True:
             est = estimatedem(realspec[0],realspec[1],simdict[species]['mol'].em,min(simdict[species]['x']),max(simdict[species]['x'])) # try to calculate exact mass
             if type(est) is float:
-                simdict[species]['delta'] = '%.3f (%.1f ppm)' %(simdict[species]['mol'].em - est,simdict[species]['mol'].compareem(est))
+                simdict[species]['delta'] = simdict[species]['mol'].em - est
             else:
                 simdict[species]['delta'] = est
     
@@ -865,8 +560,7 @@ def plotms(realspec,simdict={},**kwargs):
             ax.bar(simdict[species]['x'], simdict[species]['y'], bw, alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=0, align='center',bottom=simdict[species]['zero'])
         elif settings['simtype'] == 'gaussian':
             ax.plot(simdict[species]['x'], simdict[species]['y'], alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=settings['lw'])
-            ax.fill_between(simdict[species]['x'],0,simdict[species]['y'], alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=0)
-            #ax.fill(simdict[species]['x'], simdict[species]['y'], alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=0)
+            ax.fill(simdict[species]['x'], simdict[species]['y'], alpha = simdict[species]['alpha'], color = simdict[species]['colour'].mpl, linewidth=0)
         if settings['simlabels'] is True or settings['stats'] is True or settings['delta'] is True: # if any labels are to be shown
             string = ''
             bpi = simdict[species]['y'].index(max(simdict[species]['y'])) # index of base peak
@@ -877,7 +571,11 @@ def plotms(realspec,simdict={},**kwargs):
             if settings['stats'] is True: # standard error of regression
                 string += 'SER: %.2f ' %simdict[species]['mol'].compare(realspec)
             if settings['delta'] is True: # mass delta
-                string += 'mass delta: %s' %simdict[species]['delta']
+                string += 'mass delta: '
+                if type(simdict[species]['delta']) is float:
+                    string += '%.3f' %simdict[species]['delta']
+                else:
+                    string += '%s' %simdict[species]['delta']
             ax.text(simdict[species]['x'][bpi],top*(1.01),string, color = simdict[species]['colour'].mpl, horizontalalignment='center', **font)
     
     if settings['spectype'] == 'continuum':
@@ -923,7 +621,6 @@ def plotms(realspec,simdict={},**kwargs):
     if settings['xlabel'] is True: # x unit
         ax.set_xlabel('m/z', style='italic', **font)
     
-    pl.ticklabel_format(useOffset=False) # don't use the stupid shorthand thing
     if settings['padding'] == 'auto':
         pl.tight_layout(pad=0.5) # adjust subplots
         if settings['simlabels'] is True or settings['stats'] is True or settings['delta'] is True: 
@@ -945,77 +642,15 @@ def plotms(realspec,simdict={},**kwargs):
 
 def plotuv(wavelengths,intensities,**kwargs):
     """
-    Plots and saves a publication quality UV-Vis figure. 
-    
-    **Parameters**
-    
-    wavelengths: *list*
-        A list of wavelengths
-    
-    intensities: *list*
-        A list of intensity values paired by index to *wavelengths*
-    
-    
-    **Returns**
-    
-    return item: ``None``
-        This function has no pythonic return. 
-    
-    **\*\*kwargs**
-    
-    axwidth: 1.5
-        Line width for the axes and tick marks. Options: float. 
-     
-    colours: 
-        ``['#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3','#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5',]``
-        A list of colours to be used if the fuction is supplied with multiple traces. 
-        
-    dpiout: 300
-        The dots per inch for the output figure. Options: integer. 
-    
-    exten: 'png'
-        The file extension for the output figure. Options: 'png', 'svg', or other supported by matplotlib. 
-    
-    fs: 16
-        Font size to use for labels. Options: integer or float. 
-    
-    legloc: 0
-        The matplotlib legend location key. 
-        See http://matplotlib.org/api/legend_api.html for location codes. 
-    
-    lw: 1.5
-        Line width for the plotted spectrum. Options: float. 
-        
-    outname: 'UV-Vis spectrum'
-        Name for the output file. Options: string. 
-    
-    output: 'save'
-        Save ('save') or show ('show') the figure. 
-        
-    padding: 'auto'
-        This allows the user to specify the subplot padding of the output figure. 
-        Options: 'auto' or list of the form ``[left,right,bottom,top]`` scalars. 
-    
-    size: [7.87,4.87]
-        The size in inches for the output figure. This must be a list of length 2 of the form 
-        ``[width,height]``. 
-    
-    specfont: 'Arial'
-        The font to use for text in the plot. The specified font must be accepted by matplotlib. 
-    
-    times: None
-        A list of timepoints for each provided trace. These are used as labels in the legend. 
-    
-    verbose: True
-        Verbose option for the script. Options: bool. 
-        
-    xrange: None
-        The limits for the x axis. Options None or ``[x min,x max]``
-    
-    yrange: None
-        The limits for the y axis. Options None or ``[y min,y max]``
-    
-    
+    plots a UV-Vis spectrum
+    input:
+    wavelengths: list
+        list of wavelengths
+    intensities: list or list of lists
+        list of intensities (matching wavelengths list)
+        can also supply several lists of intensities (to plot a progressive UV plot)
+    kwargs:
+        see settings for supported kwargs and what they do
     """
     settings = { # default settings for the function
     'outname':'UV-Vis spectrum', # name for the output file
@@ -1113,57 +748,20 @@ def plotuv(wavelengths,intensities,**kwargs):
     elif settings['output'] == 'show': # show figure
         pl.show()
 
-def sigmafwhm(res,x):
+def sigmafwhm(res,em):
     """
-    Calculates the full width at half max and standard deviation for a spectrum peak. 
-    
-    **Parameters**
-    
-    res: *float*
-        The resolution of the peak in question
-    
-    x: *float*
-        The x value of the peak in question
-
-        
-    **Returns**
-    
-    fwhm: *float*
-        The full width at half max of the peak. 
-    
-    sigma: *float*
-        The standard deviation of the peak. 
-    
+    determines the full width at half max and sigma for a normal distribution
+    res is the resolution of the instrument
+    em is the mass being calculated
     """
     import math
-    fwhm = x/res
+    fwhm = em/res
     sigma = fwhm/(2*math.sqrt(2*math.log(2))) # based on the equation FWHM = 2*sqrt(2ln2)*sigma
     return fwhm,sigma
 
 def strtolist(string):
     """
-    Converts a string to a list with more flexibility than ``string.split()`` 
-    by looking for both brackets of type ``(,),[,],{,}`` and commas. 
-    
-    **Parameters**
-    
-    string: *string*
-        The string to be split.
-    
-    
-    **Returns**
-    
-    split list: *list*
-        The split list
-    
-    
-    **Examples**
-    
-    ::
-    
-        >>> strtolist('[(12.3,15,256.128)]')
-            [12.3, 15, 256.128]
-    
+    converts a string to a list with more flexibility than string.split()
     """
     out = []
     temp = ''
@@ -1185,26 +783,11 @@ def strtolist(string):
     return out
 
 def version_input(string):
-    """
-    An analog of ``raw_input()`` that checks the version of python so that the input is not 
-    executed in python 3.x
-    
-    **Parameters**
-    
-    string: *string*
-        The string to query the user with. 
-    
-    
-    **Returns**
-    
-    user input: *string*
-        Returns the user's input, as with ``raw_input()`` or ``input()``
-    
-    """
+    """checks the python version and uses the appropriate version of user input"""
     import sys
-    if sys.version.startswith('2.7'): # if the python version is 2.7
+    if sys.version.startswith('2.7'):
         return raw_input('%s' %string)
-    if sys.version.startswith('3.'): # if the python version is 3.x
+    if sys.version.startswith('3.'):
         return input('%s' %string)
     else:
         raise EnvironmentError('The version_input method encountered an unsupported version of python.')
