@@ -358,9 +358,10 @@ def plotms(realspec,simdict={},**kwargs):
     def localmax(x,y,xval,lookwithin=1):
         """finds the local maximum within +/- lookwithin of the xval"""
         l,r = bl(x,xval-lookwithin),br(x,xval+lookwithin)
-        result = max(y[l:r])
-        assert (result == ""), "No maximum value found in range, perhaps wrong window region?"
-        return result
+        try:
+            return max(y[l:r])
+        except ValueError:
+            print "No maximum value found in range, perhaps wrong window region?"
     
     def trimspectrum(x,y,left,right):
         """trims a spectrum to the left and right bounds"""
