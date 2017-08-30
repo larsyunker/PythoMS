@@ -440,7 +440,8 @@ def plotms(realspec,simdict={},**kwargs):
     'padding':'auto', # padding for the output plot
     'verbose':True, # verbose setting
     'normwindow':'fwhm', # the width of the window to look for a maximal value around the expected exact mass for a peak
-    'annotations': None, # annotations for the spectrum in dictionary form {'thing to print':[x,y],}
+    'annotations':None, # annotations for the spectrum in dictionary form {'thing to print':[x,y],}
+    'normrel':100., # the maximum value for normalization
     }
     
     if set(kwargs.keys()) - set(settings.keys()): # check for invalid keyword arguments
@@ -479,11 +480,13 @@ def plotms(realspec,simdict={},**kwargs):
         if settings['verbose'] is True:
             sys.stdout.write(': %i - %i\n' %(int(mz[0]),int(mz[1])))
             sys.stdout.flush()
+    else:
+        mz = settings['mz']
     
     realspec[0],realspec[1] = trimspectrum(realspec[0],realspec[1],settings['mz'][0]-1,settings['mz'][1]+1) # trim real spectrum for efficiency
     
     if settings['norm'] is True: # normalize spectrum
-        realspec[1] = normalize(realspec[1],100.)
+        realspec[1] = normalize(realspec[1],settings['normrel'])
     
     for species in simdict: # normalize simulations
         if settings['simnorm'] == 'spec': # normalize to maximum around exact mass
@@ -570,7 +573,7 @@ def plotms(realspec,simdict={},**kwargs):
                 if settings['stats'] is True or settings['delta'] is True: # add return if SER or delta is called for
                     string += '\n'
             if settings['stats'] is True: # standard error of regression
-                string += 'SER: %.2f ' %simdict[species]['mol'].compare(realspec)
+                string += 'SER: %.2f\n' %simdict[species]['mol'].compare(realspec)
             if settings['delta'] is True: # mass delta
                 string += 'mass delta: '
                 if type(simdict[species]['delta']) is float:
@@ -608,7 +611,7 @@ def plotms(realspec,simdict={},**kwargs):
         for label in ax.get_yticklabels():
             label.set_fontproperties(tickfont)
     if settings['ylabel'] is True: # y unit
-        if top == 100: # normalized
+        if settings['norm']: # normalized
             ax.set_ylabel('relative intensity', **font)
         else: # set to counts
             ax.set_ylabel('intensity (counts)', **font)
