@@ -479,6 +479,8 @@ def plotms(realspec,simdict={},**kwargs):
         if settings['verbose'] is True:
             sys.stdout.write(': %i - %i\n' %(int(mz[0]),int(mz[1])))
             sys.stdout.flush()
+    else:
+        mz = settings['mz']
     
     realspec[0],realspec[1] = trimspectrum(realspec[0],realspec[1],settings['mz'][0]-1,settings['mz'][1]+1) # trim real spectrum for efficiency
     
