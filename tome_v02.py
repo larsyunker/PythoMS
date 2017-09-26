@@ -572,7 +572,7 @@ def plotms(realspec,simdict={},**kwargs):
                 if settings['stats'] is True or settings['delta'] is True: # add return if SER or delta is called for
                     string += '\n'
             if settings['stats'] is True: # standard error of regression
-                string += 'SER: %.2f ' %simdict[species]['mol'].compare(realspec)
+                string += 'SER: %.2f\n' %simdict[species]['mol'].compare(realspec)
             if settings['delta'] is True: # mass delta
                 string += 'mass delta: '
                 if type(simdict[species]['delta']) is float:

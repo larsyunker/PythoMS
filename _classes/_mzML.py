@@ -468,6 +468,7 @@ class mzML(object):
         elif affin in ['+','-']: # if affinity to mass spectrum
             levelcount = 0 # counter for number of matches to this affinity and level
             for fn in self.functions:
+                print "IM IN DA FUCKING LOOP DIPSHIT"
                 if self.functions[fn]['type'] == 'MS': # if fn is ms
                     if self.functions[fn]['mode'] == affin: # if mode mathes
                         if level is None and self.functions[fn]['level'] == 1: # if there is no level specified, assume 1
