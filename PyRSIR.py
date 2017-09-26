@@ -45,10 +45,10 @@ Column #5: end value (m/z or wavelength)
 """
 
 # input *.raw filename
-filename = 'MultiTest'
+filename = 'ND-04082014-HIYAMA.raw'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = 'pyrsir_validation - Copy'
+xlsx = 'ND-04082014-HIYAMA.xlsx'
 
 # set number of scans to sum (integer or list of integers)
 n = [3]
@@ -249,7 +249,6 @@ def pyrsir(filename,xlsx,n,**kwargs):
             sp[key]['bounds'] = sp[key]['mol'].bounds(ks['bounds confidence']) # generate bounds from molecule object with this confidence interval
     if ks['verbose'] is True:
         sys.stdout.write(' DONE\n')
-    
     
     rtime = {} # empty dictionaries for time and tic
     tic = {}

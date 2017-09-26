@@ -90,7 +90,7 @@ class XLSX(object):
                     wb = self.op.load_workbook(bookname) # load it
                     wb.remove_sheet(wb.worksheets[0]) # remove the old "Sheet"
                 else:
-                    raise IOError('\nThe excel file "%s" could not be found in the current working directory.' %(self.bookname))
+                    raise IOError('\nThe excel file "%s" could not be found in the current working directory.' %(bookname))
         if self.ks['verbose'] is True:
             self.sys.stdout.write(' DONE\n')
         return wb,bookname
@@ -115,6 +115,7 @@ class XLSX(object):
         pulls rsim data from the specified sheet
         """
         cs = self.wb.get_sheet_by_name(sheet)
+        print sheet
         tic = []
         time = []
         data = {}
@@ -217,6 +218,7 @@ at least one of name, formula, start, or end must be specified for each species
                 self.rsimh['formula'] = ind
             if lowercase(col[0].value) in affinities:
                 self.rsimh['affin'] = ind
+                print ind
             if lowercase(col[0].value) in functions:
                 self.rsimh['function'] = ind
             if lowercase(col[0].value) in levels:
@@ -266,9 +268,9 @@ at least one of name, formula, start, or end must be specified for each species
                 if out[name]['affin'] in pos:
                     out[name]['affin'] = '+'
                 elif out[name]['affin'] in neg:
-                    out[name]['affin'] = '+'
+                    out[name]['affin'] = '-'
                 elif out[name]['affin'] in uv:
-                    out[name]['affin'] = '+'
+                    out[name]['affin'] = 'UV'
                 else:
                     raise ValueError('The affinity "%s" for species "%s" is not valid\n%s' %(out[name]['affin'],name,self.pullrsimparams.__doc__))
             

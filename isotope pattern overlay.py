@@ -10,7 +10,7 @@ new/changed:
 """
 # provide the experimental spectrum xlsx
 # the script will automatically use the first sheet
-spectrum = 'L2PdArAr Jessamyn (for organometallics)'
+spectrum = 'Cp2Ti(NCMe)2'
 
 # number of lines to skip in the excel file
 # (e.g. if there are spectrum details above the actual spectrum values)
@@ -25,11 +25,11 @@ skiplines = 0
 simdict = {
 #'L2PdAr+I':{'colour':'#6a3d9a','alpha':0.5},
 #'L2PdAr+(2+)':{'colour':'#e41a1c','alpha':0.5},
-'L2PdAr+C6H4CH3':{'colour':'#ff7f00','alpha':0.5},
+'Cp2Ti(NCMe)2':{'colour':'#ff7f00','alpha':0.5},
 #'L2PdAr+IMeOH':{'colour':(146,102,194),'alpha':0.5},
 #'(Ar+I)2PF6':{'colour':'#1f78b4','alpha':0.5},
 #'L2PdAr+CH3C6H4MeOH':{'colour':'#ff7f00','alpha':0.5}
-#'L2PdAr+OH':{'colour':'66c2a5','alpha':0.5},
+#'Zn3Cl5O':{'colour':'66c2a5','alpha':0.5},
 #'L2Pd2(Ar+)2(OMe)2(2+)':{'colour':'ed5da5','alpha':0.5},
 }
 
@@ -41,9 +41,9 @@ setting = 'inset'
 # preset settings can be overridden here (see presets() function for details)
 override = {
 #'norm':False,
-#'bw':0.3, # bar width (in units of m/z)
+'bw':0.8, # bar width (in units of m/z)
 'exten':'svg', # change to scalable vector graphic
-'mz': [1069,1081], # modify the m/z bounds of the figure
+'mz': [250,270], # modify the m/z bounds of the figure
 #'offsetx':False, # apply a slight offset to the x axis
 #'simtype': 'gaussian', # generate a gaussian spectrum
 'size':[1.8,1.3], # change the size of the image
