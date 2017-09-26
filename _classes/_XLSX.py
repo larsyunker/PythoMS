@@ -115,6 +115,7 @@ class XLSX(object):
         pulls rsim data from the specified sheet
         """
         cs = self.wb.get_sheet_by_name(sheet)
+        print sheet
         tic = []
         time = []
         data = {}

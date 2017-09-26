@@ -241,7 +241,6 @@ def pyrsir(filename,xlsx,n,**kwargs):
         sys.stdout.flush()
     xlfile = XLSX(xlsx)
     sp = xlfile.pullrsimparams()
-    print sp
     
     mskeys = ['+','-']
     for key in sp:
@@ -250,7 +249,6 @@ def pyrsir(filename,xlsx,n,**kwargs):
             sp[key]['bounds'] = sp[key]['mol'].bounds(ks['bounds confidence']) # generate bounds from molecule object with this confidence interval
     if ks['verbose'] is True:
         sys.stdout.write(' DONE\n')
-    
     
     rtime = {} # empty dictionaries for time and tic
     tic = {}
