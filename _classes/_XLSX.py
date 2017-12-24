@@ -1,9 +1,10 @@
 """
 Class for opening and handling excel files with commonly used data formats
-v 1
+IGNORE:
 CHANGELOG:
-
----1.4
+- converted several arguments in writemultispectrum to keyword arguments
+---1.5
+IGNORE
 """
 
 

@@ -1,4 +1,5 @@
 """
+IGNORE:
 takes an input string, tuple, or list and attempts to interpret it as a colour
 
 new:
@@ -9,32 +10,64 @@ new:
     made it so hex input does not need a '#'
     ---2.1---
     ---2.2
-
+IGNORE
 """
 
 
 class Colour(object):
-    """
-valid input:
-- a letter key for predefined colours (ex. 'b' for blue or 'db' for dark blue)
-- a RGB value in (R,G,B) format (each RGB value should be an integer in 0-255)
-- a CMYK value in (C,M,Y,K) format (each CMYK value should be in 0-100)
-- a colour hash code (ex. '#881b1b' for (136,27,27))
-
-predefined colours: (default excel colours)
-b: blue
-r: red
-g: olive green
-p: purple
-o: orange
-a: aqua
-k: black
-
-d_: dark colour (ex. 'db' = dark blue)
-l_: light colour (ex. 'lb' = light blue)
-    """
-
     def __init__(self, c, rgb_scale=255, cmyk_scale=100):
+        """
+        Takes an input colour string and stores several colour properties of that colour
+
+        **Parameters**
+
+        c: *string* or *tuple*
+            Input string (predefined colour or hex code) or R,G,B tuple.
+
+        rgb_scale: *integer*
+            The maximum value of the RGB scale for this object. Default is 255, implying
+            RGB values between 0-255.
+
+        cmyk_scale: *integer*
+            The maximum value of the CMYK scale. Currently unused
+
+
+        **Examples**
+
+        ::
+
+            >>> col = Colour((89,89,89))
+            >>> col.print_details()
+            Colour (89, 89, 89)
+            RGB:        89, 89, 89
+            RGB (0-1):  0.349, 0.349, 0.349
+            CMYK:       0.0, 0.0, 0.0, 65.1
+            hex:        #595959
+
+            >>> col.mpl # matplotlib RGB format (floats between 0 and 1)
+            (0.34901960784313724, 0.34901960784313724, 0.34901960784313724)
+
+            >>> col2 = Colour('#A8E5B0')
+            >>> col2.rgb
+            (168, 229, 176)
+            >>> col2.cmyk
+            (26.637554585152838, 0.0, 23.144104803493455, 10.196078431372547)
+
+
+        **Predefined Colours**
+
+        b: blue
+        r: red
+        g: olive green
+        p: purple
+        o: orange
+        a: aqua
+        k: black
+
+        d_: dark colour (ex. 'db' = dark blue)
+        l_: light colour (ex. 'lb' = light blue)
+
+        """
         self.c = c
         self.rgb_scale = float(rgb_scale)
         self.cmyk_scale = float(cmyk_scale)
@@ -137,9 +170,9 @@ l_: light colour (ex. 'lb' = light blue)
         sys.stdout.write('RGB:        %d, %d, %d\n' % self.rgb)
         sys.stdout.write('RGB (0-1):  %.3f, %.3f, %.3f\n' % self.mpl)
         sys.stdout.write('CMYK:       %.1f, %.1f, %.1f, %.1f\n' % self.cmyk)
-        sys.stdout.write('HLS:        %.3f, %.3f, %.3f\n' % self.hls)
-        sys.stdout.write('HSV:        %.3f, %.3f, %.3f\n' % self.hsv)
-        sys.stdout.write('YIQ:        %.3f, %.3f, %.3f\n' % self.yiq)
+        # sys.stdout.write('HLS:        %.3f, %.3f, %.3f\n' %self.hls)
+        # sys.stdout.write('HSV:        %.3f, %.3f, %.3f\n' %self.hsv)
+        # sys.stdout.write('YIQ:        %.3f, %.3f, %.3f\n' %self.yiq)
         sys.stdout.write('hex:        %s' % self.hex)
 
     def rgb_to_cmyk(self, tup):
