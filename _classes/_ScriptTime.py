@@ -122,7 +122,7 @@ class ScriptTime(object):
             self.m = __import__('math')
         self.sys.stdout.write('\nFunction profile data:\n')
         self.sys.stdout.write(
-            '%15s  %6s  %13s  %13s  %13s  %13s\n' % ('function', 'called', 'avg', 'stdev', 'max', 'min'))
+            '%15s  %6s  %13s  %13s  %13s  %13s\n' % ('function', 'called', 'avg', 'standard_deviation', 'max', 'min'))
         for fname, data in self.profiles.items():
             avg = sum(data[1]) / len(data[1])
             self.sys.stdout.write('%15s  %6d  %13s  %13s  %13s  %13s\n' % (fname, data[0], self.formattime(avg),
@@ -132,7 +132,7 @@ class ScriptTime(object):
                                                                            self.formattime(max(data[1])),
                                                                            self.formattime(min(data[1]))))
             # self.sys.stdout.write('Function %s called %d times. ' % (fname, data[0]))
-            # self.sys.stdout.write('Execution time max: %s, min: %s, average: %s, stdev: %s\n' % (self.formattime(max(data[1])), self.formattime(min(data[1])), self.formattime(avg),self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))) ))
+            # self.sys.stdout.write('Execution time max: %s, min: %s, average: %s, standard_deviation: %s\n' % (self.formattime(max(data[1])), self.formattime(min(data[1])), self.formattime(avg),self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))) ))
 
     def printstart(self):
         """prints the start (trigger) time of the object"""
