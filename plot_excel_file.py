@@ -28,16 +28,17 @@ spectype = 'continuum'
 if __name__ == '__main__':
     import sys
     from _classes._XLSX import XLSX
-    from tome_v02 import normalize,plotms
-    
-    xlfile = XLSX(filename) # load excel file
-    
-    for sheet in xlfile.wb.get_sheet_names(): # for each sheet
-        sys.stdout.write('Plotting spectrum "%s"' %sheet)
+    from tome_v02 import normalize, plotms
+
+    xlfile = XLSX(filename)  # load excel file
+
+    for sheet in xlfile.wb.get_sheet_names():  # for each sheet
+        sys.stdout.write('Plotting spectrum "%s"' % sheet)
         sys.stdout.flush()
-        spec = xlfile.pullspectrum(sheet,8)[0] # pull spectrum
-        spec[1] = normalize(spec[1],100.) # normalize to 100
-        outname = filename+' - '+sheet+' ('+`startmz`+'-'+`endmz`+')'
-        plotms(spec, outname=outname,spectype=spectype,mz=[startmz,endmz],padding=[0.1,0.95,0.13,0.96],verbose=False,speccolour=colour)
+        spec = xlfile.pullspectrum(sheet, 8)[0]  # pull spectrum
+        spec[1] = normalize(spec[1], 100.)  # normalize to 100
+        outname = filename + ' - ' + sheet + ' (' + str(startmz) + '-' + str(endmz) + ')'
+        plotms(spec, outname=outname, spectype=spectype, mz=[startmz, endmz], padding=[0.1, 0.95, 0.13, 0.96],
+               verbose=False, speccolour=colour)
         sys.stdout.write(' DONE\n')
-    sys.stdout.write('fin.\n') 
+    sys.stdout.write('fin.\n')

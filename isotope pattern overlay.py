@@ -17,20 +17,20 @@ spectrum = 'Cp2Ti(NCMe)2'
 skiplines = 0
 
 # sheet name in the excel file (if this is not specified, the script will use the first sheet in the file)
-#sheetname = 'L2PdArI'
+# sheetname = 'L2PdArI'
 
 # provide species to be simulated in dictionary format
 # 'molecular formula':{'colour': ... ,'alpha':0-1}
 # colour can be (R,G,B), (C,M,Y,K), or 'hex'
 simdict = {
-#'L2PdAr+I':{'colour':'#6a3d9a','alpha':0.5},
-#'L2PdAr+(2+)':{'colour':'#e41a1c','alpha':0.5},
-'Cp2Ti(NCMe)2':{'colour':'#ff7f00','alpha':0.5},
-#'L2PdAr+IMeOH':{'colour':(146,102,194),'alpha':0.5},
-#'(Ar+I)2PF6':{'colour':'#1f78b4','alpha':0.5},
-#'L2PdAr+CH3C6H4MeOH':{'colour':'#ff7f00','alpha':0.5}
-#'Zn3Cl5O':{'colour':'66c2a5','alpha':0.5},
-#'L2Pd2(Ar+)2(OMe)2(2+)':{'colour':'ed5da5','alpha':0.5},
+    # 'L2PdAr+I':{'colour':'#6a3d9a','alpha':0.5},
+    # 'L2PdAr+(2+)':{'colour':'#e41a1c','alpha':0.5},
+    'Cp2Ti(NCMe)2': {'colour': '#ff7f00', 'alpha': 0.5},
+    # 'L2PdAr+IMeOH':{'colour':(146,102,194),'alpha':0.5},
+    # '(Ar+I)2PF6':{'colour':'#1f78b4','alpha':0.5},
+    # 'L2PdAr+CH3C6H4MeOH':{'colour':'#ff7f00','alpha':0.5}
+    # 'Zn3Cl5O':{'colour':'66c2a5','alpha':0.5},
+    # 'L2Pd2(Ar+)2(OMe)2(2+)':{'colour':'ed5da5','alpha':0.5},
 }
 
 # choose a figure type for auto settings
@@ -40,19 +40,19 @@ setting = 'inset'
 
 # preset settings can be overridden here (see presets() function for details)
 override = {
-#'norm':False,
-'bw':0.8, # bar width (in units of m/z)
-'exten':'svg', # change to scalable vector graphic
-'mz': [250,270], # modify the m/z bounds of the figure
-#'offsetx':False, # apply a slight offset to the x axis
-#'simtype': 'gaussian', # generate a gaussian spectrum
-'size':[1.8,1.3], # change the size of the image
-#'specfont':'Calibri', # change the font of the labels
-'stats':False,
-'xlabel':False,
-#'spectype':'centroid',
-#'normwindow':1.,
-'fs':8,
+    # 'norm':False,
+    'bw': 0.8,  # bar width (in units of m/z)
+    'exten': 'svg',  # change to scalable vector graphic
+    'mz': [250, 270],  # modify the m/z bounds of the figure
+    # 'offsetx':False, # apply a slight offset to the x axis
+    # 'simtype': 'gaussian', # generate a gaussian spectrum
+    'size': [1.8, 1.3],  # change the size of the image
+    # 'specfont':'Calibri', # change the font of the labels
+    'stats': False,
+    'xlabel': False,
+    # 'spectype':'centroid',
+    # 'normwindow':1.,
+    'fs': 8,
 }
 
 
@@ -183,37 +183,41 @@ def presets(typ):
     Additional presets can be added in dictionary form with whatever setting changes are desired
     """
     ipsetting = {
-    'pub':{},
-    'pubsvg':{'exten':'svg'},
-    'inset':{'ylabel':False,'yvalues':False,'showy':False,'fs':12,'size':[2.8,2.8]},
-    'insetsvg':{'ylabel':False,'yvalues':False,'showy':False,'fs':12,'size':[2.8,2.8],'exten':'svg'},
-    'thesis':{'size':[6.5,4.0]},
-    'detailed':{'norm':False,'fs':10,'simlabels':True,'res':True,'size':[6.5,4.0],'delta':True,'stats':True},
+        'pub': {},
+        'pubsvg': {'exten': 'svg'},
+        'inset': {'ylabel': False, 'yvalues': False, 'showy': False, 'fs': 12, 'size': [2.8, 2.8]},
+        'insetsvg': {'ylabel': False, 'yvalues': False, 'showy': False, 'fs': 12, 'size': [2.8, 2.8], 'exten': 'svg'},
+        'thesis': {'size': [6.5, 4.0]},
+        'detailed': {'norm': False, 'fs': 10, 'simlabels': True, 'res': True, 'size': [6.5, 4.0], 'delta': True,
+                     'stats': True},
     }
     try:
-        sys.stdout.write('Using figure preset "%s"\n' %(setting))
+        sys.stdout.write('Using figure preset "%s"\n' % (setting))
         sys.stdout.flush()
         return ipsetting[typ]
     except KeyError:
-        raise KeyError('\nThe specified figure setting "%s" is not defined.\nPlease check your spelling' %setting)
+        raise KeyError('\nThe specified figure setting "%s" is not defined.\nPlease check your spelling' % setting)
+
 
 if __name__ == '__main__':
     import sys
     from _classes._XLSX import XLSX
     from tome_v02 import plotms
-    xlfile = XLSX(spectrum,verbose=True) # load excel file
-    
-    try: # if sheet name was specified
+
+    xlfile = XLSX(spectrum, verbose=True)  # load excel file
+
+    try:  # if sheet name was specified
         sname = sheetname
-    except NameError: # otherwise use the first sheet
+    except NameError:  # otherwise use the first sheet
         sname = xlfile.wb.get_sheet_names()[0]
-    
-    keywords = presets(setting) # pull preset
-    keywords.update({'outname':xlfile.bookname[:-5]+' ('+sname+')'}) # set default output filename
-    keywords.update(override) # apply any user overrides
-    
-    exp = xlfile.pullspectrum(sname,skiplines=skiplines)[0] # load spectrum from first sheet in workbook
-    
-    plotms(exp,simdict,**keywords)
+
+    keywords = presets(setting)  # pull preset
+    keywords.update({'outname': xlfile.bookname[:-5] + ' (' + sname + ')'})  # set default output filename
+    keywords.update(override)  # apply any user overrides
+
+    exp = xlfile.pullspectrum(sname, skiplines=skiplines)[0]  # load spectrum from first sheet in workbook
+
+    plotms(exp, simdict, **keywords)
     import gc
+
     gc.collect()
