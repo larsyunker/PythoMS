@@ -54,6 +54,8 @@ xlsx = 'ND-04082014-HIYAMA.xlsx'
 # set number of scans to sum (integer or list of integers)
 n = [3]
 
+import sys
+
 
 def pyrsir(filename, xlsx, n, **kwargs):
     def checkinteger(val, name):
@@ -219,7 +221,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
                 except NameError:
                     res = int(mzml.auto_resolution())
                     dct[species]['mol'].res = res
-                dct[species]['mol'].sigma = dct[species]['mol'].sigmafwhm()[1]  # recalculates sigma with new resolution
+                # dct[species]['mol'].sigma = dct[species]['mol'].sigmafwhm()[1]  # recalculates sigma with new resolution
                 dct[species]['bounds'] = dct[species]['mol'].bounds(0.95)  # caclulates bounds
         return dct
 
@@ -425,14 +427,14 @@ def pyrsir(filename, xlsx, n, **kwargs):
         stime.printelapsed()
 
 
-import sys
-
-if len(sys.argv) > 1:  # if script was initiated from the command line, pull parameters from there
-    try:
-        pyrsir(sys.argv[1], sys.argv[2], sys.arg[3])
-    except IndexError:
-        raise IOError(
-            'The pyrsim function requires three inputs:\n- The raw filename\n- The excel parameters file\n- The number of scans to sum')
+# import sys
+#
+# if len(sys.argv) > 1:  # if script was initiated from the command line, pull parameters from there
+#     try:
+#         pyrsir(sys.argv[1], sys.argv[2], sys.arg[3])
+#     except IndexError:
+#         raise IOError(
+#             'The pyrsim function requires three inputs:\n- The raw filename\n- The excel parameters file\n- The number of scans to sum')
 
 if __name__ == '__main__':
     pyrsir(filename, xlsx, n)

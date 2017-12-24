@@ -1008,7 +1008,7 @@ class Molecule(object):
 
         speciso = False  # set state for specific isotope
         isos = {}  # isotopes dictionary
-        isosets = {}
+        isosets = {}  # set of isotopes for each element
         iterators = []  # list of iterators
         nk = []
         for element in comp:  # for each element
@@ -1063,7 +1063,7 @@ class Molecule(object):
             x = 0.  # mass value
             y = 1.  # intensity value
             for tup in comb:  # for each element combination
-                element = isos[tup[0]]
+                element = isos[tup[0]]  # associate isotope to element
                 # counts = [tup.count(x) for x in isosets[element]] # count the number of occurances of each isotope
                 # num *= num_permu(tup,counts) # determine the number of permutations of the set
                 # for ind,isotope in enumerate(isosets[element]):

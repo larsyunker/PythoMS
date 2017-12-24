@@ -356,8 +356,7 @@ class mzML(object):
                 'UO:0000268': 'volt per meter',
             }
             for key in self.parameters:
-                if self.parameters[key].has_key(
-                        'unitAccession'):  # find unitAccession (the accession code defines the unit)
+                if 'unitAccession' in self.parameters[key]:  # find unitAccession (the accession code defines the unit)
                     if self.parameters[key]['unitAccession'] in unitkeys:  # if it is defined, return unit code
                         return unitkeys[self.parameters[key]['unitAccession']]
                     else:
@@ -522,20 +521,20 @@ class mzML(object):
                                 'xref:'):  # xref (the coder cannot see a particular use for this key
                             out[key]['xref'] = lines[ind + offset].split('"')[1]
                         elif lines[ind + offset].startswith('is_a:'):  # is a something
-                            if out[key].has_key('is_a') is False:
+                            if 'is_a' not in out[key]:
                                 out[key]['is_a'] = []
                             out[key]['is_a'].append(lines[ind + offset].split()[1])
                             if lines[ind + offset].split()[1] not in out:  # catches undefined things like UO:0000000 ! unit
                                 out[lines[ind + offset].split()[1]] = {'name': lines[ind + offset].split('!')[1][1:-1]}
                         elif lines[ind + offset].startswith('relationship:'):  # relationship keys
-                            if out[key].has_key('relationship') is False:
+                            if 'relationship' not in out[key]:
                                 out[key]['relationship'] = {}
                             spl = lines[ind + offset].split()
-                            if out[key]['relationship'].has_key(spl[1]) is False:
+                            if spl[1] not in out[key]['relationship']:
                                 out[key]['relationship'][spl[1]] = []
                             out[key]['relationship'][spl[1]].append(spl[2])
                         elif lines[ind + offset].startswith('synonym:'):  # synonym
-                            if out[key].has_key('synonym') is False:
+                            if 'synonym' not in out[key]:
                                 out[key]['synonym'] = []
                             out[key]['synonym'].append(lines[ind + offset].split()[1].split('"')[1])
                         elif lines[ind + offset].startswith('is_obsolete:'):  # obsolete
@@ -550,18 +549,18 @@ class mzML(object):
             import sys
             sys.stdout.write('Accession: %s\n' % key)
             sys.stdout.write('Name: %s\n' % self.obodict[key]['name'])
-            if self.obodict[key].has_key('obsolete'):
+            if 'obsolete' in self.obodict[key]:
                 sys.stdout.write('This accession is obsolete.\n')
             sys.stdout.write('Definition: %s\n' % self.obodict[key]['def'])
-            if self.obodict[key].has_key('is_a') is True:
+            if 'is_a' in self.obodict[key]:
                 for item in self.obodict[key]['is_a']:
                     sys.stdout.write('Is a: %s (%s)\n' % (item, self.obodict[item]['name']))
-            if self.obodict[key].has_key('relationship') is True:
+            if 'relationship' in self.obodict[key]:
                 sys.stdout.write('Relationships:\n')
                 for subkey in self.obodict[key]['relationship']:
                     for item in self.obodict[key]['relationship'][subkey]:
                         sys.stdout.write('%s: %s\n' % (subkey, item))
-            if self.obodict[key].has_key('synonym') is True:
+            if 'synonym' in self.obodict[key]:
                 sys.stdout.write('Synonyms:\n')
                 for item in self.obodict[key]['synonym']:
                     sys.stdout.write('%s\n' % item)
@@ -675,11 +674,11 @@ class mzML(object):
 
         """
         if dct is not None:  # if function was handed a dictionary
-            if dct.has_key('function'):
+            if 'function' in dct:
                 return dct['function']
-            if dct.has_key('affin'):
+            if 'affin' in dct:
                 affin = dct['affin']
-            if dct.has_key('level'):
+            if 'level' in dct:
                 level = dct['level']
 
         if affin is None and level is None:
@@ -936,7 +935,7 @@ class mzML(object):
                 'MS:1000523': ['<', 'd'],  # 64-bit precision little-endian floating point conforming to IEEE-754.
             }
             for key in formats:
-                if p.has_key(key):  # find accession number match
+                if key in p:  # find accession number match
                     return formats[key][0] + str(speclen) + formats[key][1]
 
         speclen = int(
@@ -952,7 +951,8 @@ class mzML(object):
                 compressed = False
             unpack_format = decodeformat(p, speclen)  # determine unpack format
             string = gettext(binary.getElementsByTagName('binary')[0].childNodes)  # pull the binary string
-            decoded = self.b64.decodestring(string)  # decode the string
+            decoded = self.b64.standard_b64decode(string)  # decode the string
+            # decoded = self.b64.decodebytes(string)  # decode the string
             if compressed is True:  # if the string is compressed, decompress
                 decoded = self.zlib.decompress(decoded)
             out.append(list(self.st.unpack(unpack_format, decoded)))  # unpack the string
@@ -1016,7 +1016,7 @@ class mzML(object):
         for func in self.functions:  # add timepoint and tic lists
             self.functions[func]['timepoints'] = []  # list for timepoints
             self.functions[func]['tic'] = []  # list for total ion current values
-            if self.functions[func].has_key('level') and self.functions[func]['level'] > 1:
+            if 'level' in self.functions[func] and self.functions[func]['level'] > 1:
                 self.functions[func]['ce'] = []  # list for collision energies
         for spectrum in self.tree.getElementsByTagName('spectrum'):
             attr = self.attributes(spectrum)
@@ -1194,7 +1194,7 @@ class mzML(object):
         for species in sp:  # look for and assign function affinity
             sp[species]['function'] = self.associate_to_function(
                 dct=sp[species])  # associate each species in the spectrum with a function
-            if sp[species].has_key('raw') is False:  # look for empty raw list
+            if 'raw' not in sp[species]:  # look for empty raw list
                 sp[species]['raw'] = []
         if self.ks['ftt'] is False:  # if timepoints and tic values have not been extracted yet, extract those
             self.function_timetic()

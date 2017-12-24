@@ -769,10 +769,14 @@ class Spectrum(object):
         """
         if xbounds is None:
             xbounds = [self.start, self.end]
+        elif xbounds[0] is None:
+            xbounds[0] = self.start
+        elif xbounds[1] is None:
+            xbounds[1] = self.end
         xout = []
         yout = []
         for ind, inten in enumerate(self.y):
-            if self.x[ind] >= xbounds[0] and self.x[ind] <= xbounds[1]:  # if within the x bounds
+            if xbounds[0] <= self.x[ind] <= xbounds[1]:  # if within the x bounds
                 if inten is not None:
                     xout.append(round(self.x[ind], self.decpl))  # rounded to avoid array floating point weirdness
                     yout.append(inten)
