@@ -1,9 +1,10 @@
 """
 Class for opening and handling excel files with commonly used data formats
-v 1
+IGNORE:
 CHANGELOG:
-
----1.4
+- converted several arguments in writemultispectrum to keyword arguments
+---1.5
+IGNORE
 """
 
 
@@ -338,9 +339,13 @@ class XLSX(object):
         cs = self.wb.get_sheet_by_name(sheetname)
         out = {}
         loc = 1
-        while loc < len(cs.rows[0]):
-            out[cs.cell(row=1, column=loc).value] = {'xunit': cs.cell(row=1, column=loc + 1).value,
-                                                     'yunit': cs.cell(row=1, column=loc + 2).value, 'x': [], 'y': []}
+        while loc < cs.max_column:
+            out[cs.cell(row=1, column=loc).value] = {
+                'xunit': cs.cell(row=1, column=loc + 1).value,
+                'yunit': cs.cell(row=1, column=loc + 2).value,
+                'x': [],
+                'y': [],
+            }
             ind = 2
             while cs.cell(row=ind, column=loc + 1).value is not None:
                 out[cs.cell(row=1, column=loc).value]['x'].append(cs.cell(row=ind, column=loc + 1).value)
@@ -657,18 +662,15 @@ class XLSX(object):
 
             # figure out what to name the species
             name = None
-            if 'name' not in self.rsimh and row[
-                self.rsimh['name']].value is not None:  # if there is a name column and the value is not None
-                name = row[self.rsimh['name']].value
-            elif name is None and 'formula' not in self.rsimh and row[
-                self.rsimh['formula']].value is not None:  # if there is instead a formula
-                name = row[self.rsimh['formula']].value
-            elif name is None and 'bounds' in self.rsimh and row[
-                self.rsimh['bounds'][0]].value is not None:  # if there are bounds
-                if self.rsimh['bounds'][1] is None:
-                    name = row[self.rsimh['bounds'][0]].value
+            if 'name' in self.rsimh and row[self.rsimh['name']].value is not None:
+                name = row[self.rsimh['name']].value  # if there is a name column and the value is not None
+            elif 'formula' in self.rsimh and row[self.rsimh['formula']].value is not None:
+                name = row[self.rsimh['formula']].value  # if there is instead a formula
+            elif 'bounds' in self.rsimh and row[self.rsimh['bounds'][0]].value is not None:  # if there are bounds
+                if row[self.rsimh['bounds'][1]].value is None:
+                    name = '%.1f' % row[self.rsimh['bounds'][0]].value
                 else:
-                    name = '%.1f - %.1f' % (row[self.rsimh['bounds'][0]].value, row[self.rsimh['bounds'][0]].value)
+                    name = '%.1f - %.1f' % (row[self.rsimh['bounds'][0]].value, row[self.rsimh['bounds'][1]].value)
             else:
                 raise ValueError(
                     'A name could not be determined for row #%d\n%s' % (ind + 1, self.pullrsimparams.__doc__))
@@ -828,8 +830,16 @@ class XLSX(object):
         for ind, row in enumerate(s.rows):
             if ind == 0:
                 continue
-            if row[0].value is None:  # if name is not set, use formula
-                key = row[1].value
+            # determine name key to look for
+            if row[self.rsimh['name']].value is not None:  # if name is set
+                key = row[self.rsimh['name']].value
+            elif row[self.rsimh['formula']].value is not None:  # if formula is set
+                key = row[self.rsimh['formula']].value
+            elif row[self.rsimh['bounds'][0]].value is not None:
+                if row[self.rsimh['bounds'][1]].value is None:
+                    key = '%.1f' % row[self.rsimh['bounds'][0]].value
+                else:
+                    key = '%.1f - %.1f' % (row[self.rsimh['bounds'][0]].value, row[self.rsimh['bounds'][1]].value)
             else:
                 key = str(row[0].value)
             for hkey in self.rsimh:  # for the defined column headers in the rsim headers dictionary
