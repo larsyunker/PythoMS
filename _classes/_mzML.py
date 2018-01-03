@@ -889,7 +889,11 @@ class mzML(object):
             else:
                 raise EnvironmentError('The version_input method encountered an unsupported version of python.')
 
-        valid = ['.raw', '.mzml.gz', '.mzml']  # supported extensions
+        valid = [  # supported extensions
+            '.raw',
+            '.mzml.gz',
+            '.mzml',
+        ]
         if fn.lower().endswith('.raw') is True:  # extension is raw
             if self.file_present(fn[:-4] + '.mzML.gz') is True:  # if corresponding gzipped mzml is present
                 return fn[:-4] + '.mzML.gz'
@@ -1283,7 +1287,7 @@ class mzML(object):
 
         outname = filename[:-4] + '.mzML'
         callstring = locs[-1] + ' "' + filename + '" --mzML'
-        if bit == 32 or bit == 64:
+        if bit in [32, 64]:
             callstring += ' --' + str(bit)
         else:
             raise ValueError(
@@ -1297,7 +1301,7 @@ class mzML(object):
             callstring += ' --gzip'
             outname += '.gz'
             exten += '.gz'
-
+        print('callstring',callstring)
         import subprocess
         if self.ks['verbose'] is True:
             callstring += ' --verbose'

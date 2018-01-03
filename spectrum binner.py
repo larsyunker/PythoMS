@@ -5,17 +5,15 @@ CHANGELOG:
 """
 
 
-def sumspectra(filename, start=None, end=None, excel=None):
+def sumspectra(filename, start=None, end=None, save=True):
     """
-    Sums spectra from raw file and outputs to excel file 
-    
-    input: filename, *kwargs
-    filename:
-        name of raw file
-    sr:
-        scan range to sum
-        default 'all'
-        specify with [start scan,end scan]
+    Sums spectra from raw file and outputs to excel file
+
+    :param filename: raw or mzML filename
+    :param start: start scan (None will default to 1)
+    :param end: end scan (None will default to the last scan)
+    :param save: whether to save into an excel document (if a string is provided, that filename will be used)
+    :return: paired x, summed y lists
     """
     from PythoMS._classes._mzML import mzML
     from PythoMS._classes._XLSX import XLSX
@@ -29,15 +27,33 @@ def sumspectra(filename, start=None, end=None, excel=None):
     if end is None:
         end = mzml.functions[1]['sr'][1] + 1
     x, y = mzml.sum_scans(start=start, end=end)
-    xlfile = XLSX(filename, create=True)
-    xlfile.writespectrum(x, y, 'summed spectra (scans %d-%d)' % (start, end))
-    xlfile.save()
+    if save is not False:
+        if type(save) == str:  # if a filename was provided for the Excel file
+            xlfile = XLSX(save, create=True)
+        else:  # otherwise use the mzML filename
+            xlfile = XLSX(filename, create=True)
+        xlfile.writespectrum(  # write the spectrum to file
+            x,
+            y,
+            'summed spectra (scans %d-%d)' % (start, end)
+        )
+        xlfile.save()
     st.printend()
+    return x, y  # return if specified
 
 
 if __name__ == '__main__':
+    fn = input('Filename to sum: ')  # ask user for filename
+    startscan = input('Start scan (if no value is specified, default to 1): ')
+    if len(startscan) == 0:
+        startscan = None
+    endscan = input('End scan (if no value is specified, default to last): ')
+    if len(endscan) == 0:
+        endcan = None
     sumspectra(
-        'LY-2015-01-20 02',  # raw filename to use
-        start=None,  # start scan number
-        end=None,  # end scan number
+        # 'LY-2015-01-20 02',
+        fn,  # raw filename to use
+        start=startscan,  # start scan number
+        end=endscan,  # end scan number
+        save=True,  # save in an Excel workbook
     )

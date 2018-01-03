@@ -15,6 +15,9 @@ CHANGELOG:
 - updated to use Progress class
 - updated gaussian isotope pattern generator to automatically determine the appropriate decimal places
 ---2.9 INCOMPATIBLE WITH SPECTRUM v2.4 or older
+- moved charge application to raw isotope pattern function
+- fixed bug in validation function for charged molecules
+- added support for and enabled auto-saving of molecule instances (loading and saving to .mol files)
 IGNORE
 """
 
@@ -215,6 +218,8 @@ class Molecule(object):
             # the critical error at which the script warns regarding a potential mismatch (default 3 ppm)
             'keepall': False,
             # whether to keep all peaks calculated in the isotope pattern (otherwise drops below 0.0001
+            'precalculated': None,  # path to precalculated molecule pickle file (optional, this can be disabled by setting this to False)
+            'save': True,  # whether to save values
         }
         if set(kwargs.keys()) - set(self.kw.keys()):  # check for invalid keyword arguments
             string = ''
@@ -322,7 +327,7 @@ class Molecule(object):
         self.formula = self.sf
         return self.sf
 
-    def bar_isotope_pattern(self, rawip, charge, delta=0.5):
+    def bar_isotope_pattern(self, rawip, delta=0.5):
         """
         Converts a raw isotope pattern into a bar isotope pattern. This groups mass defects
         that are within a given difference from each other into a single *m/z* value and
@@ -332,9 +337,6 @@ class Molecule(object):
 
         rawip: *list*
             The raw isotope pattern of the class object.
-
-        charge: *integer*
-            The charge of the molecule.
 
         delta: *float*
             The *m/z* difference to check around a peak when grouping it into a single *m/z* value.
@@ -387,7 +389,7 @@ class Molecule(object):
             out[1].append(y)
         maxint = max(out[1])
         for ind, val in enumerate(out[1]):
-            out[0][ind] = out[0][ind] / abs(charge)
+            out[0][ind] = out[0][ind]  #/ abs(charge)
             out[1][ind] = val / maxint * 100.  # normalize to 100
         if self.kw['verbose'] is True:
             self.sys.stdout.write(' DONE\n')
@@ -488,6 +490,8 @@ class Molecule(object):
 
     def calculate(self):
         """This is a function which calls all the calculation functions in the class"""
+        if self.kw['precalculated'] is not False and self.load_from_pickle(self.kw['precalculated']) is True:
+            return None  # try to load from pickle
         self.sf = self.molecular_formula()  # generates a string version of the molecular formula
         self.mimass = self.monoisotopic_mass()  # monoisotopic mass
         self.fwhm = self.mimass / self.kw['res']  # calculate the full width at half max
@@ -498,11 +502,12 @@ class Molecule(object):
             self.rawip = self.isotope_pattern_multiplicative(self.comp)  # generates a raw isotope pattern (charge of 1)
         elif self.kw['ipmethod'] == 'hybrid':
             self.rawip = self.isotope_pattern(self.comp)
-        self.barip = self.bar_isotope_pattern(self.rawip, self.kw['charge'],
-                                              self.fwhm)  # bar isotope pattern based on the generated raw pattern
+        self.barip = self.bar_isotope_pattern(self.rawip, self.fwhm)  # bar isotope pattern based on the generated raw pattern
         self.em = self.estimated_exact_mass()
         self.sigma = self.standard_deviation(self.fwhm)
         self.error = self.validate_pattern(self.mw, self.rawip)
+        if self.kw['save'] is True:  # save if specified
+            self.save_to_pickle(self.kw['precalculated'])
         # self.gausip = self.gaussian_isotope_pattern(self.barip,self.em,res=self.kw['res']) # simulated normal distribution of the bar isotope pattern
         ## gausip is rarely used and is a bit more time consuming, so it now requires a specific call. If call is desired on generation, uncomment the above line
 
@@ -1081,6 +1086,8 @@ class Molecule(object):
                 if element not in self.md:  # if an isotope
                     ele, iso = self.isotope(element)  # determine element and isotope
                     spec.shiftx(self.md[ele][iso][0] * comp[element])  # shift the x values by the isotopic mass
+        if self.kw['charge'] > 1:  # if the magnitude of the charge is greater than 1 divide m/z values
+            spec.applycharge(self.kw['charge'])
         spec.normalize()  # normalize the spectrum object
         if self.kw['keepall'] is not False:
             spec.threshold(0.0001)  # drop very low intensity
@@ -1204,6 +1211,8 @@ class Molecule(object):
                 spec.shiftx(self.md[ele][iso][0])  # offset spectrum object by the mass of that
             if self.kw['verbose'] is True:
                 prog.fin(' ')
+        if self.kw['charge'] > 1:  # if the magnitude of the charge is greater than 1 divide m/z values
+            spec.applycharge(self.kw['charge'])
         spec.normalize()
         if self.kw['keepall'] is False:
             spec.threshold(0.0001)  # drop very low intensity
@@ -1211,6 +1220,46 @@ class Molecule(object):
         if self.kw['verbose'] is True:
             self.sys.stdout.write('DONE\n')
         return out
+
+    def load_from_pickle(self, customfile=None):
+        """loads data from pickle"""
+        # TODO specify hierachy and pull if better method than specified
+        import os
+        import pickle
+        if customfile is None:  # if no directory was specified, use current working directory
+            customfile = os.path.join(
+                os.getcwd(),
+                'molecules',
+                self.molecular_formula() + '.mol',
+            )
+        if os.path.isfile(customfile) is True:
+            if self.kw['ipmethod'] in ['multiplicative', ]:
+                key = 'multiplicative'
+            elif self.kw['ipmethod'] in ['combinatorics', ]:
+                key = 'combinatorics'
+            if self.kw['dropmethod'] is not None:
+                key += ' %s' % self.kw['dropmethod']
+            subkey = self.kw['decpl']  # decimal places
+            with open(customfile, 'rb') as targetfile:
+                incoming = pickle.load(targetfile)
+                if key in incoming and subkey in incoming[key]:
+                    items = incoming[key][subkey]
+                    strcharge = '%s%d' % (self.kw['sign'], self.kw['charge'])
+                    if items['charge'] == strcharge:  # if the charge combination matches
+                        print('Loading data from saved file %s' % customfile)
+                        self.barip = items['bar isotope pattern']
+                        self.rawip = items['raw isotope pattern']
+                        self.gausip = items['gaussian isotope pattern']
+                        self.mw = items['mw']
+                        self.mimass = items['monoisotopic mass']
+                        self.em = items['estimated exact mass']
+                        self.pcomp = items['percent composition']
+                        self.error = items['error']
+                        self.fwhm = items['full width at half max']
+                        self.sigma = items['standard deviation']
+                        self.sf = self.molecular_formula()
+                        return True
+        return False  # if the exact match was not found, False
 
     def molecular_formula(self):
         """
@@ -1338,7 +1387,7 @@ class Molecule(object):
         import pylab as pl
         try:
             pl.plot(self.gausip[0], self.gausip[1], linewidth=1)
-        except AttributeError:
+        except (AttributeError, TypeError):
             self.gausip = self.gaussian_isotope_pattern(self.rawip)
             pl.plot(self.gausip[0], self.gausip[1], linewidth=1)
         if exp is not None:  # plots experimental if supplied
@@ -1359,7 +1408,7 @@ class Molecule(object):
     def plot_raw_pattern(self):
         """plots and shows the raw isotope pattern (with mass defects preserved)"""
         import pylab as pl
-        pl.bar(self.rawip[0], self.rawip[1], width=0.0001)
+        pl.bar(self.rawip[0], self.rawip[1], width=self.fwhm)
         pl.xlabel('m/z', style='italic')
         pl.ylabel('normalized intensity')
         pl.ticklabel_format(useOffset=False)
@@ -1420,6 +1469,68 @@ class Molecule(object):
             for ind, val in enumerate(self.barip[0]):  # write data lines
                 outfile.write('%f, %f\n' % (val, self.barip[1][ind]))
             outfile.write('##END=\n')
+
+    def save_to_pickle(self, customdir=None):
+        """
+        Saves the molecule's properties to pickle
+        """
+        def buildout():
+            """retrieves items from self"""
+            nonlocal self
+            return {
+                'bar isotope pattern': self.barip,
+                'raw isotope pattern': self.rawip,
+                'gaussian isotope pattern': self.gausip if 'gausip' in self.__dict__ else None,
+                'mw': self.mw,
+                'monoisotopic mass': self.mimass,
+                'estimated exact mass': self.em,
+                # 'nominal mass': self.nominal_mass(),
+                'percent composition': self.pcomp,
+                'error': self.error,
+                'charge': '%s%d' % (self.kw['sign'], self.kw['charge']),
+                'full width at half max': self.fwhm,
+                'standard deviation': self.sigma,
+            }
+
+        import pickle
+        import os
+        if customdir is None:  # if no directory was specified, use current working directory
+            customdir = os.path.join(
+                os.getcwd(),
+                'molecules'
+            )
+        if os.path.isdir(customdir) is False:  # if directory does not exist
+            if input('The directory "%s" does not exist, create it? (Y/N) ' % customdir).lower() in ['y','yes']:
+                os.makedirs(customdir)
+            else:
+                print('Directory not created, data was not saved.')
+                return None
+
+        fp = os.path.join(
+            customdir,
+            self.molecular_formula() + '.mol',
+        )
+        if self.kw['ipmethod'] in ['multiplicative', ]:
+            key = 'multiplicative'
+        elif self.kw['ipmethod'] in ['combinatorics', ]:
+            key = 'combinatorics'
+        if self.kw['dropmethod'] is not None:
+            key += ' %s' % self.kw['dropmethod']
+        subkey = self.kw['decpl']  # decimal places
+        if os.path.isfile(fp):
+            with open(fp, 'r+b') as targetfile:
+                out = pickle.load(targetfile)  # load existing values
+                thisinstance = buildout()
+                if key in out and subkey in out[key]:
+                    if out[key][subkey] == thisinstance:  # if the output is equal to
+                        return None
+                    out[key][subkey] = buildout()
+                pickle.dump(out, targetfile)
+        with open(fp, 'wb') as targetfile:
+            pickle.dump(
+                {key: {subkey: buildout()}},
+                targetfile
+            )
 
     def standard_deviation(self, fwhm):
         """determines the standard deviation for a normal distribution with the full width at half max specified"""
@@ -1482,7 +1593,7 @@ class Molecule(object):
             self.sys.stdout.write('Estimated molecular weight from isotope pattern: ')
         self.pmw = 0  # pattern molecular weight
         for ind, mz in enumerate(pattern[0]):
-            self.pmw += mz * pattern[1][ind]
+            self.pmw += mz * pattern[1][ind] * self.kw['charge']
         self.pmw /= sum(pattern[1])
         if self.kw['verbose'] is True:
             self.sys.stdout.write('%f DONE\n' % (self.pmw))

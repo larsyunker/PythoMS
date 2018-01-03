@@ -14,6 +14,7 @@ CHANGELOG:
 - added kwargs calling (plot, verbose)
 - fixed pulling of existing data from excel file (I think)
 - moved prepformula calls to after mzml object is created
+- added support for standalone execution of the script (user input in console)
 
 ---27.6 incompatible with mzML v2.4 or greater
 
@@ -45,14 +46,14 @@ Column #4: start value (m/z or wavelength)
 Column #5: end value (m/z or wavelength)
 """
 
-# input *.raw filename
-filename = 'ND-04082014-HIYAMA.raw'
-
-# Excel file to read from and output to (in *.xlsx format)
-xlsx = 'ND-04082014-HIYAMA.xlsx'
-
-# set number of scans to sum (integer or list of integers)
-n = [3]
+# # input *.raw filename
+# filename = 'ND-04082014-HIYAMA.raw'
+#
+# # Excel file to read from and output to (in *.xlsx format)
+# xlsx = 'ND-04082014-HIYAMA.xlsx'
+#
+# # set number of scans to sum (integer or list of integers)
+# n = [3]
 
 import sys
 
@@ -437,6 +438,14 @@ def pyrsir(filename, xlsx, n, **kwargs):
 #             'The pyrsim function requires three inputs:\n- The raw filename\n- The excel parameters file\n- The number of scans to sum')
 
 if __name__ == '__main__':
+    curdir = input('Directory: ')  # cur
+    filename = input('Raw or mzML filename: ')  # input filename
+    xlsx = input('Excel file name: ')  # excel file name with summing parameters
+    try:
+        n = [int(i) for i in input('Scans to bin (separate multiple values with commas): ').split(',')]  # scans to bin
+    except ValueError:
+        print('Input value error, applying no binning')
+        n = [1]
     pyrsir(filename, xlsx, n)
     sys.stdout.write('fin.')
     sys.stdout.flush()

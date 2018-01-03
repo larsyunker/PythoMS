@@ -4,6 +4,9 @@
 # obo files (distributed in psi-ms-CV repository)
 *.obo
 
+# saved Molecule properties
+/molecules
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

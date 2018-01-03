@@ -20,6 +20,7 @@ CHANGELOG
 ---2.5---
 - added the ability to not provide start and end points for an unfilled spectrum
 ---2.6
+- added applycharge function to apply the charge to a mass list
 IGNORE
 """
 
@@ -402,6 +403,20 @@ class Spectrum(object):
         for ind, mz in enumerate(x):
             if y[ind] != self.filler:  # drops filler values at this point
                 self.addvalue(mz, y[ind], subtract)
+
+    def applycharge(self, charge):
+        """
+        Applies the charge to the x list of the spectrum object
+        (in mass spectrometry, the x values are mass over charge)
+        :param charge: integer
+        """
+        self.start /= charge
+        self.end /= charge
+        try:  # if numpy array, cheat
+            self.x /= charge
+        except TypeError:  # otherwise iterate over list
+            for ind, val in enumerate(self.x):
+                self.x[ind] = val / charge
 
     def checknone(self):
         """counts the number of not-None values in the current y list (for debugging)"""
