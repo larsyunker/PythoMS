@@ -268,7 +268,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
 
     mskeys = ['+', '-']
     for key in sp:
-        if sp[key]['formula'] is not None:  # if formula is specified
+        if 'formula' in sp[key] and sp[key]['formula'] is not None:  # if formula is specified
             sp[key]['mol'] = Molecule(sp[key]['formula'])  # create Molecule object
             sp[key]['bounds'] = sp[key]['mol'].bounds(
                 ks['bounds confidence'])  # generate bounds from molecule object with this confidence interval
@@ -345,7 +345,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
             if mode not in rtime:  # if rtime and tic have not been pulled from that function
                 rtime[mode] = mzml.functions[func]['timepoints']
                 tic[mode] = mzml.functions[func]['tic']
-            if sp[key]['formula'] is not None:
+            if 'formula' in sp[key] and sp[key]['formula'] is not None:
                 sp[key]['match'] = sp[key]['mol'].compare(sp[key]['spectrum'])
         if ks['sumspec'] is True:
             for fn in sumspec:

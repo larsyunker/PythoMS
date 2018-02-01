@@ -2,15 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="07ffb7a2-c811-4a08-a913-bfdbeb00c23f" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" afterPath="$PROJECT_DIR$/.gitignore" />
+      <change beforePath="$PROJECT_DIR$/.idea/PythoMS.iml" afterPath="$PROJECT_DIR$/.idea/PythoMS.iml" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" afterPath="$PROJECT_DIR$/.idea/misc.xml" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change beforePath="$PROJECT_DIR$/PyRSIR.py" afterPath="$PROJECT_DIR$/PyRSIR.py" />
-      <change beforePath="$PROJECT_DIR$/_classes/_Molecule.py" afterPath="$PROJECT_DIR$/_classes/_Molecule.py" />
-      <change beforePath="$PROJECT_DIR$/_classes/_Spectrum.py" afterPath="$PROJECT_DIR$/_classes/_Spectrum.py" />
-      <change beforePath="$PROJECT_DIR$/_classes/_mzML.py" afterPath="$PROJECT_DIR$/_classes/_mzML.py" />
-      <change beforePath="$PROJECT_DIR$/isotope pattern overlay.py" afterPath="$PROJECT_DIR$/isotope pattern overlay.py" />
-      <change beforePath="$PROJECT_DIR$/spectrum binner.py" afterPath="$PROJECT_DIR$/spectrum binner.py" />
-      <change beforePath="$PROJECT_DIR$/validation_files/pyrsir_validation.xlsx" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/video frame renderer.py" afterPath="$PROJECT_DIR$/video frame renderer.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -24,7 +20,7 @@
       <file leaf-file-name="_Molecule.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/_classes/_Molecule.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="323">
+            <state relative-caret-position="0">
               <caret line="19" column="100" lean-forward="false" selection-start-line="19" selection-start-column="100" selection-end-line="19" selection-end-column="100" />
               <folding>
                 <element signature="e#17650#22123#0" expanded="false" />
@@ -72,11 +68,35 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="PyRSIR.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="PyRSIR.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/PyRSIR.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="272">
-              <caret line="16" column="78" lean-forward="false" selection-start-line="16" selection-start-column="78" selection-end-line="16" selection-end-column="78" />
+            <state relative-caret-position="268">
+              <caret line="347" column="40" lean-forward="false" selection-start-line="347" selection-start-column="40" selection-end-line="347" selection-end-column="40" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="video frame renderer.py" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/video frame renderer.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="686">
+              <caret line="380" column="0" lean-forward="true" selection-start-line="380" selection-start-column="0" selection-end-line="380" selection-end-column="0" />
+              <folding>
+                <element signature="e#1560#1600#0" expanded="true" />
+                <element signature="e#4757#5222#0" expanded="false" />
+                <element signature="e#5245#6578#0" expanded="false" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="nmols calculator.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/nmols calculator.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="952">
+              <caret line="56" column="35" lean-forward="false" selection-start-line="56" selection-start-column="35" selection-end-line="56" selection-end-column="35" />
               <folding />
             </state>
           </provider>
@@ -116,6 +136,7 @@
       <find>.sigma</find>
       <find>self.rsimh</find>
       <find>msconvert</find>
+      <find>set_data</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -141,7 +162,6 @@
         <option value="$PROJECT_DIR$/nmols calculator.py" />
         <option value="$PROJECT_DIR$/PyRSIR - Copy.py" />
         <option value="$PROJECT_DIR$/tome_v02 - Copy.py" />
-        <option value="$PROJECT_DIR$/video frame renderer.py" />
         <option value="$PROJECT_DIR$/video frame renderer - Copy.py" />
         <option value="$PROJECT_DIR$/y-axis zoom figure - Copy.py" />
         <option value="$PROJECT_DIR$/isotope pattern overlay - Copy.py" />
@@ -161,13 +181,14 @@
         <option value="$PROJECT_DIR$/_classes/_Molecule.py" />
         <option value="$PROJECT_DIR$/_classes/_Spectrum.py" />
         <option value="$PROJECT_DIR$/PyRSIR.py" />
+        <option value="$PROJECT_DIR$/video frame renderer.py" />
       </list>
     </option>
   </component>
   <component name="ProjectFrameBounds">
-    <option name="x" value="-7" />
-    <option name="width" value="1734" />
-    <option name="height" value="1407" />
+    <option name="x" value="1712" />
+    <option name="width" value="1736" />
+    <option name="height" value="1408" />
   </component>
   <component name="ProjectInspectionProfilesVisibleTreeState">
     <entry key="Project Default">
@@ -355,15 +376,16 @@
     </history-entry>
   </component>
   <component name="ToolWindowManager">
-    <frame x="-7" y="0" width="1734" height="1407" extended-state="0" />
+    <frame x="1712" y="0" width="1736" height="1408" extended-state="0" />
     <editor active="true" />
     <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.14681605" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.14797136" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3294025" sideWeight="0.5023557" order="7" side_tool="true" content_ui="tabs" />
+      <window_info id="Documentation" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3293556" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" x="0" y="0" width="917" height="1898" />
       <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.27773407" sideWeight="0.49528858" order="2" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3296617" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.3296617" sideWeight="0.49764428" order="7" side_tool="false" content_ui="tabs" />
+      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.3294025" sideWeight="0.49764428" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.331761" sideWeight="0.49469966" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
@@ -371,7 +393,6 @@
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
       <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
       <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
-      <window_info id="Documentation" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32994652" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" x="0" y="0" width="917" height="1898" />
       <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
       <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="combo" />
       <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
@@ -388,13 +409,6 @@
     <watches-manager />
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/_classes/_mzML.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="36889">
-          <caret line="997" column="0" lean-forward="false" selection-start-line="997" selection-start-column="0" selection-end-line="997" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/_classes/_XLSX.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="12617">
@@ -634,13 +648,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/nmols calculator.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1445">
-          <caret line="56" column="35" lean-forward="true" selection-start-line="56" selection-start-column="35" selection-end-line="56" selection-end-column="35" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/PyRSIR - Copy.py" />
     <entry file="file://$PROJECT_DIR$/tome_v02 - Copy.py" />
     <entry file="file://$PROJECT_DIR$/video frame renderer - Copy.py" />
@@ -682,13 +689,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/video frame renderer.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="3672">
-          <caret line="249" column="43" lean-forward="false" selection-start-line="249" selection-start-column="43" selection-end-line="249" selection-end-column="43" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/msms interpreter assistant.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="748">
@@ -707,13 +707,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="578">
           <caret line="46" column="33" lean-forward="false" selection-start-line="46" selection-start-column="33" selection-end-line="46" selection-end-column="33" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/tome_v02.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="275">
-          <caret line="779" column="0" lean-forward="false" selection-start-line="779" selection-start-column="0" selection-end-line="779" selection-end-column="0" />
         </state>
       </provider>
     </entry>
@@ -743,7 +736,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/_classes/_Molecule.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="323">
+        <state relative-caret-position="0">
           <caret line="19" column="100" lean-forward="false" selection-start-line="19" selection-start-column="100" selection-end-line="19" selection-end-column="100" />
           <folding>
             <element signature="e#17650#22123#0" expanded="false" />
@@ -788,11 +781,47 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/nmols calculator.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="952">
+          <caret line="56" column="35" lean-forward="false" selection-start-line="56" selection-start-column="35" selection-end-line="56" selection-end-column="35" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/tome_v02.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="276">
+          <caret line="178" column="4" lean-forward="false" selection-start-line="178" selection-start-column="4" selection-end-line="178" selection-end-column="4" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/PyRSIR.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="272">
-          <caret line="16" column="78" lean-forward="false" selection-start-line="16" selection-start-column="78" selection-end-line="16" selection-end-column="78" />
+        <state relative-caret-position="268">
+          <caret line="347" column="40" lean-forward="false" selection-start-line="347" selection-start-column="40" selection-end-line="347" selection-end-column="40" />
           <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://C:/Python/Python36/Lib/site-packages/matplotlib/animation.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="607">
+          <caret line="1813" column="0" lean-forward="false" selection-start-line="1813" selection-start-column="0" selection-end-line="1813" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/video frame renderer.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="686">
+          <caret line="380" column="0" lean-forward="true" selection-start-line="380" selection-start-column="0" selection-end-line="380" selection-end-column="0" />
+          <folding>
+            <element signature="e#1560#1600#0" expanded="true" />
+            <element signature="e#4757#5222#0" expanded="false" />
+            <element signature="e#5245#6578#0" expanded="false" />
+          </folding>
         </state>
       </provider>
     </entry>
