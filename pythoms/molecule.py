@@ -507,15 +507,18 @@ def hybrid_isotope_pattern(
         ))
     sortlist = sorted(sortlist)  # sorted list of elements based on the length of their isotope patterns
     sortlist.reverse()
-
     if verbose is True:
-        prog = Progress(percent=False, fraction=False)
+        prog = Progress(
+            last=len(sortlist) - 1,
+            percent=False,
+            fraction=False,
+        )
 
     spec = None
     for lenlist, element in sortlist:
         if verbose is True:
             prog.string = f'Adding element {element} to isotope pattern'
-            prog.write()
+            prog.write(1)
         if spec is None:
             spec = Spectrum(
                 autodec(fwhm),  # decimal places
@@ -895,6 +898,7 @@ class Molecule(object):
         # split charge into value and sign
         self.charge, self.sign = interpret_charge(charge)
         self.mass_key = mass_key  # store mass dictionary that the script will use
+        self.verbose = verbose
         if type(string) == dict:  # if a composition dictionary was provided
             self.composition = string
         elif type(string) == str:  # set string and interpret formula
