@@ -4,6 +4,8 @@
 # obo files (distributed in psi-ms-CV repository)
 *.obo
 
+.idea
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
