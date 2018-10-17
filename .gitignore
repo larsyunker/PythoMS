@@ -2,6 +2,9 @@
 *.txt
 *.mol
 
+# PyCharm stuff
+.idea
+
 # obo files (distributed in psi-ms-CV repository)
 *.obo
 
