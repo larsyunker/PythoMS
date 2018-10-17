@@ -1,9 +1,8 @@
-# txt files
-*.txt
 *.mol
 
 # PyCharm stuff
 .idea
+/.idea
 
 # obo files (distributed in psi-ms-CV repository)
 *.obo
