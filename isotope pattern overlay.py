@@ -1,3 +1,8 @@
+import sys, os
+from pythoms.xlsx import XLSX
+from pythoms.tome import plotms
+from pythoms.mzml import mzML
+
 """
   isotope pattern check program v011 beta (dependant on tome)
   overlays a supplied predicted isotope pattern onto an acquired spectrum
@@ -17,7 +22,7 @@ spectrum = 'LY-2014-06-12 14.mzML.gz'
 skiplines = 0
 
 # sheet name in the excel file (if this is not specified, the script will use the first sheet in the file)
-# sheetname = 'JW-RH-08-203 +'
+sheetname = None
 
 # provide species to be simulated in dictionary format
 # 'molecular formula':{'colour': ... ,'alpha':0-1}
@@ -217,31 +222,23 @@ def presets(typ):
 
 
 if __name__ == '__main__':
-    import sys, os
-    from PythoMS._classes._XLSX import XLSX
-    from tome_v02 import plotms
-
     os.chdir(curdir)  # change to current working directory
 
     keywords = presets(setting)  # pull preset kwargs
 
     if spectrum.lower().endswith('.mzml.gz') or spectrum.lower().endswith('.raw'):  # if supplied with a mass spec file
-        from PythoMS._classes._mzML import mzML
-
         mzml = mzML(spectrum, verbose=False)
         exp = mzml.sum_scans()
         keywords.update({'outname': mzml.filename.split('.')[0]})  # set default output filename
 
     else:  # otherwise assume that it is an excel file
-        from PythoMS._classes._XLSX import XLSX
-
         xlfile = XLSX(spectrum, verbose=True)  # load excel file
-        try:  # if sheet name was specified
-            sname = sheetname
-        except NameError:  # otherwise use the first sheet
-            sname = xlfile.wb.get_sheet_names()[0]
-        exp = xlfile.pullspectrum(sname, skiplines=skiplines)[0]  # load spectrum from first sheet in workbook
-        keywords.update({'outname': xlfile.bookname[:-5] + ' (' + sname + ')'})  # set default output filename
+        if sheetname is None:  # otherwise use the first sheet
+            sheetname = xlfile.wb.get_sheet_names()[0]
+        exp = xlfile.pullspectrum(sheetname, skiplines=skiplines)[0]  # load spectrum from first sheet in workbook
+        keywords.update({  # set default output filename
+            'outname': f'{xlfile.bookname[:-5]} ({sheetname})',
+        })
 
     keywords.update(override)  # apply any user overrides
     plotms(exp, simdict, **keywords)

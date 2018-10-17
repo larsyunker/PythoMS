@@ -15,9 +15,9 @@ def sumspectra(filename, start=None, end=None, save=True):
     :param save: whether to save into an excel document (if a string is provided, that filename will be used)
     :return: paired x, summed y lists
     """
-    from PythoMS._classes._mzML import mzML
-    from PythoMS._classes._XLSX import XLSX
-    from PythoMS._classes._ScriptTime import ScriptTime
+    from pythoms.classes import mzML
+    from pythoms.xlsx import XLSX
+    from pythoms.classes import ScriptTime
 
     st = ScriptTime()
     st.printstart()

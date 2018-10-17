@@ -1,4 +1,4 @@
-from PythoMS._classes._Molecule import Molecule
+from pythoms.classes import Molecule
 
 kwargs = {
     'dropmethod': 'threshold'

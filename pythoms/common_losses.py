@@ -2,6 +2,7 @@
 A common loss dictionary for use with msms interpreter assistant
 values are stored with 5 decimal places, but are returned with n decimal places
 """
+
 stored_dec = 5  # number of decimal places stored in the following dictionary
 losses = {  # dictionary of common losses and their probable assignments
     14.003074: 'N',

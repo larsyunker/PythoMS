@@ -1,12 +1,10 @@
-import sys
 import matplotlib
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 from scipy import *
 
-from _classes._mzML import mzML
-from _classes._Spectrum import Spectrum
-from tome_v02 import binnspectra,bincidspectra,version_input
+from pythoms.classes import mzML
+from pythoms.tome import binnspectra,bincidspectra,version_input
 
 """
 for use with EDESI pulling

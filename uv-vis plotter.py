@@ -35,9 +35,9 @@ override = {
 }
 
 if __name__ == '__main__':
-    from PythoMS._classes._mzML import mzML
+    from pythoms.classes import mzML
     from scipy import arange
-    from tome_v02 import locateinlist, plotuv
+    from pythoms.tome import locateinlist, plotuv
 
     mzml = mzML(filename, ftt=True)  # initiate mzml object
     fn = mzml.associate_to_function('UV')  # determine which function contains UV-Vis data

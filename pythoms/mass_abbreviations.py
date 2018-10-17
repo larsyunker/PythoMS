@@ -1,9 +1,11 @@
 """
 Dictionary of common abbreviations used in chemical formulas
 A new 'element' is triggered by an upper case letter in the MolecularFormula class
-Additional entries can be added by using a unique trigger starting with an upper case letter and followed by lower case letters
+Additional entries can be added by using a unique trigger starting with an upper case letter and followed by lower case
+letters.
 Each new entry should be a dictionary giving the molecular formula
 """
+
 abbrvs = {
     # common chemical abbreviations
     'Ac': {'C': 2, 'H': 3, 'O': 1},  # acetyl
@@ -54,28 +56,4 @@ abbrvs = {
     'Trp': {'C': 11, 'H': 10, 'N': 2, 'O': 1},  # tryptophan
     'Tyr': {'C': 9, 'H': 9, 'N': 1, 'O': 2},  # tryosine
     'Val': {'C': 5, 'H': 9, 'N': 1, 'O': 1},  # valine
-}
-
-# use of the aminoacids dictionary is not recommended (some duplicates of element symbols which will lead with unexpected behaviour)
-aminoacids = {  # dictionary for converting one letter amino acid codes to three letter codes used by the Molecule class
-    'A': 'Ala',
-    'C': 'Cys',
-    'D': 'Asp',
-    'E': 'Glu',
-    'F': 'Phe',
-    'G': 'Gly',
-    'H': 'His',
-    'I': 'Ile',
-    'K': 'Lys',
-    'L': 'Leu',
-    'M': 'Met',
-    'N': 'Asn',
-    'P': 'Pro',
-    'Q': 'Gln',
-    'S': 'Ser',
-    'T': 'Thr',
-    'R': 'Arg',
-    'V': 'Val',
-    'W': 'Trp',
-    'Y': 'Tyr'
 }

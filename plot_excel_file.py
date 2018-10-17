@@ -27,8 +27,8 @@ spectype = 'continuum'
 # there is no need to modify the rest of the script
 if __name__ == '__main__':
     import sys
-    from _classes._XLSX import XLSX
-    from tome_v02 import normalize, plotms
+    from pythoms.xlsx import XLSX
+    from pythoms.tome import normalize, plotms
 
     xlfile = XLSX(filename)  # load excel file
 

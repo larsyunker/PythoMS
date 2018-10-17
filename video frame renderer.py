@@ -31,8 +31,8 @@ to add:
 """
 import matplotlib.animation as animation
 from PyRSIR import pyrsir
-from PythoMS.tome_v02 import bindata, binnspectra
-from PythoMS._classes._Colour import Colour
+from pythoms.tome import bindata, binnspectra
+from pythoms.classes import Colour
 from bisect import bisect_left, bisect_right
 import pylab as pl
 import sys

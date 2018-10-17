@@ -244,12 +244,12 @@ def pyrsir(filename, xlsx, n, **kwargs):
         raise KeyError('Unsupported keyword argument(s): %s' % string)
     ks.update(kwargs)  # update defaults with provided keyword arguments
 
-    from PythoMS.tome_v02 import bindata
-    from PythoMS._classes._ScriptTime import ScriptTime
-    from PythoMS._classes._mzML import mzML
-    from PythoMS._classes._Spectrum import Spectrum
-    from PythoMS._classes._Molecule import Molecule
-    from PythoMS._classes._XLSX import XLSX
+    from pythoms.tome import bindata
+    from pythoms.classes import ScriptTime
+    from pythoms.classes import mzML
+    from pythoms.classes import Spectrum
+    from pythoms.classes import Molecule
+    from pythoms.xlsx import XLSX
 
     if ks['verbose'] is True:
         stime = ScriptTime()
