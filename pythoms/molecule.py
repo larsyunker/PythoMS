@@ -1412,8 +1412,6 @@ class IPMolecule(Molecule):
             verbose=verbose,
         )
 
-        if self.verbose is True:
-            self.print_details()
         if save is True:
             self.save_to_jcamp()
 
