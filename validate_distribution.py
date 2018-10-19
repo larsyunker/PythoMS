@@ -2,6 +2,7 @@
 a script for validating the functionality of the commonly used scripts
 """
 import os
+from pythoms.molecule import Molecule
 cwd = os.getcwd()
 
 
@@ -30,7 +31,6 @@ def test_pyrsir():
 
 def test_molecule():
     sys.stdout.write('Testing Molecule class...')
-    from pythoms.classes import Molecule
     mol1 = Molecule('L2PdAr+I',
                     # decpl=4,
                     # dropmethod='consolidate',
