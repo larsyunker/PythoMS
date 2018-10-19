@@ -1,3 +1,15 @@
+# molecule module
+
+The `molecule` module contains two primary classes: `Molecule` and
+`IPMolecul`. These are classes which automatically calculate a variety
+of molecular properties of provided molecular formulae. The `Molecule`
+class provides has an interpreter for converting a string formula to
+a molecular formula, and provides access to basic attributes such as
+molecular weight. The `IPMolecule` class contains tools for automatically
+generating predicted isotope patterns for the molecular formula, and
+has attributes for estimated exact mass, nominal mass, error of the
+formula, as well as some tools for comparing or plotting patterns.
+
 # Molecule Class
 
 The `Molecule` class was created to allow the user to access molecular
@@ -132,7 +144,14 @@ attributes such as estimated exact mass, patterns, and error.
 ## Stored isotope patterns
 
 There are three isotope patterns stored within each `IPMolecule`
-instance: raw, bar, and gaussian.
+instance: raw, bar, and gaussian. When accessed, these patterns
+are returned as a paired list of x and y values (`[[x1, x2, ...], [y1, y2, ...]]`).
+The user may then further process or manipulate the lists in any way
+they see fit.
+
+```
+>>> mz_vals, intensity_vals = mol.bar_isotope_pattern
+```
 
 ### `raw_isotope_pattern`
 
@@ -278,4 +297,20 @@ If no adjacent peaks are found, the intensity is dropped from the spectrum.
 
 ### Recommendations
 
-Should the user encounter situations where large molecules are
+Should the user encounter situations where the isotope pattern of large
+or isotopically-complicated molecules need to be calculated, one will
+need to weigh the tradeoff between computational speed or accuracy.
+This will largely depend on the resolution of the instrument on which
+the experimental spectrum was run, with high-resolution instruments
+requiring rigorous pattern calculation, and lower-resolution instruments
+requiring only a rough estimate of the pattern. The user will also want
+to consider whether they need to evaluate the pattern qualitatively or
+more precisely.
+
+## Plotting
+
+There are basic plotting methods provided within the `IPMolecule` class
+for all three patterns so the user will be able to visually evaluate the
+pattern that was generated. Should the user wish to create an isotope
+pattern overlay figure, the `isotope pattern overlay.py` file contains a
+script for this purpose.
