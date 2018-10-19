@@ -135,6 +135,7 @@ class CVParam(object):
     _obsolete = False
     _relationship = []
     _property_value = None
+    _name = None
 
     def __init__(self,
                  id: str = None,
@@ -166,7 +167,7 @@ class CVParam(object):
         """
         # store values
         self.id = id
-        self.name = name
+        self._name = name
         self._definition = definition
         self._xref = xref
         self._comment = comment
@@ -192,6 +193,10 @@ class CVParam(object):
         elif cv_param_def is not None:
             return getattr(cv_param_def[self.id], item)
         return None
+
+    @property
+    def name(self):
+        return self._get_value_or_default('_name')
 
     @property
     def value(self):
