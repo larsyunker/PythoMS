@@ -564,7 +564,7 @@ def estimated_exact_mass(
 
 
 # TODO change simdict to be nonmutable
-def plotms(realspec, simdict={}, **kwargs):
+def plot_mass_spectrum(realspec, simdict={}, **kwargs):
     """
     Plots and saves a publication quality mass spectrum with optional overlaid isotope patterns
 
