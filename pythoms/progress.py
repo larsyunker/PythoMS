@@ -112,11 +112,11 @@ class Progress(object):
         self.current = current  # saves the current state
         string = f'{self.string}'  # begin the string
         if self.fraction is True:
-            string += f' #{current-self.first+1}/{self.last-self.first+1}'
+            string += f' #{current - self.first + 1}/{self.last - self.first + 1}'
         if self.rng is True:
             string += f' ({self.first}-{self.last})'
         if self.percent is True:
-            string += f' {self.perc}%%'
+            string += f' {self.perc}%'
         if self.hash is True:
             string += self.hashes()
         # create space filler if output has somehow shrunk below the length of the previous output
