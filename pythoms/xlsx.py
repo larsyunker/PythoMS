@@ -1,76 +1,35 @@
 """
 Class for opening and handling excel files with commonly used data formats
-IGNORE:
-CHANGELOG:
-- converted several arguments in writemultispectrum to keyword arguments
----1.5
-IGNORE
 """
-
+import sys
+import openpyxl as op
+import pandas as pd
 
 class XLSX(object):
-    def __init__(self, bookname, **kwargs):
+    def __init__(self,
+                 bookname,
+                 verbose=False,
+                 create=False,
+                 ):
         """
-        A class for interacting with *.xlsx (Microsoft Excel) files.
-        This class requires the modules: **openpyxl** and **lxml** to function.
+        A class for interacting with *xlsx (Microsoft Excel) files. This class requires the openpyxl package to
+        function.
 
+        :param str bookname: The name of the *xlsx file to load. The file extension is optional and the input is not
+        case sensitive.
 
-        **Parameters**
-
-        bookname: *string*
-            The name of the *.xlsx file to load from the current working
-            directory. The file extension is optional and the input is
-            not case sensitive.
-            e.g. if ``'book1'`` is supplied, the script will attempt to
-            load ``'book1.xlsx'``.
-
-
-        **Notes**
-
-        The methods in this class are all openpyxl commands. This class exists
-        to contain common code blocks used in mass-spec-python-tools. It also
-        has a more forgiving I/O, handling common user errors without further
-        input.
-
-        **\*\*kwargs**
-
-        create: False
-            Whether or not to create the specified workbook if it cannot be
-            located in the current working directory. Options: bool.
-
-        verbose: True
-            Chatty mode.
+        :param bool verbose: Chatty mode.
+        :param bool create: Whether to create the specified workbook if it cannot be located.
 
         **Examples**
 
-        Loading a workbook into memory.
-
-        ::
-
-            >>> xlfile = XLSX('book1')
-            Loading workbook "book1.xlsx" into memory DONE
-            >>> xlfile
-            XLSX('book1.xlsx')
-
-
+        >>> xlfile = XLSX('book1')
+        Loading workbook "book1.xlsx" into memory DONE
+        >>> xlfile
+        XLSX('book1.xlsx')
         """
-        self.ks = {  # default keyword arguments
-            'verbose': True,  # toggle verbose
-            'create': False,  # create new workbook if supplied name is not found in directory
-        }
-        if set(kwargs.keys()) - set(self.ks.keys()):  # check for invalid keyword arguments
-            string = ''
-            for i in set(kwargs.keys()) - set(self.ks.keys()):
-                string += str(i)
-            raise KeyError('Unsupported keyword argument(s): %s' % string)
-        self.ks.update(kwargs)  # update defaules with provided keyword arguments
-
-        if self.ks['verbose'] is True:
-            self.sys = __import__('sys')
-        self.loadop()  # check that lxml is present and load openpyxl
-        self.wb, self.bookname = self.loadwb(bookname)
-        import string
-        self.alphabet = [x.upper() for x in list(string.ascii_lowercase)]  # import alphabet list as uppercase
+        self.verbose = verbose
+        self.wb, self.bookname = self.loadwb(bookname, create)
 
     def __str__(self):
         return 'Loaded excel file "%s"' % self.bookname
@@ -78,15 +37,34 @@ class XLSX(object):
     def __repr__(self):
         return "%s('%s')" % (self.__class__.__name__, self.bookname)
 
+    def add_cell(self, sheet, cellname, value, save=True):
+        """
+        Adds a value to the specified cell.
+
+        :param str sheet: sheet name
+        :param str cellname: cell name
+        :param value: the valuve to inset
+        :param bool save: whether to save after writing (default True)
+        """
+        if sheet in self.wb.sheetnames:  # check if sheet already present
+            cs = self.get_sheet(sheet)
+            cs[cellname] = value
+        else:  # if not present, create
+            cs = self.wb.create_sheet()
+            cs.title = sheet
+            cs[cellname] = value
+        if save is True:  # if saving is desired
+            self.save()
+
     def add_line(self, sheet, *values, save=True):
         """
         Adds the specified values to the next available line in the specified sheet
 
-        :param sheet: sheet name
+        :param str sheet: sheet name
         :param values:  values to insert
-        :param save: whether to save after writing (default True)
+        :param bool save: whether to save after writing (default True)
         """
-        if sheet in self.wb.get_sheet_names():  # check if sheet already present
+        if sheet in self.wb.sheetnames:  # check if sheet already present
             cs = self.get_sheet(sheet)
             nlines = cs.max_row
             for ind, val in enumerate(values):  # for each of the specified values
@@ -105,64 +83,43 @@ class XLSX(object):
         if save is True:  # if saving is desired
             self.save()
 
-    def cellname_to_inds(self, cellname):
+    def add_column(self, sheet, *values, save=True):
         """
-        Takes an excel cell name and converts it into pythonic indicies.
+        Adds the specified values to the next available column in the specified sheet.
 
-        **Parameters**
-
-        cellname: *string*
-            The alphanumeric excel cell name coordinates.
-
-
-        **Returns**
-
-        column: *integer*
-            The column index with 0 being the start of the indicies.
-
-        row: *integer*
-            The row index with 0 being the start of the indicies.
-
-
-        **Examples**
-
-        ::
-
-            >>> XLSX.cellname_to_inds('R57')
-            (56, 18)
-            >>> XLSX.cellname_to_inds('AH58793')
-            (58792, 34)
-            >>> XLSX.cellname_to_inds('PYTHON1973')
-            (1972, 201883748)
-            >>> XLSX.inds_to_cellname(1972, 201883748)
-            'PYTHON1973'
-
-        **Notes**
-
-        Based on http://stackoverflow.com/questions/7261936/convert-an-excel-or-spreadsheet-column-letter-to-its-number-in-pythonic-fashion
+        :param str sheet: sheet name
+        :param values:  values to insert
+        :param bool save: whether to save after writing (default True)
         """
-        if 'string' not in self.__dict__:
-            self.string = __import__('string')
-        alpha = ''
-        numeric = ''
-        for x in cellname:  # split into alpha and numeric segments
-            if x.isalpha():
-                alpha += x
-            elif x.isdigit():
-                numeric += x
-            else:
-                pass  # ignores special characters (e.g. $)
-                # raise ValueError('An unexpected character was encountered in the row and column address provided: %s' %str(x))
-        num = 0
-        for c in alpha:
-            if c in self.string.ascii_letters:
-                num = num * 26 + (ord(c.upper()) - ord('A')) + 1
-        return int(numeric) - 1, num
+        if sheet in self.wb.sheetnames:  # check if sheet already present
+            cs = self.get_sheet(sheet)
+            ncols = cs.max_column
+            for ind, val in enumerate(values):  # for each of the specified values
+                cs.cell(
+                    row=ind + 1,
+                    column=ncols + 1,
+                ).value = val
+        else:  # if not present, create
+            cs = self.wb.create_sheet()
+            cs.title = sheet
+            for ind, val in enumerate(values):  # fill first row with values
+                cs.cell(
+                    row=ind + 1,
+                    column=1,
+                ).value = val
+        if save is True:  # if saving is desired
+            self.save()
 
     def checkduplicatesheet(self, sheet):
-        """checks for duplicate sheets in the workbook and creates a unique name"""
+        """
+        checks for duplicate sheets in the workbook and creates a unique name
+
+        :param sheet: desired sheet name
+        :return: unique sheet name
+        :rtype: str
+        """
         i = 1
-        while sheet + ' (%s)' % str(i) in self.wb.get_sheet_names():
+        while sheet + ' (%s)' % str(i) in self.wb.sheetnames:
             i += 1
         return sheet + ' (%s)' % str(i)
 
@@ -295,43 +252,43 @@ class XLSX(object):
     def get_sheet(self, sheetname):
         """tries to retrieve the specified sheet name, otherwise returns None"""
         try:
-            return self.wb.get_sheet_by_name(sheetname)
+            return self.wb[sheetname]
         except KeyError:
             return None
 
-    def loadwb(self, bookname):
+    def loadwb(self, bookname, create=False):
         """loads specified workbook into class"""
-        if self.ks['verbose'] is True:
-            self.sys.stdout.write('\rLoading workbook "%s" into memory' % bookname)
+        if self.verbose is True:
+            sys.stdout.write('\rLoading workbook "%s" into memory' % bookname)
         try:
-            wb = self.op.load_workbook(bookname)  # try loading specified excel workbook
+            wb = op.load_workbook(bookname)  # try loading specified excel workbook
         except IOError:
             bookname = self.correctextension(bookname)  # attempts to correct the extension of the provided workbook
-            if self.ks['verbose'] is True:
-                self.sys.stdout.write('\rLoading workbook "%s" into memory' % bookname)
+            if self.verbose is True:
+                sys.stdout.write('\rLoading workbook "%s" into memory' % bookname)
             try:
-                wb = self.op.load_workbook(bookname)
+                wb = op.load_workbook(bookname)
             except IOError:
-                if self.ks['verbose'] is True:
-                    self.sys.stdout.write(' FAIL\n')
-                if self.ks['create'] is True:
+                if self.verbose is True:
+                    sys.stdout.write(' FAIL\n')
+                if create is True:
                     """
                     Due to write-only mode, creating and using that book breaks the cell calls
                     The workbook is therefore created, saved, and reloaded
                     The remove sheet call is to remove the default sheet
                     """
-                    if self.ks['verbose'] is True:
-                        self.sys.stdout.write('Creating workbook "%s" and loading it into memory' % bookname)
+                    if self.verbose is True:
+                        sys.stdout.write('Creating workbook "%s" and loading it into memory' % bookname)
                     # wb = self.op.Workbook(bookname,write_only=False) # create workbook
-                    wb = self.op.Workbook(bookname)  # create workbook
+                    wb = op.Workbook(bookname)  # create workbook
                     wb.save(bookname)  # save it
-                    wb = self.op.load_workbook(bookname)  # load it
-                    wb.remove_sheet(wb.worksheets[0])  # remove the old "Sheet"
+                    wb = op.load_workbook(bookname)  # load it
+                    wb.remove(wb.worksheets[0])  # remove the old "Sheet"
                 else:
                     raise IOError(
                         '\nThe excel file "%s" could not be found in the current working directory.' % (bookname))
-        if self.ks['verbose'] is True:
-            self.sys.stdout.write(' DONE\n')
+        if self.verbose is True:
+            sys.stdout.write(' DONE\n')
         return wb, bookname
 
     def pullmultispectrum(self, sheetname):
@@ -767,9 +724,9 @@ class XLSX(object):
         """
         if type(delete) is str:  # if a single string is provided
             delete = [delete]
-        for sheet in self.wb.get_sheet_names():  # clears sheets that will contain new peak information
+        for sheet in self.wb.sheetnames:  # clears sheets that will contain new peak information
             if sheet in delete:
-                dels = self.wb.get_sheet_by_name(sheet)
+                dels = self.wb[sheet]
                 self.wb.remove_sheet(dels)
 
     def save(self, outname=None):
@@ -785,7 +742,6 @@ class XLSX(object):
 
 
         """
-
         def version_input(string):
             """checks the python version and uses the appropriate version of user input"""
             import sys
