@@ -32,7 +32,7 @@ to add:
 import matplotlib.animation as animation
 from PyRSIR import pyrsir
 from pythoms.tome import bindata, binnspectra
-from pythoms.classes import Colour
+from pythoms.colour import Colour
 from bisect import bisect_left, bisect_right
 import pylab as pl
 import sys

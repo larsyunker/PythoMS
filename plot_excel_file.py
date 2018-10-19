@@ -8,6 +8,11 @@ new:
     now uses plotms
     ---1.1---
 """
+
+import sys
+from pythoms.xlsx import XLSX
+from pythoms.tome import normalize, plot_mass_spectrum
+
 # start m/z for the spectrum
 startmz = 50
 
@@ -26,10 +31,6 @@ spectype = 'continuum'
 #########################################################################################
 # there is no need to modify the rest of the script
 if __name__ == '__main__':
-    import sys
-    from pythoms.xlsx import XLSX
-    from pythoms.tome import normalize, plotms
-
     xlfile = XLSX(filename)  # load excel file
 
     for sheet in xlfile.wb.get_sheet_names():  # for each sheet
@@ -38,7 +39,14 @@ if __name__ == '__main__':
         spec = xlfile.pullspectrum(sheet, 8)[0]  # pull spectrum
         spec[1] = normalize(spec[1], 100.)  # normalize to 100
         outname = filename + ' - ' + sheet + ' (' + str(startmz) + '-' + str(endmz) + ')'
-        plotms(spec, outname=outname, spectype=spectype, mz=[startmz, endmz], padding=[0.1, 0.95, 0.13, 0.96],
-               verbose=False, speccolour=colour)
+        plot_mass_spectrum(
+            spec,
+            outname=outname,
+            spectype=spectype,
+            mz=[startmz, endmz],
+            padding=[0.1, 0.95, 0.13, 0.96],
+            verbose=False,
+            speccolour=colour
+        )
         sys.stdout.write(' DONE\n')
     sys.stdout.write('fin.\n')

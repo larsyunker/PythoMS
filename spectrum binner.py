@@ -4,6 +4,10 @@ CHANGELOG:
     ---4.2
 """
 
+from pythoms.mzml import mzML
+from pythoms.xlsx import XLSX
+from pythoms.scripttime import ScriptTime
+
 
 def sumspectra(filename, start=None, end=None, save=True):
     """
@@ -15,9 +19,6 @@ def sumspectra(filename, start=None, end=None, save=True):
     :param save: whether to save into an excel document (if a string is provided, that filename will be used)
     :return: paired x, summed y lists
     """
-    from pythoms.classes import mzML
-    from pythoms.xlsx import XLSX
-    from pythoms.classes import ScriptTime
 
     st = ScriptTime()
     st.printstart()

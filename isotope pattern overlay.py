@@ -1,6 +1,7 @@
-import sys, os
+import sys
+import os
 from pythoms.xlsx import XLSX
-from pythoms.tome import plotms
+from pythoms.tome import plot_mass_spectrum
 from pythoms.mzml import mzML
 
 """
@@ -241,7 +242,7 @@ if __name__ == '__main__':
         })
 
     keywords.update(override)  # apply any user overrides
-    plotms(exp, simdict, **keywords)
+    plot_mass_spectrum(exp, simdict, **keywords)
     import gc
 
     gc.collect()

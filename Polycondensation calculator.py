@@ -1,4 +1,4 @@
-from pythoms.classes import Molecule
+from pythoms.molecule import IPMolecule
 
 kwargs = {
     'dropmethod': 'threshold'
@@ -15,14 +15,14 @@ print(Ar)
 print('aromatic units')
 print('n\tmass')
 for i in range(1, n):
-    print('%d\t%.2f' % (i, Molecule(Ar + (arunit * i) + X, **kwargs).em))
+    print('%d\t%.2f' % (i, IPMolecule(Ar + (arunit * i) + X, **kwargs).estimated_exact_mass))
 
 print('\nPd units')
 print('n\tmass')
 for i in range(1, n):
-    print('%d\t%.2f' % (i, Molecule('L2Pd' + Ar + (arunit * i) + X, **kwargs).em))
+    print('%d\t%.2f' % (i, IPMolecule('L2Pd' + Ar + (arunit * i) + X, **kwargs).estimated_exact_mass))
 
 print('\ncapped')
 print('n\tmass')
 for i in range(0, n + 3):
-    print('%d\t%.2f' % (i, Molecule(cap + Ar + (arunit * i), **kwargs).em))
+    print('%d\t%.2f' % (i, IPMolecule(cap + Ar + (arunit * i), **kwargs).estimated_exact_mass))

@@ -56,6 +56,14 @@ Column #5: end value (m/z or wavelength)
 # n = [3]
 
 import sys
+import pylab as pl
+
+from pythoms.tome import bindata
+from pythoms.scripttime import ScriptTime
+from pythoms.mzml import mzML
+from pythoms.spectrum import Spectrum
+from pythoms.molecule import Molecule
+from pythoms.xlsx import XLSX
 
 
 def pyrsir(filename, xlsx, n, **kwargs):
@@ -66,7 +74,6 @@ def pyrsir(filename, xlsx, n, **kwargs):
         A integer value that is non-negative is required for the summing function.
         Please check your input value. 
         """
-        import sys
         if type(val) != list and type(val) != tuple:  # if only one value given for n
             val = [val]
         for num in val:
@@ -82,7 +89,6 @@ def pyrsir(filename, xlsx, n, **kwargs):
         Outputs all MS species with the same sum level onto the same plot
         requirements: pylab as pl
         """
-        import pylab as pl
         pl.clf()  # clears and closes old figure (if still open)
         pl.close()
         nplots = len(n) + 1
@@ -243,13 +249,6 @@ def pyrsir(filename, xlsx, n, **kwargs):
             string += ' %s' % i
         raise KeyError('Unsupported keyword argument(s): %s' % string)
     ks.update(kwargs)  # update defaults with provided keyword arguments
-
-    from pythoms.tome import bindata
-    from pythoms.classes import ScriptTime
-    from pythoms.classes import mzML
-    from pythoms.classes import Spectrum
-    from pythoms.classes import Molecule
-    from pythoms.xlsx import XLSX
 
     if ks['verbose'] is True:
         stime = ScriptTime()

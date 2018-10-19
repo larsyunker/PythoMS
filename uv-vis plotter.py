@@ -12,6 +12,10 @@ to do:
     
 """
 
+from pythoms.mzml import mzML
+from scipy import arange
+from pythoms.tome import locate_in_list, plotuv
+
 # specify mzml file to extract from
 filename = 'BTM-42 UVVis'
 
@@ -35,24 +39,20 @@ override = {
 }
 
 if __name__ == '__main__':
-    from pythoms.classes import mzML
-    from scipy import arange
-    from pythoms.tome import locateinlist, plotuv
-
     mzml = mzML(filename, ftt=True)  # initiate mzml object
     fn = mzml.associate_to_function('UV')  # determine which function contains UV-Vis data
     uvspecs = mzml.retrieve_scans(start, end, fn)  # pull uv spectra
     wavelengths = list(uvspecs[0][0])  # wavelength list
     uvspecs = [y for x, y in uvspecs]  # set uvspecs list to be only the y values
     timepoints = mzml.functions[fn]['timepoints']  # pull time points of the UV function
-    l, r = locateinlist(timepoints, start, 'greater'), locateinlist(timepoints, end,
+    l, r = locate_in_list(timepoints, start, 'greater'), locate_in_list(timepoints, end,
                                                                     'lesser')  # locate indicies of timepoints
     timepoints = timepoints[l:r + 1]  # trim time list accordingly
     times = arange(start, end, deltat)  # evenly spaced times between start and end
 
     specin = []
     for time in times:
-        ind = locateinlist(timepoints, time)  # find the closest time to that
+        ind = locate_in_list(timepoints, time)  # find the closest time to that
         specin.append(uvspecs[ind])  # append that spectrum to the input list
 
     if 'outname' not in override:

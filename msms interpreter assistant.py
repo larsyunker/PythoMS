@@ -2,10 +2,7 @@ import sys
 import numpy as np
 from pythoms.mzml import mzML
 from pythoms.molecule import Molecule
-from pythoms
-from pythoms.classes import mzML
-from pythoms.classes import Molecule
-from pythoms.classes import losses, stored_dec
+from pythoms.common_losses import losses, stored_dec
 
 
 def com_loss(*custom_losses, dec=0):
@@ -161,8 +158,8 @@ def mia(filename, show=True, specific_components=None, write=True, save=False):
     for i in inds:
         annotations[str(x[i])] = [x[i], float(y[i]) / float(top) * 100.]
     if show is True:
-        from pythoms.tome import plotms
-        plotms([x, y], annotations=annotations, output='show')
+        from pythoms.tome import plot_mass_spectrum
+        plot_mass_spectrum([x, y], annotations=annotations, output='show')
 
     if save is True:
         from pythoms.xlsx import XLSX

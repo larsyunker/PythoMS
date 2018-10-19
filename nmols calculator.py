@@ -21,7 +21,7 @@ unit = [
     'umol',
 ]
 
-from pythoms.classes import Molecule
+from pythoms.molecule import Molecule
 
 mol = Molecule(formula,
                dropmethod='threshold',
