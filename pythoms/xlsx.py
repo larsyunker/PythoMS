@@ -3,7 +3,7 @@ Class for opening and handling excel files with commonly used data formats
 """
 import sys
 import openpyxl as op
-import pandas as pd
+
 
 class XLSX(object):
     def __init__(self,
