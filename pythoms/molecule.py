@@ -497,6 +497,7 @@ def hybrid_isotope_pattern(
         eleips[element] = combinatoric_isotope_pattern(  # calculate the isotope pattern for each element
             {element: number},
             decpl=decpl,
+            verbose=verbose,
         ).trim()  # trim the generated spectra to lists
 
     sortlist = []
@@ -662,21 +663,13 @@ def combinatoric_isotope_pattern(
     if verbose is True:
         counter = 0  # create a counter
         iterations = listproduct([numberofcwr(n, k) for n, k in nk])  # number of iterations
-        prog = Progress(string='Adding isotope combination to queue', last=iterations)  # create a progress instance
+        prog = Progress(string='Processing isotope combination', last=iterations)  # create a progress instance
 
     for comb in product(*iterators):
         if verbose is True:
             counter += 1
             # remaining = st.progress(counter,iterations,'combinations')
-            if len(comp) == 1:
-                string = 'for %s%d ' % (comp.keys()[0], comp[comp.keys()[0]])
-            else:
-                string = ''
-            try:
-                sys.stdout.write('\rProcessing isotope combination #%d/%d %.1f%% %s' % (
-                    counter, iterations, float(counter) / float(iterations) * 100., string))
-            except ValueError:
-                pass
+            prog.write(counter)
         num = 1  # number of combinations counter
         x = 0.  # mass value
         y = 1.  # intensity value
@@ -701,7 +694,7 @@ def combinatoric_isotope_pattern(
                 spec.shift_x(mass_dict[ele][iso][0] * comp[element])  # shift the x values by the isotopic mass
     spec.normalize()  # normalize the spectrum object
     if verbose is True:
-        sys.stdout.write('DONE\n')
+        prog.fin()
     return spec
 
 
