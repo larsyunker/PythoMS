@@ -1,7 +1,8 @@
 """
 a script for validating the functionality of the commonly used scripts
 """
-import sys, os
+import os
+from pythoms.molecule import Molecule
 cwd = os.getcwd()
 
 
@@ -30,7 +31,6 @@ def test_pyrsir():
 
 def test_molecule():
     sys.stdout.write('Testing Molecule class...')
-    from PythoMS._classes._Molecule import Molecule
     mol1 = Molecule('L2PdAr+I',
                     # decpl=4,
                     # dropmethod='consolidate',
@@ -58,7 +58,7 @@ def test_molecule():
 
 def test_mzml():
     sys.stdout.write('Testing mzML class...')
-    from PythoMS._classes._mzML import mzML
+    from pythoms.classes import mzML
     mzml = mzML(
         cwd + '\\validation_files\\MultiTest',
         verbose=False
@@ -93,7 +93,7 @@ def test_mzml():
 
 def test_xlsx():
     sys.stdout.write('Testing XLSX class...')
-    from PythoMS._classes._XLSX import XLSX
+    from pythoms.xlsx import XLSX
     xlfile = XLSX(
         cwd + '\\validation_files\\xlsx_validation',
         verbose=False
@@ -119,7 +119,7 @@ def test_xlsx():
 
 def test_spectrum():
     sys.stdout.write('Testing Spectrum class...')
-    from PythoMS._classes._Spectrum import Spectrum
+    from pythoms.classes import Spectrum
     spec = Spectrum(3)
     spec.addvalue(479.1, 1000)
     spec2 = Spectrum(3)

@@ -14,6 +14,7 @@ CHANGELOG:
 - added kwargs calling (plot, verbose)
 - fixed pulling of existing data from excel file (I think)
 - moved prepformula calls to after mzml object is created
+- added support for standalone execution of the script (user input in console)
 
 ---27.6 incompatible with mzML v2.4 or greater
 
@@ -45,16 +46,24 @@ Column #4: start value (m/z or wavelength)
 Column #5: end value (m/z or wavelength)
 """
 
-# input *.raw filename
-filename = 'ND-04082014-HIYAMA.raw'
-
-# Excel file to read from and output to (in *.xlsx format)
-xlsx = 'ND-04082014-HIYAMA.xlsx'
-
-# set number of scans to sum (integer or list of integers)
-n = [3]
+# # input *.raw filename
+# filename = 'ND-04082014-HIYAMA.raw'
+#
+# # Excel file to read from and output to (in *.xlsx format)
+# xlsx = 'ND-04082014-HIYAMA.xlsx'
+#
+# # set number of scans to sum (integer or list of integers)
+# n = [3]
 
 import sys
+import pylab as pl
+
+from pythoms.tome import bindata
+from pythoms.scripttime import ScriptTime
+from pythoms.mzml import mzML
+from pythoms.spectrum import Spectrum
+from pythoms.molecule import Molecule
+from pythoms.xlsx import XLSX
 
 
 def pyrsir(filename, xlsx, n, **kwargs):
@@ -65,7 +74,6 @@ def pyrsir(filename, xlsx, n, **kwargs):
         A integer value that is non-negative is required for the summing function.
         Please check your input value. 
         """
-        import sys
         if type(val) != list and type(val) != tuple:  # if only one value given for n
             val = [val]
         for num in val:
@@ -81,7 +89,6 @@ def pyrsir(filename, xlsx, n, **kwargs):
         Outputs all MS species with the same sum level onto the same plot
         requirements: pylab as pl
         """
-        import pylab as pl
         pl.clf()  # clears and closes old figure (if still open)
         pl.close()
         nplots = len(n) + 1
@@ -243,13 +250,6 @@ def pyrsir(filename, xlsx, n, **kwargs):
         raise KeyError('Unsupported keyword argument(s): %s' % string)
     ks.update(kwargs)  # update defaults with provided keyword arguments
 
-    from PythoMS.tome_v02 import bindata
-    from PythoMS._classes._ScriptTime import ScriptTime
-    from PythoMS._classes._mzML import mzML
-    from PythoMS._classes._Spectrum import Spectrum
-    from PythoMS._classes._Molecule import Molecule
-    from PythoMS._classes._XLSX import XLSX
-
     if ks['verbose'] is True:
         stime = ScriptTime()
         stime.printstart()
@@ -267,7 +267,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
 
     mskeys = ['+', '-']
     for key in sp:
-        if sp[key]['formula'] is not None:  # if formula is specified
+        if 'formula' in sp[key] and sp[key]['formula'] is not None:  # if formula is specified
             sp[key]['mol'] = Molecule(sp[key]['formula'])  # create Molecule object
             sp[key]['bounds'] = sp[key]['mol'].bounds(
                 ks['bounds confidence'])  # generate bounds from molecule object with this confidence interval
@@ -344,7 +344,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
             if mode not in rtime:  # if rtime and tic have not been pulled from that function
                 rtime[mode] = mzml.functions[func]['timepoints']
                 tic[mode] = mzml.functions[func]['tic']
-            if sp[key]['formula'] is not None:
+            if 'formula' in sp[key] and sp[key]['formula'] is not None:
                 sp[key]['match'] = sp[key]['mol'].compare(sp[key]['spectrum'])
         if ks['sumspec'] is True:
             for fn in sumspec:
@@ -437,6 +437,14 @@ def pyrsir(filename, xlsx, n, **kwargs):
 #             'The pyrsim function requires three inputs:\n- The raw filename\n- The excel parameters file\n- The number of scans to sum')
 
 if __name__ == '__main__':
+    curdir = input('Directory: ')  # cur
+    filename = input('Raw or mzML filename: ')  # input filename
+    xlsx = input('Excel file name: ')  # excel file name with summing parameters
+    try:
+        n = [int(i) for i in input('Scans to bin (separate multiple values with commas): ').split(',')]  # scans to bin
+    except ValueError:
+        print('Input value error, applying no binning')
+        n = [1]
     pyrsir(filename, xlsx, n)
     sys.stdout.write('fin.')
     sys.stdout.flush()

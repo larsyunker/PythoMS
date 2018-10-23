@@ -6,7 +6,7 @@ This is a collection of scripts to aid in the processing and interpretation of m
 The project was created by Lars Yunker at the University of Victoria, Victoria, B.C.
 
 ### Requirements and Installation:
-The scripts were written for Python 2.7 but support for 3.x is in development.
+This package has been written for python 3.5+.
 
 ##### Getting started
 * Download the entire repository to a folder and load scripts as needed. 
@@ -63,4 +63,4 @@ A class for loading and interpreting mzML files.
 This will eventually take a MS/MS plot and generate an energy dependant mass spectrum plot. 
 
 ### License
-These tools are not yet licensed. 
+These tools are licensed under the MIT license.

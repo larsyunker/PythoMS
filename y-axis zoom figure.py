@@ -16,6 +16,8 @@ still to add:
     - allow definition of figure size and dpi?
 """
 
+import string
+
 """
 
 Data should be supplied in an *.xlsx file. 
@@ -271,7 +273,6 @@ def alpha(index):
     function for taking an index and converting it to the corresponding column used by excel
     works up to column ZY (column # 701)
     """
-    import string
     alphabet = list(string.ascii_lowercase)
     out = ''
     n = (index + 1) / 26
