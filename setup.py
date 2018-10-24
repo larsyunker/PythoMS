@@ -1,11 +1,10 @@
-import os
 from setuptools import setup, find_packages
 
 NAME = 'pythoms'
-VERSION = '1.0.2'
+VERSION = '1.0.2.1'
 AUTHOR = 'Lars Yunker'
 
-PACKAGES = find_packages(where='unithandler')
+PACKAGES = find_packages()
 KEYWORDS = ', '.join([
     'mass spectrometry',
     'mass spec',
@@ -13,10 +12,6 @@ KEYWORDS = ', '.join([
     'isotope pattern',
     'HUPO PSI-MS',
 ])
-
-with open('LICENSE') as f:
-    license = f.read()
-    license.replace('\n', ' ')
 
 with open('README.MD') as f:
     long_description = f.read()
@@ -30,7 +25,7 @@ setup(
     author=AUTHOR,
     url='https://github.com/larsyunker/PythoMS',
     packages=PACKAGES,
-    license=license,
+    license='MIT',
     classifiers=[
         'Programming Language :: Python :: 3',
         'License :: OSI Approved :: MIT License',
