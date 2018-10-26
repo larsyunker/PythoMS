@@ -9,7 +9,7 @@ from pythoms.xlsx import XLSX
 from pythoms.scripttime import ScriptTime
 
 
-def sumspectra(filename, start=None, end=None, save=True, dec=3):
+def bin_spectra(filename, start=None, end=None, save=True, dec=3):
     """
     Sums spectra from raw file and outputs to excel file
 
