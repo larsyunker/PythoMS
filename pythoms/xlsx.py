@@ -236,19 +236,6 @@ class XLSX(object):
             return out
         return string[::-1] + str(row + 1)
 
-    def loadop(self):
-        """loads openpyxl and checks for lxml"""
-        try:
-            self.op = __import__('openpyxl')
-        except ImportError:
-            raise ImportError(
-                'openpyxl does not appear to be installed.\nThe XLSX class requires this package to function, please install it.')
-        # try:
-        #     import lxml
-        # except ImportError:
-        #     raise ImportError(
-        #         'lxml does not appear to be installed.\nThe XLSX class requires this package to function, please install it.')
-
     def get_sheet(self, sheetname):
         """tries to retrieve the specified sheet name, otherwise returns None"""
         try:
@@ -279,7 +266,7 @@ class XLSX(object):
                     """
                     if self.verbose is True:
                         sys.stdout.write('Creating workbook "%s" and loading it into memory' % bookname)
-                    # wb = self.op.Workbook(bookname,write_only=False) # create workbook
+                    # wb = op.Workbook(bookname,write_only=False) # create workbook
                     wb = op.Workbook(bookname)  # create workbook
                     wb.save(bookname)  # save it
                     wb = op.load_workbook(bookname)  # load it
@@ -879,14 +866,14 @@ class XLSX(object):
             cs.cell(row=ind + 2, column=self.wms[sheetname] + 2).value = ylist[ind]  # write y value
 
         if chart is True:
-            chart = self.op.chart.ScatterChart()  # generate the chart object
+            chart = op.chart.ScatterChart()  # generate the chart object
             chart.title = str(specname)  # convert title to string to avoid TypeError
-            xvals = self.op.chart.Reference(cs, min_col=self.wms[sheetname] + 1, min_row=2,
+            xvals = op.chart.Reference(cs, min_col=self.wms[sheetname] + 1, min_row=2,
                                             max_row=len(xlist) + 1)  # define the x values
             chart.x_axis.title = xunit  # x axis title
-            yvals = self.op.chart.Reference(cs, min_col=self.wms[sheetname] + 2, min_row=2, max_row=len(xlist) + 1)
+            yvals = op.chart.Reference(cs, min_col=self.wms[sheetname] + 2, min_row=2, max_row=len(xlist) + 1)
             chart.y_axis.title = yunit  # y axis title
-            series = self.op.chart.Series(yvals, xvals)
+            series = op.chart.Series(yvals, xvals)
             chart.series.append(series)  # add the data to the chart
             if self.wms[sheetname] // 4 % 2 == 0:  # alternate the location of the output charts
                 shifty = 1
@@ -991,7 +978,7 @@ class XLSX(object):
             Whether or not to plot the spectrum data as a chart.
 
         """
-        if sheet in self.wb.get_sheet_names():
+        if sheet in self.wb.sheetnames:
             sheet = self.checkduplicatesheet(sheet)
         ws = self.wb.create_sheet()
         ws.title = sheet
@@ -1010,16 +997,16 @@ class XLSX(object):
             if norm is True:
                 ws[self.inds_to_cellname(1 + ind, 2)] = '=%s/$D$2' % self.inds_to_cellname(1 + ind, 1)
         if chart is True:  # if a chart object is called for
-            chart = self.op.chart.ScatterChart()  # generate the chart object
-            xvals = self.op.chart.Reference(ws, min_col=1, min_row=2, max_row=len(x) + 1)  # define the x values
+            chart = op.chart.ScatterChart()  # generate the chart object
+            xvals = op.chart.Reference(ws, min_col=1, min_row=2, max_row=len(x) + 1)  # define the x values
             chart.x_axis.title = 'm/z'  # x axis title
             if norm is False:  # if there is no normalized data
-                yvals = self.op.chart.Reference(ws, min_col=2, min_row=1, max_row=len(x) + 1)
+                yvals = op.chart.Reference(ws, min_col=2, min_row=1, max_row=len(x) + 1)
                 chart.y_axis.title = 'Intensity (counts)'
             if norm is True:  # if there is normalized data
-                yvals = self.op.chart.Reference(ws, min_col=3, min_row=1, max_row=len(x) + 1)
+                yvals = op.chart.Reference(ws, min_col=3, min_row=1, max_row=len(x) + 1)
                 chart.y_axis.title = 'Normalized Intensity'
-            series = self.op.chart.Series(yvals, xvals)
+            series = op.chart.Series(yvals, xvals)
             chart.series.append(series)  # add the data to the chart
             ws.add_chart(chart, 'E1')  # add the chart to the worksheet
 
