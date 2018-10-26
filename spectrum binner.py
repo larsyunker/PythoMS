@@ -9,7 +9,7 @@ from pythoms.xlsx import XLSX
 from pythoms.scripttime import ScriptTime
 
 
-def sumspectra(filename, start=None, end=None, save=True):
+def sumspectra(filename, start=None, end=None, save=True, dec=3):
     """
     Sums spectra from raw file and outputs to excel file
 
@@ -17,6 +17,7 @@ def sumspectra(filename, start=None, end=None, save=True):
     :param start: start scan (None will default to 1)
     :param end: end scan (None will default to the last scan)
     :param save: whether to save into an excel document (if a string is provided, that filename will be used)
+    :param dec: decimal places to track when binning the spectrum
     :return: paired x, summed y lists
     """
 
@@ -27,7 +28,11 @@ def sumspectra(filename, start=None, end=None, save=True):
         start = mzml.functions[1]['sr'][0] + 1
     if end is None:
         end = mzml.functions[1]['sr'][1] + 1
-    x, y = mzml.sum_scans(start=start, end=end)
+    x, y = mzml.sum_scans(
+        start=start,
+        end=end,
+        dec=dec,
+    )
     if save is not False:
         if type(save) == str:  # if a filename was provided for the Excel file
             xlfile = XLSX(save, create=True)
@@ -51,8 +56,10 @@ if __name__ == '__main__':
     endscan = input('End scan (if no value is specified, default to last): ')
     if len(endscan) == 0:
         endcan = None
+    # startscan=None
+    # endscan=None
+    # fn = 'C:\\Temp\\LY-2016-08-02 08'
     sumspectra(
-        # 'LY-2015-01-20 02',
         fn,  # raw filename to use
         start=startscan,  # start scan number
         end=endscan,  # end scan number
