@@ -49,17 +49,17 @@ def bin_spectra(filename, start=None, end=None, save=True, dec=3):
 
 
 if __name__ == '__main__':
-    fn = input('Filename to sum: ')  # ask user for filename
-    startscan = input('Start scan (if no value is specified, default to 1): ')
-    if len(startscan) == 0:
-        startscan = None
-    endscan = input('End scan (if no value is specified, default to last): ')
-    if len(endscan) == 0:
-        endcan = None
-    # startscan=None
-    # endscan=None
-    # fn = 'C:\\Temp\\LY-2016-08-02 08'
-    sumspectra(
+    # fn = input('Filename to sum: ')  # ask user for filename
+    # startscan = input('Start scan (if no value is specified, default to 1): ')
+    # if len(startscan) == 0:
+    #     startscan = None
+    # endscan = input('End scan (if no value is specified, default to last): ')
+    # if len(endscan) == 0:
+    #     endcan = None
+    startscan=None
+    endscan=None
+    fn = 'E:\\1Files\\Mass Spec Data\\LY-2016-08-02 08'
+    bin_spectra(
         fn,  # raw filename to use
         start=startscan,  # start scan number
         end=endscan,  # end scan number
