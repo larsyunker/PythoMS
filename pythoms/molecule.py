@@ -2,7 +2,7 @@
 IGNORE:
 Molecule class (previously "isotope pattern generator" and "MolecularFormula")
 
-The output of this builder has been validatemwd against values calculated by ChemCalc (www.chemcalc.org)
+The output of this builder has been validated against values calculated by ChemCalc (www.chemcalc.org)
 Negligable differences are attributed to different low value discarding techniques
 (ChemCalc keeps the top 5000 peaks, this script drops values less than a threshold 5 orders of magnitude below the
 maximum value)
@@ -68,11 +68,23 @@ mass_dict = getattr(
 st = ScriptTime(profile=True)
 
 # valid start and end brackets
-SBRACK = ['(', '{', '[']  # start brackets
-EBRACK = [')', '}', ']']  # closing brackets
+OPENING_BRACKETS = ['(', '{', '[']  # opening brackets
+CLOSING_BRACKETS = [')', '}', ']']  # closing brackets
 SIGNS = ['+', '-']  # charge signs
 VERBOSE = False  # toggle for verbose
 
+# valid grouping methods
+VALID_GROUP_METHODS = [
+    'weighted',
+    'centroid',
+]
+# valid isotope pattern generation methods
+VALID_IPMETHODS = [
+    'combinatorics',
+    'multiplicative',
+    'hybrid',
+    'cuda',
+]
 # default threshold for low-intensity peak dropping
 THRESHOLD = 0.01
 # number of peaks to keep for low-intensity peak dropping
@@ -130,11 +142,12 @@ def interpret_charge(string: str):
 
 def string_to_isotope(string: str):
     """
-    Attempts to interpret an undefined key as an isotope and raises an error if it failes
+    Attempts to interpret an undefined key as an isotope/element combination (e.g. "13C" becomes 'C', 13). Raises a
+    ValueError if the string cannot be interpreted as such.
 
     :param string: string to interpret
     :return: element, isotope
-    :rtype: tuple
+    :rtype: (str, int)
     """
     iso = string[0]
     ele = ''
@@ -154,6 +167,24 @@ def string_to_isotope(string: str):
             f'your input')
 
 
+def check_in_mass_dict(comp: dict):
+    """
+    Checks for the presence of the dictionary keys in the mass dictionary. Raises a ValueError if the key is not found.
+
+    :param comp: composition dictionary
+    """
+    for key in comp:
+        if key not in mass_dict:
+            ele, iso = string_to_isotope(key)
+            if ele not in mass_dict:
+                raise ValueError(f'The element {ele} is not defined in the mass dictionary. Please check your input.')
+            elif iso not in mass_dict[ele]:
+                raise ValueError(
+                    f'The element "{ele}" does not have a defined isotope "{iso}" in the mass dictionary. '
+                    f'Please check your input.'
+                )
+
+
 def chew_formula(formula: str):
     """
     Iterates through provided formula, extracting blocks, interpreting the blocks,
@@ -170,12 +201,12 @@ def chew_formula(formula: str):
                 continue
             if formula[loc].isupper() is True:  # if an uppercase character is encountered
                 break
-            elif formula[loc] in SBRACK:  # if a bracket is encountered
+            elif formula[loc] in OPENING_BRACKETS:  # if a bracket is encountered
                 break
             else:
                 block += formula[loc]
         return formula[len(block):], interpret(block)  # return remaining formula and the interpreted block
-    elif formula[0] in SBRACK:  # if a bracket is encountered, intialize bracket interpretation
+    elif formula[0] in OPENING_BRACKETS:  # if a bracket is encountered, intialize bracket interpretation
         return bracket(formula)
     elif formula[0].isdigit() is True:  # either isotope or charge
         if any([sign in formula for sign in SIGNS]):  # if the block is a value-sign charge specification
@@ -185,26 +216,23 @@ def chew_formula(formula: str):
                 return '', {formula: 1}
     elif formula[0] in SIGNS:  # charge specification
         return '', {'charge': formula}  # assign as charge for later interpretation
-        self.charge, self.sign = self.interpret_charge(
-            formula)  # otherwise, interpret as charge and return empty dict
-        return '', {}
     else:
         raise ValueError(f'An uninterpretable formula chunck was encountered: {formula}')
 
 
 def bracket(form):
     """finds the string block contained within a bracket and determines the formula within that bracket"""
-    bracktype = SBRACK.index(form[0])  # sets bracket type (so close bracket can be identified)
+    bracktype = OPENING_BRACKETS.index(form[0])  # sets bracket type (so close bracket can be identified)
     bnum = ''  # number of things indicated in the bracket
     block = ''  # element block
     nest = 1  # counter for nesting brackets
     for loc in range(len(form)):  # look for close bracket
         if loc == 0:
             continue
-        elif form[loc] == SBRACK[bracktype]:  # if a nested bracket is encountered
+        elif form[loc] == OPENING_BRACKETS[bracktype]:  # if a nested bracket is encountered
             nest += 1
             block += form[loc]
-        elif form[loc] == EBRACK[bracktype]:  # if close bracket is encountered
+        elif form[loc] == CLOSING_BRACKETS[bracktype]:  # if close bracket is encountered
             nest -= 1
             if nest == 0:
                 i = loc + 1  # index of close bracket
@@ -299,7 +327,7 @@ def standard_deviation(fwhm):
     return fwhm / (2 * np.sqrt(2 * np.log(2)))  # based on the equation FWHM = 2*sqrt(2ln2)*sigma
 
 
-def groupmasses(ip, dm: float = 0.25):
+def group_masses(ip, dm: float = 0.25):
     """
     Groups masses in an isotope pattern looking for differences in m/z greater than the specified delta.
     expects
@@ -332,12 +360,6 @@ def centroid(ipgroup):
     return sum(ipgroup[0]) / len(ipgroup[0]), sum(ipgroup[1]) / len(ipgroup[1])
 
 
-VALID_GROUP_METHODS = [
-    'weighted',
-    'centroid',
-]
-
-
 def bar_isotope_pattern(
         rawip: list,
         delta: float = 0.5,
@@ -363,7 +385,7 @@ def bar_isotope_pattern(
         sys.stdout.write('Generating bar isotope pattern')
     if isinstance(rawip, Spectrum):  # if handed a Spectrum object, trim before continuing
         rawip = rawip.trim()
-    groupedip = groupmasses(rawip, delta / 2)
+    groupedip = group_masses(rawip, delta / 2)
     out = [[], []]
     for group in groupedip:
         if method == 'weighted':
@@ -463,7 +485,7 @@ def gaussian_isotope_pattern(
     return gausip
 
 
-def hybrid_isotope_pattern(
+def isotope_pattern_hybrid(
         composition: dict,
         fwhm: float,
         decpl: int,
@@ -494,7 +516,7 @@ def hybrid_isotope_pattern(
     """
     eleips = {}  # dictionary for storing the isotope patterns of each element
     for element, number in composition.items():
-        eleips[element] = combinatoric_isotope_pattern(  # calculate the isotope pattern for each element
+        eleips[element] = isotope_pattern_combinatoric(  # calculate the isotope pattern for each element
             {element: number},
             decpl=decpl,
             verbose=verbose,
@@ -562,9 +584,14 @@ class Reiterable(object):
 @st.profilefn
 def num_permu(lst, isos):
     """
-    calculates the number of unique permutations of the given set of isotopes
-    the calculation is generated as a sympy function before evaluation
-    numpy factorial is limited in the size of factorials that are calculable
+    Calculates the number of unique permutations of the given set of isotopes for an element.
+    The calculation is generated as a sympy function before evaluation. numpy factorial is limited in the size of
+    factorials that are calculable, so sympy is required.
+
+    :param lst: list of isotopes in the combination
+    :param isos: possible isotopes for that element
+    :return: number of occurrences of this list of isotopes
+    :rtype: int
     """
     counts = [lst.count(x) for x in isos]  # counts the number of each isotope in the set
     num = sym.factorial(len(lst))  # numerator is the factorial of the length of the list
@@ -602,7 +629,7 @@ def numberofcwr(n, k):
     return fn.evalf()
 
 
-def listproduct(iterable):
+def cpu_list_product(iterable):
     """returns the product of a list"""
     prod = 1
     for n in iterable:
@@ -610,10 +637,42 @@ def listproduct(iterable):
     return prod
 
 
+@guvectorize(
+    ['void(float64[:], float64[:])'],
+    '(m)->(m)',
+    target='cuda'
+)
+def cuda_list_product(a, out):
+    """
+    Creates a list whose value is the multiple of all values preceeding it. The product of the list is the last value
+    in the output list
+
+    :param a: list of values to multiply
+    :return: multiplied values
+    :rtype: array
+    """
+    for i in range(a.shape[0]):
+        if i == 0:
+            out[i] = a[i]
+        else:
+            out[i] = out[i - 1] * a[i]
+
+
+def list_product(iterable):
+    """
+    Returns the product of an iterable.
+
+    :param iterable:
+    :return:
+    """
+    # todo try GPU otherwise do CPU then implement across package
+    return cuda_list_product(iterable)[-1]
+
+
 @st.profilefn
-def combinatoric_isotope_pattern(
+def isotope_pattern_combinatoric(
         comp: dict,
-        decpl: float,
+        decpl: int,
         verbose: bool = VERBOSE,
         **kwargs,  # catch for extra keyword arguments
 ):
@@ -662,8 +721,11 @@ def combinatoric_isotope_pattern(
     )
     if verbose is True:
         counter = 0  # create a counter
-        iterations = listproduct([numberofcwr(n, k) for n, k in nk])  # number of iterations
-        prog = Progress(string='Processing isotope combination', last=iterations)  # create a progress instance
+        iterations = int(cpu_list_product([numberofcwr(n, k) for n, k in nk]))  # number of iterations
+        prog = Progress(  # create a progress instance
+            string='Processing isotope combination',
+            last=iterations
+        )
 
     for comb in product(*iterators):
         if verbose is True:
@@ -696,29 +758,6 @@ def combinatoric_isotope_pattern(
     if verbose is True:
         prog.fin()
     return spec
-
-
-def isotope_pattern_cuda(comp):
-    """
-    Uses CUDA acceleration to calculate the isotope pattern
-    :param comp:
-    :return:
-
-    notes to self:
-    base this on the combinatorial approach
-    1) store mass dictionary in CUDA memory as lookup?
-    2) create generators as in the combinatorial approach
-    3) create list chunks from the generators and send them to PyCUDA, which will process each tuple
-        - determine element
-        - calculate the number of permutations (need a good way to do this)
-        - add element and value
-    3b) permutations could be calcuated by extending the factorial, and evaluating at the end of the tuple set
-    4) store of isotopes in CUDA memory
-    5) create sorter in CUDA?
-
-    """
-    # todo
-    pass
 
 
 @st.profilefn
@@ -1145,7 +1184,7 @@ class Molecule(object):
         if 'charge' in dct:  # if charge was specified in the formula
             self.charge, self.sign = interpret_charge(dct['charge'])
             del dct['charge']
-        self.check_in_mass_dict(dct)  # check in mass dictionary
+        check_in_mass_dict(dct)  # check in mass dictionary
         self._comp = dct  # set local dictionary
 
     @property
@@ -1192,16 +1231,6 @@ class Molecule(object):
                 ele, iso = string_to_isotope(element)
                 mwout += mass_dict[ele][iso][0] * number  # assumes 100% abundance if specified
         return mwout
-
-    def check_in_mass_dict(self, comp):
-        """checks for each 'element' in the nist dictionary and returns an error if not found"""
-        for key in comp:
-            if key not in mass_dict:
-                ele, iso = string_to_isotope(key)
-                if iso not in mass_dict[ele]:
-                    raise ValueError(
-                        f'The element "{ele}" does not have a defined isotope "{iso}" in the NIST element database, '
-                        f'please check your input')
 
     @property
     def mw(self):
@@ -1294,11 +1323,6 @@ class Molecule(object):
 
 
 class IPMolecule(Molecule):
-    VALID_IPMETHODS = [
-        'combinatorics',
-        'multiplicative',
-        'hybrid',
-    ]
     _ipmethod = None
     _gausip = None  # gaussian isotope pattern storage
 
@@ -1359,7 +1383,7 @@ class IPMolecule(Molecule):
             from the raw isotope pattern. Weighted calculates the peak locations using the weighted average of the *m/z*
             and intensity values. Centroid finds the center *m/z* value of a group of peaks.
 
-        :param 'multiplicative', 'combinatorial', 'hybrid' ipmethod: The method to use for determining the isotope
+        :param 'multiplicative', 'combinatorial', 'hybrid', 'cuda', ipmethod: The method to use for determining the isotope
             pattern. 'multiplicative' multiplies the existing list of intensities by each element. 'combinatorial' uses
             combinatorics and iterators to calculate each possible combination. 'hybrid' uses combinatorics to calcuate
             the pattern from each element, then multiplies those together
@@ -1378,7 +1402,7 @@ class IPMolecule(Molecule):
         self.ipmethod = ipmethod
         self._spectrum_raw = None  # spectrum object holder
         self._raw = None  # raw isotope pattern
-        self.bar_isotope_pattern = []
+        self.bar_isotope_pattern = [[], []]
         self.criticalerror = criticalerror
         self.decpl = decpl
         self.dropmethod = dropmethod
@@ -1446,14 +1470,16 @@ class IPMolecule(Molecule):
 
     @ipmethod.setter
     def ipmethod(self, value):
-        if value not in self.VALID_IPMETHODS:
-            raise ValueError(f'The isotope pattern generation method must be one of: {", ".join(self.VALID_IPMETHODS)}')
+        if value not in VALID_IPMETHODS:
+            raise ValueError(f'The isotope pattern generation method must be one of: {", ".join(VALID_IPMETHODS)}')
         self._ipmethod = value
 
     @property
     def estimated_exact_mass(self):
         """determines the precise exact mass from the bar isotope pattern"""
-        ind = self.bar_isotope_pattern[1].index(100.)
+        ind = self.bar_isotope_pattern[1].index(
+            max(self.bar_isotope_pattern[1])
+        )
         return self.bar_isotope_pattern[0][ind]
 
     @property
@@ -1496,7 +1522,7 @@ class IPMolecule(Molecule):
     def fwhm(self):
         try:  # try to return from estimated, unless uncalculated, use monoisotopic
             return self.estimated_exact_mass / self.resolution
-        except IndexError:
+        except (IndexError, ValueError):
             return self.monoisotopic_mass / self.resolution
 
     @property
@@ -1548,7 +1574,7 @@ class IPMolecule(Molecule):
         if 'charge' in dct:  # if charge was specified in the formula
             self.charge, self.sign = interpret_charge(dct['charge'])
             del dct['charge']
-        self.check_in_mass_dict(dct)  # check in mass dictionary
+        check_in_mass_dict(dct)  # check in mass dictionary
         self._comp = dct  # set local dictionary
         self._calculate_ips()  # calculate isotope patterns
         # todo save to pickle
@@ -1576,47 +1602,32 @@ class IPMolecule(Molecule):
         """Convenient attribute access to per-peak bounds. Call calculate_bounds for additional options. """
         return self.calculate_bounds(perpeak=True)
 
-    def calculate_bounds(self, conf=0.95, perpeak=False, threshold=0.01):
+    def calculate_bounds(
+            self,
+            conf: float = 0.95,
+            perpeak: bool = False,
+            threshold: float = 0.01
+    ):
         """
-        calculates bounds of the isotope pattern based on a confidence interval and the bar isotope pattern
+        Calculates the *m/z* bounds of the isotope pattern of the molecule object based
+        on a confidence interval and the *m/z* values of the bar isotope pattern.
+        This can be used to automatically determine the integration bounds required to
+        contain XX% of the counts associated with that molecule in a mass spectrum.
 
-        conf: (float) the confidence interval to use
-        perpeak: (bool) toggle for whether the function should return a dictionary of
-        boundaries for each peak, or a single pair of bounds that covers the entire isotope pattern
-        threshold: (int/float) minimum threshold as a percentage of the maximmum for peaks to be included in bounds
-        """
-        """
-        Calculates the *m/z* bounds of the isotope pattern of the molecule object based 
-        on a confidence interval and the *m/z* values of the bar isotope pattern. 
-        This can be used to automatically determine the integration bounds required to 
-        contain XX% of the counts associated with that molecule in a mass spectrum. 
-
-
-        **Parameters**
-
-        conf: *float*
-            The confidence interval to use for calculating the bounds. 
-            e.g. *0.95* corresponds to a 95% confidence interval. 
-
-        perpeak: *bool*
-            Whether or not to return the bounds required to integrate each 
-            peak of the isotope pattern individually. 
-            This can be useful in a very noisy mass spectrum to avoid 
-            baseline noise within the integration interval. 
-
-        threshold: *float*
-            The threshold used to determine whether a peak should be 
-            included in the bounds. 
-
-        **Returns**
-
-        bounds: *list* or *dictionary*
-            If *perpeak* is False, this will return a two item list 
-            corresponding to the start and end *m/z* bounds. 
-            If *perpeak* is True, returns a dictionary of bounds with 
-            the key format of 
+        :param conf: The confidence interval to use for calculating the bounds.
+            e.g. *0.95* corresponds to a 95% confidence interval.
+        :param perpeak: Whether or not to return the bounds required to integrate each
+            peak of the isotope pattern individually.
+            This can be useful in a very noisy mass spectrum to avoid
+            baseline noise within the integration interval.
+        :param threshold: The threshold used to determine whether a peak should be
+            included in the bounds.
+        :return: bounds.
+            If *perpeak* is False, this will return a two item list
+            corresponding to the start and end *m/z* bounds.
+            If *perpeak* is True, returns a dictionary of bounds with
+            the key format of
             ``dict[parent m/z value]['bounds'] = [start m/z, end m/z]``
-
 
         **Examples**
 
@@ -1624,7 +1635,7 @@ class IPMolecule(Molecule):
 
         ::
 
-            >>> mol = Molecule('C61H51IP3Pd')
+            >>> mol = IPMolecule('C61H51IP3Pd')
             >>> mol.bounds(0.95)
             [1104.9458115053008, 1116.3249999321531]
 
@@ -1672,7 +1683,7 @@ class IPMolecule(Molecule):
         """Call to calculate isotope patterns based on the specified parameters"""
         # generates the raw isotope pattern (charge of 1)
         if self.ipmethod == 'combinatorics':
-            calculator = combinatoric_isotope_pattern
+            calculator = isotope_pattern_combinatoric
         elif self.ipmethod == 'multiplicative':
             calculator = isotope_pattern_multiplicative
         elif self.ipmethod == 'hybrid':
