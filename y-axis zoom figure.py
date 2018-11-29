@@ -306,7 +306,7 @@ except:
 
 data = {}
 xname = {}
-for sheet in wb.get_sheet_names():
+for sheet in wb.sheetnames:
     rd = wb.get_sheet_by_name(sheet)
     data[sheet] = {}
     for ind, col in enumerate(rd.columns):
