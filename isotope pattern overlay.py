@@ -235,7 +235,7 @@ if __name__ == '__main__':
     else:  # otherwise assume that it is an excel file
         xlfile = XLSX(spectrum, verbose=True)  # load excel file
         if sheetname is None:  # otherwise use the first sheet
-            sheetname = xlfile.wb.get_sheet_names()[0]
+            sheetname = xlfile.wb.sheetnames[0]
         exp = xlfile.pullspectrum(sheetname, skiplines=skiplines)[0]  # load spectrum from first sheet in workbook
         keywords.update({  # set default output filename
             'outname': f'{xlfile.bookname[:-5]} ({sheetname})',
