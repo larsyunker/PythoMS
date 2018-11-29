@@ -280,7 +280,7 @@ class XLSX(object):
 
     def pullmultispectrum(self, sheetname):
         """reads multispectrum output back into dictionary format"""
-        cs = self.wb.get_sheet_by_name(sheetname)
+        cs = self.wb[sheetname]
         out = {}
         loc = 1
         while loc < cs.max_column:
@@ -369,7 +369,7 @@ class XLSX(object):
         This method is primarily used by PyRSIR.py. See this script for more details.
 
         """
-        cs = self.wb.get_sheet_by_name(sheet)
+        cs = self.wb[sheet]
         if TIC is True:
             tic = []
         time = []
@@ -467,10 +467,10 @@ class XLSX(object):
                     'The value "%s" (cell %s) in "%s" could not be interpreted as a float.\nCheck the value in this cell or change the number of lines skipped' % (
                         value, self.inds_to_cellname(row, col), self.bookname))
 
-        if self.ks['verbose'] is True:
-            self.sys.stdout.write('Pulling spectrum from sheet "%s"' % sheet)
+        if self.verbose is True:
+            sys.stdout.write('Pulling spectrum from sheet "%s"' % sheet)
         skiplines -= 1
-        specsheet = self.wb.get_sheet_by_name(sheet)
+        specsheet = self.wb[sheet]
         spectrum = [[], []]
         for ind, row in enumerate(
                 specsheet.rows):  # for each row append the mz and int values to their respective lists
@@ -482,8 +482,8 @@ class XLSX(object):
                 if row[0].value is not None and row[1].value is not None:
                     spectrum[0].append(tofloat(row[0].value, ind, 0))  # append values
                     spectrum[1].append(tofloat(row[1].value, ind, 1))
-        if self.ks['verbose'] is True:
-            self.sys.stdout.write(' DONE\n')
+        if self.verbose is True:
+            sys.stdout.write(' DONE\n')
         return spectrum, xunit, yunit
 
     def pullrsimparams(self, sheet='parameters'):
@@ -555,7 +555,7 @@ class XLSX(object):
             """tries to find another common name for the parameters sheet"""
             others = ['Parameters', 'params', 'Params']
             for name in others:
-                if name in self.wb.get_sheet_names():
+                if name in self.wb.sheetnames:
                     return name
             raise KeyError('There is no "%s" sheet in "%s".' % (oldsheet, self.bookname))
 
@@ -565,10 +565,10 @@ class XLSX(object):
                 return None
             return string.lower()
 
-        if sheet not in self.wb.get_sheet_names():  # if the sheet can't be found, try other common names
+        if sheet not in self.wb.sheetnames:  # if the sheet can't be found, try other common names
             sheet = othernames(sheet)
 
-        s = self.wb.get_sheet_by_name(sheet)  # load sheet in specified excel file
+        s = self.wb[sheet]  # load sheet in specified excel file
 
         names = ['name']  # valid name column headers
         formulas = ['formula', 'form', 'mf']  # valid molecular formula column headers
@@ -765,10 +765,10 @@ class XLSX(object):
             Allows specification of a specific sheet to save as.
 
         """
-        if sheet not in self.wb.get_sheet_names():  # if the sheet can't be found, try other common names
+        if sheet not in self.wb.sheetnames:  # if the sheet can't be found, try other common names
             sheet = self.pullrsimparams.othernames(sheet)
 
-        s = self.wb.get_sheet_by_name(sheet)  # load sheet in specified excel file
+        s = self.wb[sheet]  # load sheet in specified excel file
 
         for ind, row in enumerate(s.rows):
             if ind == 0:
@@ -852,11 +852,11 @@ class XLSX(object):
         if sheetname not in self.wms:  # check for preexisting key
             self.wms[sheetname] = 1
 
-        if sheetname not in self.wb.get_sheet_names():  # if sheet does not exist
+        if sheetname not in self.wb.sheetnames:  # if sheet does not exist
             cs = self.wb.create_sheet()
             cs.title = sheetname
         else:
-            cs = self.wb.get_sheet_by_name(sheetname)  # load existing sheet
+            cs = self.wb[sheetname]  # load existing sheet
 
         cs.cell(row=1, column=self.wms[sheetname]).value = specname
         cs.cell(row=1, column=self.wms[sheetname] + 1).value = xunit
@@ -927,7 +927,7 @@ class XLSX(object):
         the data will not be written.
 
         """
-        if sheetname not in self.wb.get_sheet_names():
+        if sheetname not in self.wb.sheetnames:
             cs = self.wb.create_sheet()  # create new sheet
             cs.title = sheetname  # rename sheet
             cs['A1'] = 'Time'
