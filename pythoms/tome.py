@@ -757,6 +757,7 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
     # the width of the window to look for a maximal value around the expected exact mass for a peak
         'annotations': None,  # annotations for the spectrum in dictionary form {'thing to print':[x,y],}
         'normrel': 100.,  # the maximum value for normalization
+        'ipmol_kwargs': {},  # IPMolecule keyword arguments
     }
 
     if set(kwargs.keys()) - set(settings.keys()):  # check for invalid keyword arguments
@@ -775,7 +776,7 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
     simdict = checksimdict(simdict)  # checks the simulation dictionary
     for species in simdict:  # generate Molecule object and set x and y lists
         simdict[species]['colour'] = Colour(simdict[species]['colour'])
-        simdict[species]['mol'] = IPMolecule(species, resolution=res)
+        simdict[species]['mol'] = IPMolecule(species, resolution=res, **kwargs['ipmol_kwargs'])
         # simdict[species]['mol'] = Molecule(species, res=res, dropmethod='threshold')
         if settings['simtype'] == 'bar':
             simdict[species]['x'], simdict[species]['y'] = simdict[species]['mol'].barip
@@ -788,7 +789,7 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
             sys.stdout.write('Automatically determining m/z window')
         mz = [10000000, 0]
         for species in simdict:
-            simdict[species]['bounds'] = simdict[species]['mol'].bounds()  # calculate bounds
+            simdict[species]['bounds'] = simdict[species]['mol'].bounds  # calculate bounds
             if simdict[species]['bounds'][0] < mz[0]:
                 mz[0] = simdict[species]['bounds'][0] - 1
             if simdict[species]['bounds'][1] > mz[1]:
@@ -819,8 +820,15 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                 window = simdict[species]['mol'].fwhm
             else:  # otherwise look within the specified value
                 window = settings['normwindow']
-            simdict[species]['y'] = normalize(simdict[species]['y'],
-                                              localmax(realspec[0], realspec[1], simdict[species]['mol'].em, window))
+            simdict[species]['y'] = normalize(
+                simdict[species]['y'],
+                localmax(
+                    realspec[0],
+                    realspec[1],
+                    simdict[species]['mol'].estimated_exact_mass,
+                    window
+                )
+            )
         elif settings['simnorm'] == 'top':  # normalize to top of the y value
             if settings['maxy'] == 'max':
                 raise ValueError('Simulations con only be normalized to the top of the spectrum when the maxy setting '
@@ -829,16 +837,23 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
         elif type(settings['simnorm']) is int or type(settings['simnorm']) is float:  # normalize to specified value
             simdict[species]['y'] = normalize(simdict[species]['y'], settings['simnorm'])
         if settings['delta'] is True:
+            if settings['normwindow'] == 'fwhm':  # if default, look within the full width at half max
+                window = simdict[species]['mol'].fwhm
+            else:  # otherwise look within the specified value
+                window = settings['normwindow']
             est = estimated_exact_mass(  # try to calculate exact mass
                 realspec[0],
                 realspec[1],
-                simdict[species]['mol'].em,
-                min(simdict[species]['x']),
-                max(simdict[species]['x'])
+                simdict[species]['mol'].estimated_exact_mass,
+                simmin=simdict[species]['mol'].estimated_exact_mass,
+                simmax=simdict[species]['mol'].estimated_exact_mass,
+                lookwithin=window,
+                # min(simdict[species]['x']),
+                # max(simdict[species]['x'])
             )
             if type(est) is float:
                 simdict[species]['delta'] = '%.3f (%.1f ppm)' % (
-                simdict[species]['mol'].em - est, simdict[species]['mol'].compare_exact_mass(est))
+                simdict[species]['mol'].estimated_exact_mass - est, simdict[species]['mol'].compare_exact_mass(est))
             else:
                 simdict[species]['delta'] = est
 
@@ -889,13 +904,13 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                     if 0 < ins < len(simdict[subsp]['x']):  # if species highest m/z is inside subsp list
                         for i in range(ins):  # add intensity of species to subsp zeros
                             # used -ins+i-1 to fix an error, with any luck this won't break it next time
-                            simdict[subsp]['zero'][i] += simdict[species]['y'][-ins + i - 1]
+                            simdict[subsp]['zero'][i] += simdict[species]['y'][-ins + i]
     # include resolution if specified (and spectrum is not centroid)
     if settings['res'] is True and settings['spectype'] != 'centroid':
         ax.text(
             mz[1],
             top * 0.95,
-            'resolution: ' + str(round(res))[:-2],
+            f'resolution: {str(round(res))}',
             horizontalalignment='right',
             **font
         )
