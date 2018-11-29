@@ -552,7 +552,7 @@ def estimated_exact_mass(
     """
     # narrow range to that of the isotope pattern
     l = bisect_left(x, simmin - lookwithin)
-    r = bisect_right(x, simmax - lookwithin)
+    r = bisect_right(x, simmax + lookwithin)
     locmax = max(y[l:r])  # find local max in that range
     for ind, val in enumerate(y):
         if val == locmax:  # if the y-value equals the local max
