@@ -355,6 +355,7 @@ ani = animation.FuncAnimation(
     repeat=False,
 )
 
+print('Writing animation to file...')
 ani.save(
     filename + '.mp4',
     writer='ffmpeg',
