@@ -212,7 +212,11 @@ def binnspectra(lst, n, dec=3, start=50., end=2000.):
     """
     out = []
     delta = 0
-    spec = Spectrum(dec, start=start - 1, end=end + 1, reusable=True)
+    spec = Spectrum(
+        dec,
+        start=start - 1,
+        end=end + 1,
+    )
     for ind, (x, y) in enumerate(lst):  # for each timepoint
         delta += 1
         sys.stdout.write('\rBinning spectrum #%i/%i  %.1f%%' % (ind + 1, len(lst), float(ind) / float(len(lst)) * 100.))
