@@ -166,8 +166,8 @@ class Spectrum(object):
                              f'{self.__class__.__name__} instance. ')
 
         # set start and end values for the spectrum
-        self.start = start
-        self.end = end
+        self._start = start
+        self._end = end
 
         if self.empty is False:
             self.x, self.y = full_spectrum_list(  # m/z and intensity lists
@@ -201,6 +201,14 @@ class Spectrum(object):
             self.__class__,
             self.__getinitargs__()
         )
+
+    def __copy__(self):
+        return Spectrum(
+            *self.__getinitargs__()
+        )
+
+    def __deepcopy__(self, memodict={}):
+        return self.__copy__()
 
     def __len__(self):
         return len(self.x)
@@ -333,14 +341,14 @@ class Spectrum(object):
         if value is None:
             value = -np.inf
         value = round(value, self.decpl)
-        self._start = value - 10 ** -self.decpl
         index = self.index(value)  # find index
+        self._start = value
         del self.x[:index]  # trim spectra
         del self.y[:index]
 
     @start.deleter
     def start(self):
-        self.start = -np.inf
+        self._start = -np.inf
 
     @property
     def end(self):
@@ -351,14 +359,14 @@ class Spectrum(object):
         if value is None:
             value = np.inf
         value = round(value, self.decpl)
-        self._end = value + 10 ** -self.decpl  # redefine end value
         index = self.index(value)  # find index
+        self._end = value
         self.x = self.x[:index]  # trim lists
         self.y = self.y[:index]
 
     @end.deleter
     def end(self):
-        self.end = np.inf
+        self._end = np.inf
 
     @property
     def charge(self):
@@ -380,7 +388,7 @@ class Spectrum(object):
 
     @charge.deleter
     def charge(self):
-        self.charge = 1
+        self._charge = 1
 
     def add_element(self, masses, abunds):
         """
