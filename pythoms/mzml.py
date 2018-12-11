@@ -163,7 +163,10 @@ def extract_spectrum(spectrum: xml.dom.minidom.Element, units: bool = False):
         out.append(list(struct.unpack(unpack_format, decoded)))
 
         if units is not False:
-            units.append(p.unit)
+            for cv in p:
+                if cv.unit is not None:
+                    units.append(cv.unit)
+                    break
     if units is not False:  # extends the units onto out
         out.extend(units)
     return out
