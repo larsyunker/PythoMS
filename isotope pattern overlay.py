@@ -5,17 +5,23 @@ from pythoms.tome import plot_mass_spectrum
 from pythoms.mzml import mzML
 
 """
-  isotope pattern check program v011 beta (dependant on tome)
-  overlays a supplied predicted isotope pattern onto an acquired spectrum
-  
-CHANGELOG:
-- added databridge to extract spectra directly from a raw or mzml.gz file (validated)
----12.3
+Overlays a predicted isotope pattern over an acquired spectrum. 
+
+To use this script: 
+1. specify a file path to the experimental spectrum (XLSX, RAW, or mzML)
+    a. specify a sheet name if applicable (otherwise the first sheet will be used in the excel file)
+    b. specify the number of header lines (if not applicable, set to 0)
+2. Define the species to be overlain on the spectrum. These are specified in the format 
+    'MOLECULARFORMULA: {'colour': COLOUR, 'alpha': ALPHA},
+3. Choose a preset (see the preset method below for options and details)
+4. Specify overrides which deviate from the preset as desired. 
+5. Run the script (or execute in console). 
+
 """
 # current directory
 curdir = 'C:\\Temp'
 
-# provide the experimental spectrum xlsx
+# provide the experimental spectrum xlsx or RAW/mzml file
 # the script will automatically use the first sheet
 spectrum = 'LY-2014-06-12 14.mzML.gz'
 # number of lines to skip in the excel file
@@ -76,6 +82,7 @@ override = {
     # 'normwindow': 1.,
     # 'fs': 8,
     # 'output':'show',
+    'ipmol_kwargs': {'dropmethod': 'threshold'}
 }
 
 
