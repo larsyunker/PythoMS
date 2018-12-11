@@ -720,6 +720,12 @@ class Spectrum(object):
             [y for y in self.y if y is not None]
         )
 
+    def reset_y(self):
+        """
+        Resets the y values in the Spectrum object. This allows reuse of the same Spectrum object without regenerating.
+        """
+        self.y = [self.filler for val in self.y]
+
     def threshold(self, thresh, method='abs'):
         """
         Removes all y values below the specified threshold value.
