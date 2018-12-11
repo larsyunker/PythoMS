@@ -982,7 +982,7 @@ class mzML(object):
                         r = max(x)
                     else:
                         r = mzend
-                    spec = self.trimspectrum(x, y, l, r, outside)
+                    spec = trimspectrum(x, y, l, r, outside)
                 out.append(spec)
         if self.verbose is True and mute is False:
             prog.fin()
