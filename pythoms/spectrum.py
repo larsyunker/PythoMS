@@ -78,8 +78,6 @@ class Spectrum(object):
     _start = -np.inf
     _end = np.inf
     _charge = 1
-    x = []
-    y = []
 
     def __init__(self,
                  decpl,
@@ -157,6 +155,8 @@ class Spectrum(object):
         - Values below a certain x value may be dropped by calling the ``drop_below()`` method.
         - Values above a certain x value may be dropped by calling the ``drop_above()`` method.
         """
+        self.x = []
+        self.y = []
         self.decpl = decpl
         self.empty = empty
         self.filler = filler
