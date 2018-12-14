@@ -8,8 +8,8 @@ import shutil
 from pythoms.mzml import mzML, branch_cvparams, branch_attributes
 from pythoms.molecule import Molecule, IPMolecule, VALID_DROPMETHODS, VALID_IPMETHODS
 from pythoms.spectrum import Spectrum
+from pythoms.xlsx import XLSX
 from PyRSIR import pyrsir
-cwd = os.getcwd()
 
 
 class TestPyRSIR(unittest.TestCase):
@@ -143,30 +143,34 @@ class TestmzML(unittest.TestCase):
         )
 
 
-def test_xlsx():
-    sys.stdout.write('Testing XLSX class...')
-    from pythoms.xlsx import XLSX
-    xlfile = XLSX(
-        cwd + '\\validation_files\\xlsx_validation',
-        verbose=False
-    )
-    spec, xunit, yunit = xlfile.pullspectrum('example MS spectrum')
-    multispec = xlfile.pullmultispectrum('example multi-spectrum')
-    rsimparams = xlfile.pullrsimparams()
-    xlout = XLSX(
-        cwd + '\\validation_files\\xlsxtestout.xlsx',
-        create=True,
-        verbose=False
-    )
-    xlout.writespectrum(spec[0], spec[1], 'test single spectrum out', xunit, yunit)
-    for key, val in sorted(multispec.items()):
-        xlout.writemultispectrum(multispec[key]['x'], multispec[key]['y'], multispec[key]['xunit'],
-                                 multispec[key]['yunit'], 'Function Chromatograms', key)
-    xlout.save()
-    os.remove(
-        cwd + '\\validation_files\\xlsxtestout.xlsx'
-    )
-    sys.stdout.write(' PASS\n')
+class TestXLSX(unittest.TestCase):
+    def test_xlsx(self):
+        xlfile = XLSX(
+            os.path.join(os.getcwd(), 'validation_files', 'xlsx_validation'),
+            verbose=False
+        )
+        spec, xunit, yunit = xlfile.pullspectrum('example MS spectrum')
+        multispec = xlfile.pullmultispectrum('example multi-spectrum')
+        rsimparams = xlfile.pullrsimparams()
+        xlout = XLSX(
+            os.path.join(os.getcwd(), 'validation_files', 'xlsxtestout.xlsx'),
+            create=True,
+            verbose=False
+        )
+        xlout.writespectrum(spec[0], spec[1], 'test single spectrum out', xunit, yunit)
+        for key, val in sorted(multispec.items()):
+            xlout.writemultispectrum(
+                multispec[key]['x'],
+                multispec[key]['y'],
+                multispec[key]['xunit'],
+                multispec[key]['yunit'],
+                'Function Chromatograms',
+                key
+            )
+        xlout.save()
+        os.remove(
+            os.path.join(os.getcwd(), 'validation_files', 'xlsxtestout.xlsx')
+        )
 
 
 class TestSpectrum(unittest.TestCase):
