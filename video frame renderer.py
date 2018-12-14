@@ -9,25 +9,7 @@ The video is coded to save using ffmpeg (https://www.ffmpeg.org/). Installation 
 here: https://www.wikihow.com/Install-FFmpeg-on-Windows . Simplified modification of environment modification can be
 accomplished using Rapid Environment Editor (https://www.rapidee.com/).
 
-new:
-    works with _mzML class now
-    should be able to plot both - and + species
-    normalizes to the summed intensity of the specified species
-    no longer requires an excel file for parameters (set species information in script)
-    incorporated species trace and spectrum binning
-    switched spectrum binning to use NoneSpectrum class (avoids improper copying)
-    ---9.0---
-    renamed from "convert spec chrom png" to "video fram renderer"
-    updated calls to functions
-    made all text based on fontsize
-    changed timepoint colour to blue (should be more visible)
-    tweaked the spacing between the two plots
-    ---9.1---
-    complete rewrite to use the matplotlib animation functionality
-    ---9.2
 
-to add:
-    add functionality to track both + and - mode spectra (will have to modify pullspectra() in _mzML)
 """
 import matplotlib.animation as animation
 from PyRSIR import pyrsir
@@ -36,9 +18,10 @@ from pythoms.colour import Colour
 from bisect import bisect_left, bisect_right
 import pylab as pl
 import sys
+import os
 
 # input *.raw filename
-filename = 'LY-2015-09-15 06'
+filename = os.path.join(os.getcwd(), 'validation_files', 'LY-2015-09-15 06.mzML.gz')
 
 # species to track and plot
 # sub and superscripts can be denoted by TeX formatting
@@ -48,9 +31,6 @@ filename = 'LY-2015-09-15 06'
 sp = {
     'Ar$^+$I': {'bounds': [478.865, 481.622], 'colour': '#2078b4', 'affin': '+'},
     'Ar$^+$Ar': {'bounds': [443.016, 446.711], 'colour': '#34a048', 'affin': '+'},
-    # ' ':{'bounds':[825.223,837.0],'colour':(0,128,0),'affin':'+'}, #[Ru](PPh$_3$)$_2$(PEt$_2$H)
-    # '  ':{'bounds':[838.277,851.0],'colour':(255,0,0),'affin':'+'}, # [Ru](PPh$_3$)$_2$(NCPh)
-    # '   ':{'bounds':[921.34,934.0],'colour':(0,0,255),'affin':'+'} # [Ru](PPh$_3$)$_2$(PPh$_2$H)
 }
 
 # set number of scans to sum
