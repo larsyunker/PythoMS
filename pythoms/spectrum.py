@@ -706,8 +706,8 @@ class Spectrum(object):
         # self.y = self.y.tolist()
         scalar = new_top / max(self.y)  # calculate the appropriate scalar
         for ind, inten in enumerate(self.y):
-           if inten is not None:
-               self.y[ind] *= scalar
+            if inten is not None:
+                self.y[ind] *= scalar
 
     def shift_x(self, value):
         """
@@ -771,7 +771,7 @@ class Spectrum(object):
         :param bool zeros: Specifies whether there should be zeros at the start and end values. This can be used to
             generate continuum spectra across the range [start,end]. If there are non-zero intensity values at the
             start or end point, they will not be affected.
-        :param xbounds: This can specify a subsection of the x and y spectra to trim to. None will return the entire
+        :param list xbounds: This can specify a subsection of the x and y spectra to trim to. None will return the entire
             contents of the Spectrum object, and specifying ``[x1,x2]]`` will return the x and y lists between
             *x1* and *x2*.
         :return: trimmed spectrum in the form ``[[x values], [y values]]``
@@ -787,15 +787,12 @@ class Spectrum(object):
 
         xout = []
         yout = []
-        for ind, inten in enumerate(self.y):
-            if xbounds[0] <= self.x[ind] <= xbounds[1]:  # if within the x bounds
-                if inten is not None:
-                    xout.append(round(self.x[ind], self.decpl))  # rounded to avoid array floating point weirdness
-                    yout.append(inten)
-                # elif zeros is True: # if zeros at the edges of spectrum are desired
-                #    if self.x[ind] == xbounds[0] or self.x[ind] == xbounds[1]: # at the edges of the output spectrum
-                #        xout.append(self.x[ind])
-                #        yout.append(0)
+
+        for ind in range(self.index(xbounds[0]), self.index(xbounds[1])):  # iterate over slice
+            if self.y[ind] is not self.filler:
+                xout.append(round(self.x[ind], self.decpl))  # rounded to avoid array floating point weirdness
+                yout.append(self.y[ind])
+
         if zeros is True:  # if zeros was specified, check for and insert values as necessary
             if xout[0] != self.start:
                 xout.insert(0, self.start)
@@ -814,6 +811,7 @@ def check_indexing(n=1000, dec=3):
     :param dec: decimal place for the Spectrum object
     :return: number of mismatches, details
     """
+    spec = Spectrum(3)
     mismatch = 0
     mml = []
     for i in range(n):
@@ -830,7 +828,8 @@ def check_indexing(n=1000, dec=3):
 
 
 if __name__ == '__main__':
-    spec = Spectrum(3)
+    pass
+    # spec = Spectrum(3)
     # spec = Spectrum(4,start=12.0,end=13.0033548378,specin=[[12.0,13.0033548378],[0.9893, 0.0107]],empty=True,filler=0.)
     # masses = [12.0,13.0033548378]
     # abunds = [0.9893, 0.0107]
