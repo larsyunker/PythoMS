@@ -431,7 +431,7 @@ def normal_distribution(center, fwhm, height):
     )
     y = mlab.normpdf(  # generate normal distribution
         x,
-        center,
+        float(center),  # type-convert from sympy Float
         standard_deviation(fwhm),
     )
     y /= max(y)  # normalize
