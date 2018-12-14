@@ -156,14 +156,17 @@ def animate(i):
 if save < n:  # if the script is told to save more often than it sums
     save = n
 mskeys = ['+', '-']
-pyrsirkw = {
-    'plot': False,  # plot the data for a quick look
-    # 'verbose': True,  # chatty
-    'bounds confidence': 0.99,  # confidence interval for automatically generated bounds
-    'sumspec': False,  # whether or not to output a summed spectrum
-    'return': True,  # whether to return data (if the data from the function is required by another function)
-}
-mzml, sp, rtime = pyrsir(filename, sp, 1, **pyrsirkw)[:3]  # run pyrsir
+
+mzml, sp, rtime = pyrsir(
+    filename,
+    sp,
+    n=1,
+    verbose=False,
+    plot=False,
+    bounds_confidence=0.99,
+    combine_spectra=True,
+    return_data=True,
+)[:3]  # run pyrsir
 
 sstart = mzml.scan_index(scr[0])  # index of start scan
 send = mzml.scan_index(scr[1])  # index of last scan
