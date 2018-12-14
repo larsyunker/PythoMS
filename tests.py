@@ -6,7 +6,7 @@ import os
 import sys
 import shutil
 from pythoms.mzml import mzML, branch_cvparams, branch_attributes
-from pythoms.molecule import Molecule, IPMolecule
+from pythoms.molecule import Molecule, IPMolecule, VALID_DROPMETHODS, VALID_IPMETHODS
 from pythoms.spectrum import Spectrum
 from PyRSIR import pyrsir
 cwd = os.getcwd()
@@ -63,6 +63,16 @@ class TestMolecule(unittest.TestCase):
             self.mol.monoisotopic_mass,
             1109.12832
         )
+
+    def test_ipmolecule_methods(self):
+        for ipmethod in VALID_IPMETHODS:
+            for dropmethod in VALID_DROPMETHODS:
+                mol = IPMolecule(
+                    'Pd2C10H5',
+                    ipmethod=ipmethod,
+                    dropmethod=dropmethod,
+                )
+                test = mol.gaussian_isotope_pattern  # test gaussian isotope pattern generation
 
     def test_ipmolecule(self):
         self.assertEqual(
