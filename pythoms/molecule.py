@@ -426,7 +426,8 @@ def normal_distribution(center, fwhm, height):
     x = np.arange(
         center - fwhm * 2,
         center + fwhm * 2,
-        autodec(fwhm)
+        10 ** -autodec(fwhm),
+        dtype=np.float64,
     )
     y = mlab.normpdf(  # generate normal distribution
         x,
