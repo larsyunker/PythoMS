@@ -78,8 +78,6 @@ class Spectrum(object):
     _start = -np.inf
     _end = np.inf
     _charge = 1
-    x = []
-    y = []
 
     def __init__(self,
                  decpl,
@@ -157,6 +155,8 @@ class Spectrum(object):
         - Values below a certain x value may be dropped by calling the ``drop_below()`` method.
         - Values above a certain x value may be dropped by calling the ``drop_above()`` method.
         """
+        self.x = []
+        self.y = []
         self.decpl = decpl
         self.empty = empty
         self.filler = filler
@@ -166,8 +166,10 @@ class Spectrum(object):
                              f'{self.__class__.__name__} instance. ')
 
         # set start and end values for the spectrum
-        self.start = start
-        self.end = end
+        if start is not None:
+            self._start = start
+        if end is not None:
+            self._end = end
 
         if self.empty is False:
             self.x, self.y = full_spectrum_list(  # m/z and intensity lists
@@ -201,6 +203,14 @@ class Spectrum(object):
             self.__class__,
             self.__getinitargs__()
         )
+
+    def __copy__(self):
+        return Spectrum(
+            *self.__getinitargs__()
+        )
+
+    def __deepcopy__(self, memodict={}):
+        return self.__copy__()
 
     def __len__(self):
         return len(self.x)
@@ -333,14 +343,15 @@ class Spectrum(object):
         if value is None:
             value = -np.inf
         value = round(value, self.decpl)
-        self._start = value - 10 ** -self.decpl
-        index = self.index(value)  # find index
-        del self.x[:index]  # trim spectra
-        del self.y[:index]
+        if value > self._start:  # if trimming is required
+            index = self.index(value)  # find index
+            del self.x[:index]  # trim spectra
+            del self.y[:index]
+        self._start = value
 
     @start.deleter
     def start(self):
-        self.start = -np.inf
+        self._start = -np.inf
 
     @property
     def end(self):
@@ -351,14 +362,15 @@ class Spectrum(object):
         if value is None:
             value = np.inf
         value = round(value, self.decpl)
-        self._end = value + 10 ** -self.decpl  # redefine end value
-        index = self.index(value)  # find index
-        self.x = self.x[:index]  # trim lists
-        self.y = self.y[:index]
+        if value < self._end:
+            index = self.index(value)  # find index
+            self.x = self.x[:index]  # trim lists
+            self.y = self.y[:index]
+        self._end = value
 
     @end.deleter
     def end(self):
-        self.end = np.inf
+        self._end = np.inf
 
     @property
     def charge(self):
@@ -373,14 +385,15 @@ class Spectrum(object):
             self.x /= charge
         except TypeError:  # otherwise iterate over list
             for ind, val in enumerate(self.x):
-                self.x[ind] = val / charge
+                self.x[ind] = val / (charge / self._charge)
         # set new bounds
         self.start /= charge
         self.end /= charge
+        self._charge = charge
 
     @charge.deleter
     def charge(self):
-        self.charge = 1
+        setattr(self, 'charge', 1)
 
     def add_element(self, masses, abunds):
         """
@@ -693,8 +706,8 @@ class Spectrum(object):
         # self.y = self.y.tolist()
         scalar = new_top / max(self.y)  # calculate the appropriate scalar
         for ind, inten in enumerate(self.y):
-           if inten is not None:
-               self.y[ind] *= scalar
+            if inten is not None:
+                self.y[ind] *= scalar
 
     def shift_x(self, value):
         """
@@ -719,6 +732,12 @@ class Spectrum(object):
         return sum(
             [y for y in self.y if y is not None]
         )
+
+    def reset_y(self):
+        """
+        Resets the y values in the Spectrum object. This allows reuse of the same Spectrum object without regenerating.
+        """
+        self.y = [self.filler for val in self.y]
 
     def threshold(self, thresh, method='abs'):
         """
@@ -752,7 +771,7 @@ class Spectrum(object):
         :param bool zeros: Specifies whether there should be zeros at the start and end values. This can be used to
             generate continuum spectra across the range [start,end]. If there are non-zero intensity values at the
             start or end point, they will not be affected.
-        :param xbounds: This can specify a subsection of the x and y spectra to trim to. None will return the entire
+        :param list xbounds: This can specify a subsection of the x and y spectra to trim to. None will return the entire
             contents of the Spectrum object, and specifying ``[x1,x2]]`` will return the x and y lists between
             *x1* and *x2*.
         :return: trimmed spectrum in the form ``[[x values], [y values]]``
@@ -768,15 +787,12 @@ class Spectrum(object):
 
         xout = []
         yout = []
-        for ind, inten in enumerate(self.y):
-            if xbounds[0] <= self.x[ind] <= xbounds[1]:  # if within the x bounds
-                if inten is not None:
-                    xout.append(round(self.x[ind], self.decpl))  # rounded to avoid array floating point weirdness
-                    yout.append(inten)
-                # elif zeros is True: # if zeros at the edges of spectrum are desired
-                #    if self.x[ind] == xbounds[0] or self.x[ind] == xbounds[1]: # at the edges of the output spectrum
-                #        xout.append(self.x[ind])
-                #        yout.append(0)
+
+        for ind in range(self.index(xbounds[0]), self.index(xbounds[1])):  # iterate over slice
+            if self.y[ind] is not self.filler:
+                xout.append(round(self.x[ind], self.decpl))  # rounded to avoid array floating point weirdness
+                yout.append(self.y[ind])
+
         if zeros is True:  # if zeros was specified, check for and insert values as necessary
             if xout[0] != self.start:
                 xout.insert(0, self.start)
@@ -795,6 +811,7 @@ def check_indexing(n=1000, dec=3):
     :param dec: decimal place for the Spectrum object
     :return: number of mismatches, details
     """
+    spec = Spectrum(3)
     mismatch = 0
     mml = []
     for i in range(n):
@@ -811,7 +828,8 @@ def check_indexing(n=1000, dec=3):
 
 
 if __name__ == '__main__':
-    spec = Spectrum(3)
+    pass
+    # spec = Spectrum(3)
     # spec = Spectrum(4,start=12.0,end=13.0033548378,specin=[[12.0,13.0033548378],[0.9893, 0.0107]],empty=True,filler=0.)
     # masses = [12.0,13.0033548378]
     # abunds = [0.9893, 0.0107]

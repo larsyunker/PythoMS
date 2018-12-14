@@ -19,6 +19,10 @@ new:
 to add:
     use time.time() in unix and time.clock() in windows
 """
+import sys
+import time
+import numpy as np
+import datetime
 
 
 class ScriptTime(object):
@@ -27,20 +31,36 @@ class ScriptTime(object):
         Class for storing timepoints in a python script
         profile toggles whether the profiling functionality of the class will operate
         """
-        self.time = __import__('time')
-        self.sys = __import__('sys')
-        self.time_zero = self.time.clock()
-        self.start = self.time.localtime()
+        self._start_seconds = time.time()  # start time (seconds since epoch)
+        self._end_seconds = None  # end time (seconds since epoch)
+        self._start_clock = time.localtime()  # start clock time
+        self._end_clock = None  # end clock time
         self.profile = profile  # toggle for profiling functions
         self.profiles = {}
 
     def __str__(self):
         """The string that is returned when printed"""
-        return "The initiation time of this class was {}".format(self.time.strftime('%I:%M:%S %p', self.start))
+        return f'{self.__class__.__name__} initiated at {self.start_time}'
 
     def __repr__(self):
         """The representation that is returned"""
-        return "{}({})".format(self.__class__.__name__, self.time.strftime('%I:%M:%S %p', self.start))
+        return f'{self.__class__.__name__}({self.start_time})'
+
+    @property
+    def start_time(self):
+        return time.strftime("%I:%M:%S %p", self._start_clock)
+
+    @property
+    def end_time(self):
+        if self._end_clock is None:
+            return None
+        return time.strftime("%I:%M:%S %p", self._end_clock)
+
+    @property
+    def elapsed_time(self):
+        if self._end_seconds is None:
+            return time.time() - self._start_seconds
+        return self._end_seconds - self._start_seconds
 
     def clearprofiles(self):
         """clears the profile data"""
@@ -48,95 +68,48 @@ class ScriptTime(object):
 
     def formattime(self, t):
         """
-        formats a time value in seconds to the appropriate string
+        Formats a time value in seconds to the appropriate string. This is now included for legacy support.
         roughly based on formattime 
         """
-
-        def rediv(order):
-            """mimicks the behaviour of the depreciated reduce() function"""
-            result = [t * 10 * order]
-            for val in [1000, 60, 60]:
-                result = list(divmod(result, val)) + result[1:]
-            return result
-
-        def hour(lst):
-            """formats to the hour"""
-            return "%d:%02d:%02d.%03d" % (lst[0], lst[1], lst[2], round(lst[3]))
-
-        def minute(lst):
-            """formats to the minute"""
-            return "%02d:%02d.%01d" % (lst[1], lst[2], round(lst[3]))
-
-        def second(lst):
-            """formats to the second"""
-            return "%d.%03d s" % (lst[2], round(lst[3]))
-
-        def lessthansecond(lst):
-            """used to return a str with appropriate units if the time is less than a second"""
-            keys = {3: 'ms', 6: 'us', 9: 'ns', 12: 'ps'}  # units for given orders of magnitude
-            return "%.1f %s" % (round(lst[-1], 1), keys[order])
-
-        order = 3
-        out = rediv(order)
-        if out[0] == 0:  # if less than an hour
-            if out[1] == 0:  # if less than a minute
-                if out[2] == 0:  # if less than a second
-                    if out[3] // 1 == 0:  # if less than 1 millisecond
-                        while out[-1] // 1 == 0:  # determine the appropriate order of magnitude
-                            order += 3
-                            out = rediv(order)
-                            if order > 9:  # if order is greater than handled (typically systems can only track to the microsecond)
-                                return '<1 ns'
-                        return lessthansecond(out)
-                    else:
-                        return lessthansecond(out)
-                else:
-                    return second(out)
-            else:
-                return minute(out)
-        else:
-            return hour(out)
+        return str(datetime.timedelta(t))
 
     def periter(self, num):
         """
         calculated elapsed time per unit iteration (designed for timing scripts)
         """
-        self.sys.stdout.write('Average time per iteration: %s\n' % (self.formattime(self.elap / float(num))))
+        sys.stdout.write('Average time per iteration: %s\n' % (self.formattime(self.elapsed_time / float(num))))
 
     def printelapsed(self):
         """prints the elapsed time of the object"""
-        if 'end_time' not in self.__dict__:
+        if self._end_seconds is None:
             self.triggerend()
-        self.sys.stdout.write('Elapsed time: %s\n' % (self.formattime(self.elap)))
+        sys.stdout.write(f'Elapsed time: {datetime.timedelta(seconds=self.elapsed_time)}\n')
 
     def printend(self):
         """prints the end time and the elapsed time of the object"""
-        if 'end_time' not in self.__dict__:
+        if self._end_seconds is None:
             self.triggerend()
-        self.sys.stdout.write('End time: %s (elapsed: %s)\n' % (
-            self.time.strftime('%I:%M:%S %p', self.end), self.formattime(self.elap)))
+        sys.stdout.write(f'End time: {self.end_time} (elapsed: {datetime.timedelta(seconds=self.elapsed_time)})\n')
 
     def printprofiles(self):
         """prints the data for the profiled functions"""
-        if 'm' not in self.__dict__:
-            self.m = __import__('math')
-        self.sys.stdout.write('\nFunction profile data:\n')
-        self.sys.stdout.write(
+        sys.stdout.write('\nFunction profile data:\n')
+        sys.stdout.write(
             '%15s  %6s  %13s  %13s  %13s  %13s\n' % ('function', 'called', 'avg', 'standard_deviation', 'max', 'min'))
         for fname, data in self.profiles.items():
             avg = sum(data[1]) / len(data[1])
-            self.sys.stdout.write('%15s  %6d  %13s  %13s  %13s  %13s\n' % (fname, data[0], self.formattime(avg),
-                                                                           self.formattime(self.m.sqrt(
-                                                                               sum((i - avg) ** 2 for i in data[1]) / (
-                                                                                       len(data[1]) - 1))),
-                                                                           self.formattime(max(data[1])),
-                                                                           self.formattime(min(data[1]))))
-            # self.sys.stdout.write('Function %s called %d times. ' % (fname, data[0]))
-            # self.sys.stdout.write('Execution time max: %s, min: %s, average: %s, standard_deviation: %s\n' % (self.formattime(max(data[1])), self.formattime(min(data[1])), self.formattime(avg),self.formattime(self.m.sqrt(sum((i-avg)**2 for i in data[1])/(len(data[1])-1))) ))
+            sys.stdout.write('%15s  %6d  %13s  %13s  %13s  %13s\n' % (
+                fname,
+                data[0],
+                self.formattime(avg),
+                self.formattime(np.sqrt(sum((i - avg) ** 2 for i in data[1]) / (len(data[1]) - 1))),
+                self.formattime(max(data[1])),
+                self.formattime(min(data[1]))
+            ))
 
     def printstart(self):
         """prints the start (trigger) time of the object"""
-        self.sys.stdout.write('Start time: %s\n' % (self.time.strftime('%I:%M:%S %p', self.start)))
+        sys.stdout.write('Start time: %s\n' % (time.strftime('%I:%M:%S %p', self._start_clock)))
 
     def profilefn(self, fn):
         """generates a profiled version of the supplied function"""
@@ -145,10 +118,10 @@ class ScriptTime(object):
         # @wraps(fn)
         def with_profiling(*args, **kwargs):
             """decorates function with profiling commands"""
-            start_time = self.time.clock()  # time that the function was called
+            start_time = time.clock()  # time that the function was called
             ret = fn(*args, **kwargs)  # calls the function
 
-            elapsed_time = self.time.clock() - start_time  # end time of the function
+            elapsed_time = time.clock() - start_time  # end time of the function
             if fn.__name__ not in self.profiles:  # generates a dictionary key based on the function name if not present
                 self.profiles[fn.__name__] = [0, []]  # [number of times called, [list of durations]]
             self.profiles[fn.__name__][0] += 1
@@ -162,27 +135,12 @@ class ScriptTime(object):
 
     def triggerend(self):
         """triggers endpoint and calculates elapsed time since start"""
-        self.time_end = self.time.clock()
-        self.end = self.time.localtime()
-        self.elap = self.time_end - self.time_zero
+        self._end_seconds = time.time()
+        self._end_clock = time.localtime()
 
 
 if __name__ == '__main__':
-    st = ScriptTime(profile=True)
-    t = 0.236592
-    print(st.formattime(t))
-    # st.printstart()
-    #
-    # @st.profilefn
-    # def first(x):
-    #    return x+100
-    #
-    # @st.profilefn
-    # def second(x):
-    #    return x**2
-    # i = 10
-    # for i in range(1000):
-    #    i = first(i)
-    #    i = second(i)
-    # st.printend()
-    # st.printprofiles()
+    st = ScriptTime()
+    time.sleep(2.)
+    st.triggerend()
+    st.printend()

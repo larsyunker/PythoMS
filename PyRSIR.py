@@ -3,20 +3,6 @@
  
  PyRSIR (Python Reconstructed Single Ion Recording; previously SOAPy/PyRSIM)
  pronounced "piercer"
- 
-version 027
-CHANGELOG:
-- updated to work with mzML v 2.4
-- removed spectrum object generation prior to pull_species_data (isotope patterns are now retrieved from the sumspec object)
-- removed raw key generation prior to pull_species_data (this is now generated in the mzml function)
-- now outputs summed spectra for every mass spec function (multi-spectrum output on sheet Summed Spectra)
-- several changes to accept a more general sp input from excel pulling
-- added kwargs calling (plot, verbose)
-- fixed pulling of existing data from excel file (I think)
-- moved prepformula calls to after mzml object is created
-- added support for standalone execution of the script (user input in console)
-
----27.6 incompatible with mzML v2.4 or greater
 
 If you use this python script to convert to mzML, you should cite this paper
 (of the folks who wrote the msconvert program)
@@ -62,12 +48,35 @@ from pythoms.tome import bindata
 from pythoms.scripttime import ScriptTime
 from pythoms.mzml import mzML
 from pythoms.spectrum import Spectrum
-from pythoms.molecule import Molecule
+from pythoms.molecule import IPMolecule
 from pythoms.xlsx import XLSX
 
 
-def pyrsir(filename, xlsx, n, **kwargs):
-    def checkinteger(val, name):
+def pyrsir(
+        filename,
+        xlsx,
+        n,
+        plot=True,  # plot the data for a quick look
+        verbose=True,  # chatty
+        bounds_confidence=0.99,  #
+        combine_spectra=True,  # whether or not to output a summed spectrum
+        return_data=False,  #
+):
+    """
+    A method for generating reconstructed single ion monitoring traces.
+
+    :param filename: path to mzML or raw file to process
+    :param xlsx: path to excel file with correctly formatted columns
+    :param n: number of scans to sum together (for binning algorithm)
+    :param plot: whether to plot and show the data for a quick look
+    :param verbose: chatty mode
+    :param bounds_confidence: confidence interval for automatically generated bounds (only applicable if molecular
+        formulas are provided).
+    :param combine_spectra: whether to output a summed spectrum
+    :param return_data: whether to return data (if the data from the function is required by another function)
+    :return:
+    """
+    def check_integer(val, name):
         """
         This function checks that the supplied values are integers greater than 1
         
@@ -78,9 +87,9 @@ def pyrsir(filename, xlsx, n, **kwargs):
             val = [val]
         for num in val:
             if type(num) != int:
-                sys.exit('\nThe %s value (%s) is not an integer.\n%s' % (name, str(num), checkinteger.__doc__))
+                sys.exit('\nThe %s value (%s) is not an integer.\n%s' % (name, str(num), check_integer.__doc__))
             if num < 1:
-                sys.exit('\nThe %s value (%s) is less than 1.\n%s' % (name, str(num), checkinteger.__doc__))
+                sys.exit('\nThe %s value (%s) is less than 1.\n%s' % (name, str(num), check_integer.__doc__))
         return val
 
     def plots():
@@ -131,7 +140,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
         Writes the retrieved and calculated values to the excel workbook using the XLSX object
         """
         if newpeaks is True:  # looks for and deletes any sheets where the data will be changed
-            if ks['verbose'] is True:
+            if verbose is True:
                 sys.stdout.write('Clearing duplicate XLSX sheets.')
             delete = []
             for key in newsp:  # generate strings to look for in excel file
@@ -141,10 +150,10 @@ def pyrsir(filename, xlsx, n, **kwargs):
                     delete.append(str(num) + ' Normalized (' + sp[key]['affin'] + ')')
             delete.append('Isotope Patterns')
             xlfile.removesheets(delete)  # remove those sheets
-            if ks['verbose'] is True:
+            if verbose is True:
                 sys.stdout.write(' DONE.\n')
 
-        if ks['verbose'] is True:
+        if verbose is True:
             sys.stdout.write('Writing to "%s"' % xlfile.bookname)
             sys.stdout.flush()
 
@@ -194,15 +203,15 @@ def pyrsir(filename, xlsx, n, **kwargs):
                 tic['rawUV'][ind] = val / 1000000.
             xlfile.writersim(sp, rtime['rawUV'], 'raw', 'UV-Vis', 'UV', tic['rawUV'])  # write UV-Vis data to sheet
 
-        if sumspec is not None:  # write all summed spectra
-            for fn in sumspec:
+        if sum_spectra is not None:  # write all summed spectra
+            for fn in sum_spectra:
                 specname = '%s %s' % (mzml.functions[fn]['mode'], mzml.functions[fn]['level'])
                 if 'target' in mzml.functions[fn]:
                     specname += ' %.3f' % mzml.functions[fn]['target']
                 specname += ' (%.3f-%.3f)' % (mzml.functions[fn]['window'][0], mzml.functions[fn]['window'][1])
                 xlfile.writemultispectrum(
-                    sumspec[fn][0],  # x values
-                    sumspec[fn][1],  # y values
+                    sum_spectra[fn][0],  # x values
+                    sum_spectra[fn][1],  # y values
                     specname,  # name of the spectrum
                     xunit='m/z',  # x unit
                     yunit='Intensity (counts)',  # y unit
@@ -210,7 +219,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
                     chart=True,  # output excel chart
                 )
 
-        if ks['verbose'] is True:
+        if verbose is True:
             sys.stdout.write(' DONE\n')
 
     def prepformula(dct):
@@ -229,38 +238,24 @@ def pyrsir(filename, xlsx, n, **kwargs):
                     res = int(mzml.auto_resolution())
                     dct[species]['mol'].res = res
                 # dct[species]['mol'].sigma = dct[species]['mol'].sigmafwhm()[1]  # recalculates sigma with new resolution
-                dct[species]['bounds'] = dct[species]['mol'].bounds(0.95)  # caclulates bounds
+                dct[species]['bounds'] = dct[species]['mol'].bounds  # caclulates bounds
         return dct
 
     # ----------------------------------------------------------
     # -------------------PROGRAM BEGINS-------------------------
     # ----------------------------------------------------------
 
-    ks = {  # default keyword arguments
-        'plot': True,  # plot the data for a quick look
-        'verbose': True,  # chatty
-        'bounds confidence': 0.99,  # confidence interval for automatically generated bounds
-        'sumspec': True,  # whether or not to output a summed spectrum
-        'return': False,  # whether to return data (if the data from the function is required by another function)
-    }
-    if set(kwargs.keys()) - set(ks.keys()):  # check for invalid keyword arguments
-        string = ''
-        for i in set(kwargs.keys()) - set(ks.keys()):
-            string += ' %s' % i
-        raise KeyError('Unsupported keyword argument(s): %s' % string)
-    ks.update(kwargs)  # update defaults with provided keyword arguments
-
-    if ks['verbose'] is True:
+    if verbose is True:
         stime = ScriptTime()
         stime.printstart()
 
-    n = checkinteger(n, 'number of scans to sum')  # checks integer input and converts to list
+    n = check_integer(n, 'number of scans to sum')  # checks integer input and converts to list
 
     if type(xlsx) != dict:
-        if ks['verbose'] is True:
+        if verbose is True:
             sys.stdout.write('Loading processing parameters from excel file')
             sys.stdout.flush()
-        xlfile = XLSX(xlsx, verbose=ks['verbose'])
+        xlfile = XLSX(xlsx, verbose=verbose)
         sp = xlfile.pullrsimparams()
     else:  # if parameters were provided in place of an excel file
         sp = xlsx
@@ -268,10 +263,11 @@ def pyrsir(filename, xlsx, n, **kwargs):
     mskeys = ['+', '-']
     for key in sp:
         if 'formula' in sp[key] and sp[key]['formula'] is not None:  # if formula is specified
-            sp[key]['mol'] = Molecule(sp[key]['formula'])  # create Molecule object
-            sp[key]['bounds'] = sp[key]['mol'].bounds(
-                ks['bounds confidence'])  # generate bounds from molecule object with this confidence interval
-    if ks['verbose'] is True:
+            sp[key]['mol'] = IPMolecule(sp[key]['formula'])  # create Molecule object
+            sp[key]['bounds'] = sp[key]['mol'].calculate_bounds(
+                bounds_confidence
+            )  # generate bounds from molecule object with this confidence interval
+    if verbose is True:
         sys.stdout.write(' DONE\n')
 
     rtime = {}  # empty dictionaries for time and tic
@@ -284,7 +280,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
             continue
         except UnboundLocalError:  # catch for if pyrsir was not handed an excel file
             continue
-        if ks['verbose'] is True:
+        if verbose is True:
             sys.stdout.write('Existing (%s) mode raw data were found, grabbing those values.' % mode)
             sys.stdout.flush()
         rd = True  # bool that rd is present
@@ -295,20 +291,20 @@ def pyrsir(filename, xlsx, n, **kwargs):
                 sp[key]['affin'] = mode
         rtime[modekey] = list(modetime)  # update time list
         tic[modekey] = list(modetic)  # update tic list
-        if ks['verbose'] is True:
+        if verbose is True:
             sys.stdout.write(' DONE\n')
 
     # sp = prepformula(sp)
     newpeaks = False
     if rd is True:
         newsp = {}
-        sumspec = None
+        sum_spectra = None
         for key in sp:  # checks whether there is a MS species that does not have raw data
             if 'raw' not in sp[key]:
                 newsp[key] = sp[key]  # create references in the namespace
         if len(newsp) is not 0:
             newpeaks = True
-            if ks['verbose'] is True:
+            if verbose is True:
                 sys.stdout.write('Some peaks are not in the raw data, extracting these from raw file.\n')
             ips = xlfile.pullmultispectrum(
                 'Isotope Patterns')  # pull predefined isotope patterns and add them to species
@@ -322,21 +318,21 @@ def pyrsir(filename, xlsx, n, **kwargs):
                     newsp[species]['spectrum'] = Spectrum(3, newsp[species]['bounds'][0], newsp[species]['bounds'][1])
             newsp = mzml.pull_species_data(newsp)  # pull data
         else:
-            if ks['verbose'] is True:
+            if verbose is True:
                 sys.stdout.write('No new peaks were specified. Proceeding directly to summing and normalization.\n')
 
     if rd is False:  # if no raw data is present, process mzML file
-        mzml = mzML(filename, verbose=ks['verbose'])  # load mzML class
+        mzml = mzML(filename, verbose=verbose)  # load mzML class
         sp = prepformula(sp)
-        sp, sumspec = mzml.pull_species_data(sp, ks['sumspec'])  # pull relevant data from mzML
+        sp, sum_spectra = mzml.pull_species_data(sp, combine_spectra)  # pull relevant data from mzML
         chroms = mzml.pull_chromatograms()  # pull chromatograms from mzML
         rtime = {}
         tic = {}
         for key in sp:  # compare predicted isotope patterns to the real spectrum and save standard error of the regression
             func = sp[key]['function']
             if mzml.functions[func]['type'] == 'MS':  # determine mode key
-                if ks['sumspec'] is True:
-                    sp[key]['spectrum'] = sumspec[sp[key]['function']].trim(
+                if combine_spectra is True:
+                    sp[key]['spectrum'] = sum_spectra[sp[key]['function']].trim(
                         xbounds=sp[key]['bounds'])  # extract the spectrum object
                 mode = 'raw' + mzml.functions[func]['mode']
             if mzml.functions[func]['type'] == 'UV':
@@ -346,13 +342,13 @@ def pyrsir(filename, xlsx, n, **kwargs):
                 tic[mode] = mzml.functions[func]['tic']
             if 'formula' in sp[key] and sp[key]['formula'] is not None:
                 sp[key]['match'] = sp[key]['mol'].compare(sp[key]['spectrum'])
-        if ks['sumspec'] is True:
-            for fn in sumspec:
-                sumspec[fn] = sumspec[fn].trim()  # convert Spectrum objects into x,y lists
+        if combine_spectra is True:
+            for fn in sum_spectra:
+                sum_spectra[fn] = sum_spectra[fn].trim()  # convert Spectrum objects into x,y lists
 
     # if max(n) > 1: # run combine functions if n > 1
     for num in n:  # for each n to sum
-        if ks['verbose'] is True:
+        if verbose is True:
             sys.stdout.write('\r%d Summing species traces.' % num)
         sumkey = str(num) + 'sum'
         for key in sp:  # bin each species
@@ -365,7 +361,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
             if modekey in rtime.keys():  # if there is data for that mode
                 rtime[sumkey] = bindata(num, rtime[modekey], num)
                 tic[sumkey] = bindata(num, tic[modekey])
-    if ks['verbose'] is True:
+    if verbose is True:
         sys.stdout.write(' DONE\n')
         sys.stdout.flush()
     # else:
@@ -373,7 +369,7 @@ def pyrsir(filename, xlsx, n, **kwargs):
     #        sp[key]['1sum'] = sp[key]['raw']
 
     for num in n:  # normalize each peak's chromatogram
-        if ks['verbose'] is True:
+        if verbose is True:
             sys.stdout.write('\r%d Normalizing species traces.' % num)
             sys.stdout.flush()
         sumkey = str(num) + 'sum'
@@ -389,10 +385,10 @@ def pyrsir(filename, xlsx, n, **kwargs):
                             # sp[key][normkey].append(val/(mzml.function[func]['tic'][ind]+0.01)) #+0.01 to avoid div/0 errors
                             sp[key][normkey].append(
                                 val / (tic[sumkey + sp[key]['affin']][ind] + 0.01))  # +0.01 to avoid div/0 errors
-    if ks['verbose'] is True:
+    if verbose is True:
         sys.stdout.write(' DONE\n')
 
-    if ks['return'] is True:  # if data is to be used by another function, return the calculated data
+    if return_data is True:  # if data is to be used by another function, return the calculated data
         return mzml, sp, rtime, tic, chroms
 
     # import pickle #pickle objects (for troubleshooting)
@@ -403,27 +399,27 @@ def pyrsir(filename, xlsx, n, **kwargs):
 
     output()  # write data to excel file
 
-    if ks['verbose'] is True:
+    if verbose is True:
         sys.stdout.write('\rUpdating paramters')
         sys.stdout.flush()
     xlfile.updatersimparams(sp)  # update summing parameters
-    if ks['verbose'] is True:
+    if verbose is True:
         sys.stdout.write(' DONE\n')
 
-    if ks['verbose'] is True:
+    if verbose is True:
         sys.stdout.write('\rSaving "%s" (this may take some time)' % xlfile.bookname)
         sys.stdout.flush()
     xlfile.save()
-    if ks['verbose'] is True:
+    if verbose is True:
         sys.stdout.write(' DONE\n')
 
-    if ks['plot'] is True:
-        if ks['verbose'] is True:
+    if verbose is True:
+        if verbose is True:
             sys.stdout.write('Plotting traces')
         plots()  # plots for quick review
-        if ks['verbose'] is True:
+        if verbose is True:
             sys.stdout.write(' DONE\n')
-    if ks['verbose'] is True:
+    if verbose is True:
         stime.printelapsed()
 
 

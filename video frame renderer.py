@@ -105,11 +105,12 @@ def msfignorm(x, y):
     """
     height = 0  # starting point
     for key in sp:
-        l, r = bisect_right(x, sp[key]['bounds'][0]), bisect_left(x, sp[key]['bounds'][
-            1])  # index location of selected peak in spectrum
+        # index location of selected peak in spectrum
+        left = bisect_right(x, sp[key]['bounds'][0])
+        right = bisect_left(x, sp[key]['bounds'][1])
         try:
-            height += max(y[l:r])  # add maximum in selected region to height
-        except ValueError:  # if no intensity in region
+            height += max(y[left:right])  # add maximum in selected region to height
+        except ValueError:  # if no intensity in region, add some small number
             height += 0.01
 
     for ind, val in enumerate(y):  # normalizes all y values
@@ -125,25 +126,7 @@ def timelimits(index):
     mintime = 10000
     maxtime = -10000
     for mode in mskeys:
-        sumkey = str(n) + 'sum' + mode
-        if sumkey in rtime.keys():
-            if rtime[sumkey][0] < mintime:
-                mintime = rtime[sumkey][0]
-            if index == 0:
-                index += 1
-            if rtime[sumkey][index] > maxtime:
-                maxtime = rtime[sumkey][index]
-    return mintime, maxtime
-
-
-def timelimits(index):
-    """
-    finds the appropriate time limits for the traces
-    """
-    mintime = 10000
-    maxtime = -10000
-    for mode in mskeys:
-        sumkey = str(n) + 'sum' + mode
+        sumkey = f'{n}sum{mode}'
         if sumkey in rtime.keys():
             if rtime[sumkey][0] < mintime:
                 mintime = rtime[sumkey][0]
@@ -372,6 +355,7 @@ ani = animation.FuncAnimation(
     repeat=False,
 )
 
+print('Writing animation to file...')
 ani.save(
     filename + '.mp4',
     writer='ffmpeg',

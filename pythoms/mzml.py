@@ -163,7 +163,10 @@ def extract_spectrum(spectrum: xml.dom.minidom.Element, units: bool = False):
         out.append(list(struct.unpack(unpack_format, decoded)))
 
         if units is not False:
-            units.append(p.unit)
+            for cv in p:
+                if cv.unit is not None:
+                    units.append(cv.unit)
+                    break
     if units is not False:  # extends the units onto out
         out.extend(units)
     return out
@@ -979,7 +982,7 @@ class mzML(object):
                         r = max(x)
                     else:
                         r = mzend
-                    spec = self.trimspectrum(x, y, l, r, outside)
+                    spec = trimspectrum(x, y, l, r, outside)
                 out.append(spec)
         if self.verbose is True and mute is False:
             prog.fin()

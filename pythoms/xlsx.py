@@ -236,19 +236,6 @@ class XLSX(object):
             return out
         return string[::-1] + str(row + 1)
 
-    def loadop(self):
-        """loads openpyxl and checks for lxml"""
-        try:
-            self.op = __import__('openpyxl')
-        except ImportError:
-            raise ImportError(
-                'openpyxl does not appear to be installed.\nThe XLSX class requires this package to function, please install it.')
-        # try:
-        #     import lxml
-        # except ImportError:
-        #     raise ImportError(
-        #         'lxml does not appear to be installed.\nThe XLSX class requires this package to function, please install it.')
-
     def get_sheet(self, sheetname):
         """tries to retrieve the specified sheet name, otherwise returns None"""
         try:
@@ -279,7 +266,7 @@ class XLSX(object):
                     """
                     if self.verbose is True:
                         sys.stdout.write('Creating workbook "%s" and loading it into memory' % bookname)
-                    # wb = self.op.Workbook(bookname,write_only=False) # create workbook
+                    # wb = op.Workbook(bookname,write_only=False) # create workbook
                     wb = op.Workbook(bookname)  # create workbook
                     wb.save(bookname)  # save it
                     wb = op.load_workbook(bookname)  # load it
@@ -293,7 +280,7 @@ class XLSX(object):
 
     def pullmultispectrum(self, sheetname):
         """reads multispectrum output back into dictionary format"""
-        cs = self.wb.get_sheet_by_name(sheetname)
+        cs = self.wb[sheetname]
         out = {}
         loc = 1
         while loc < cs.max_column:
@@ -382,7 +369,7 @@ class XLSX(object):
         This method is primarily used by PyRSIR.py. See this script for more details.
 
         """
-        cs = self.wb.get_sheet_by_name(sheet)
+        cs = self.wb[sheet]
         if TIC is True:
             tic = []
         time = []
@@ -480,10 +467,10 @@ class XLSX(object):
                     'The value "%s" (cell %s) in "%s" could not be interpreted as a float.\nCheck the value in this cell or change the number of lines skipped' % (
                         value, self.inds_to_cellname(row, col), self.bookname))
 
-        if self.ks['verbose'] is True:
-            self.sys.stdout.write('Pulling spectrum from sheet "%s"' % sheet)
+        if self.verbose is True:
+            sys.stdout.write('Pulling spectrum from sheet "%s"' % sheet)
         skiplines -= 1
-        specsheet = self.wb.get_sheet_by_name(sheet)
+        specsheet = self.wb[sheet]
         spectrum = [[], []]
         for ind, row in enumerate(
                 specsheet.rows):  # for each row append the mz and int values to their respective lists
@@ -495,8 +482,8 @@ class XLSX(object):
                 if row[0].value is not None and row[1].value is not None:
                     spectrum[0].append(tofloat(row[0].value, ind, 0))  # append values
                     spectrum[1].append(tofloat(row[1].value, ind, 1))
-        if self.ks['verbose'] is True:
-            self.sys.stdout.write(' DONE\n')
+        if self.verbose is True:
+            sys.stdout.write(' DONE\n')
         return spectrum, xunit, yunit
 
     def pullrsimparams(self, sheet='parameters'):
@@ -568,7 +555,7 @@ class XLSX(object):
             """tries to find another common name for the parameters sheet"""
             others = ['Parameters', 'params', 'Params']
             for name in others:
-                if name in self.wb.get_sheet_names():
+                if name in self.wb.sheetnames:
                     return name
             raise KeyError('There is no "%s" sheet in "%s".' % (oldsheet, self.bookname))
 
@@ -578,10 +565,10 @@ class XLSX(object):
                 return None
             return string.lower()
 
-        if sheet not in self.wb.get_sheet_names():  # if the sheet can't be found, try other common names
+        if sheet not in self.wb.sheetnames:  # if the sheet can't be found, try other common names
             sheet = othernames(sheet)
 
-        s = self.wb.get_sheet_by_name(sheet)  # load sheet in specified excel file
+        s = self.wb[sheet]  # load sheet in specified excel file
 
         names = ['name']  # valid name column headers
         formulas = ['formula', 'form', 'mf']  # valid molecular formula column headers
@@ -778,10 +765,10 @@ class XLSX(object):
             Allows specification of a specific sheet to save as.
 
         """
-        if sheet not in self.wb.get_sheet_names():  # if the sheet can't be found, try other common names
+        if sheet not in self.wb.sheetnames:  # if the sheet can't be found, try other common names
             sheet = self.pullrsimparams.othernames(sheet)
 
-        s = self.wb.get_sheet_by_name(sheet)  # load sheet in specified excel file
+        s = self.wb[sheet]  # load sheet in specified excel file
 
         for ind, row in enumerate(s.rows):
             if ind == 0:
@@ -865,11 +852,11 @@ class XLSX(object):
         if sheetname not in self.wms:  # check for preexisting key
             self.wms[sheetname] = 1
 
-        if sheetname not in self.wb.get_sheet_names():  # if sheet does not exist
+        if sheetname not in self.wb.sheetnames:  # if sheet does not exist
             cs = self.wb.create_sheet()
             cs.title = sheetname
         else:
-            cs = self.wb.get_sheet_by_name(sheetname)  # load existing sheet
+            cs = self.wb[sheetname]  # load existing sheet
 
         cs.cell(row=1, column=self.wms[sheetname]).value = specname
         cs.cell(row=1, column=self.wms[sheetname] + 1).value = xunit
@@ -879,14 +866,14 @@ class XLSX(object):
             cs.cell(row=ind + 2, column=self.wms[sheetname] + 2).value = ylist[ind]  # write y value
 
         if chart is True:
-            chart = self.op.chart.ScatterChart()  # generate the chart object
+            chart = op.chart.ScatterChart()  # generate the chart object
             chart.title = str(specname)  # convert title to string to avoid TypeError
-            xvals = self.op.chart.Reference(cs, min_col=self.wms[sheetname] + 1, min_row=2,
+            xvals = op.chart.Reference(cs, min_col=self.wms[sheetname] + 1, min_row=2,
                                             max_row=len(xlist) + 1)  # define the x values
             chart.x_axis.title = xunit  # x axis title
-            yvals = self.op.chart.Reference(cs, min_col=self.wms[sheetname] + 2, min_row=2, max_row=len(xlist) + 1)
+            yvals = op.chart.Reference(cs, min_col=self.wms[sheetname] + 2, min_row=2, max_row=len(xlist) + 1)
             chart.y_axis.title = yunit  # y axis title
-            series = self.op.chart.Series(yvals, xvals)
+            series = op.chart.Series(yvals, xvals)
             chart.series.append(series)  # add the data to the chart
             if self.wms[sheetname] // 4 % 2 == 0:  # alternate the location of the output charts
                 shifty = 1
@@ -940,7 +927,7 @@ class XLSX(object):
         the data will not be written.
 
         """
-        if sheetname not in self.wb.get_sheet_names():
+        if sheetname not in self.wb.sheetnames:
             cs = self.wb.create_sheet()  # create new sheet
             cs.title = sheetname  # rename sheet
             cs['A1'] = 'Time'
@@ -991,7 +978,7 @@ class XLSX(object):
             Whether or not to plot the spectrum data as a chart.
 
         """
-        if sheet in self.wb.get_sheet_names():
+        if sheet in self.wb.sheetnames:
             sheet = self.checkduplicatesheet(sheet)
         ws = self.wb.create_sheet()
         ws.title = sheet
@@ -1010,16 +997,16 @@ class XLSX(object):
             if norm is True:
                 ws[self.inds_to_cellname(1 + ind, 2)] = '=%s/$D$2' % self.inds_to_cellname(1 + ind, 1)
         if chart is True:  # if a chart object is called for
-            chart = self.op.chart.ScatterChart()  # generate the chart object
-            xvals = self.op.chart.Reference(ws, min_col=1, min_row=2, max_row=len(x) + 1)  # define the x values
+            chart = op.chart.ScatterChart()  # generate the chart object
+            xvals = op.chart.Reference(ws, min_col=1, min_row=2, max_row=len(x) + 1)  # define the x values
             chart.x_axis.title = 'm/z'  # x axis title
             if norm is False:  # if there is no normalized data
-                yvals = self.op.chart.Reference(ws, min_col=2, min_row=1, max_row=len(x) + 1)
+                yvals = op.chart.Reference(ws, min_col=2, min_row=1, max_row=len(x) + 1)
                 chart.y_axis.title = 'Intensity (counts)'
             if norm is True:  # if there is normalized data
-                yvals = self.op.chart.Reference(ws, min_col=3, min_row=1, max_row=len(x) + 1)
+                yvals = op.chart.Reference(ws, min_col=3, min_row=1, max_row=len(x) + 1)
                 chart.y_axis.title = 'Normalized Intensity'
-            series = self.op.chart.Series(yvals, xvals)
+            series = op.chart.Series(yvals, xvals)
             chart.series.append(series)  # add the data to the chart
             ws.add_chart(chart, 'E1')  # add the chart to the worksheet
 

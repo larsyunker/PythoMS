@@ -33,7 +33,7 @@ spectype = 'continuum'
 if __name__ == '__main__':
     xlfile = XLSX(filename)  # load excel file
 
-    for sheet in xlfile.wb.get_sheet_names():  # for each sheet
+    for sheet in xlfile.wb.sheetnames:  # for each sheet
         sys.stdout.write('Plotting spectrum "%s"' % sheet)
         sys.stdout.flush()
         spec = xlfile.pullspectrum(sheet, 8)[0]  # pull spectrum
