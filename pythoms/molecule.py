@@ -85,6 +85,15 @@ VALID_IPMETHODS = [
     'hybrid',
     'cuda',
 ]
+
+# valid dropping methods
+VALID_DROPMETHODS = [
+    None,  # no dropping
+    'threshold',  # drop values below threshold
+    'npeaks',  # keep top n number of peaks
+    'consolidate',  # consolidate intensities
+]
+
 # default threshold for low-intensity peak dropping
 THRESHOLD = 0.01
 # number of peaks to keep for low-intensity peak dropping
@@ -1325,6 +1334,7 @@ class Molecule(object):
 class IPMolecule(Molecule):
     _ipmethod = None
     _gausip = None  # gaussian isotope pattern storage
+    _dropmethod = None
 
     def __init__(self,
                  string,
@@ -1471,8 +1481,20 @@ class IPMolecule(Molecule):
     @ipmethod.setter
     def ipmethod(self, value):
         if value not in VALID_IPMETHODS:
-            raise ValueError(f'The isotope pattern generation method must be one of: {", ".join(VALID_IPMETHODS)}')
+            raise ValueError(f'The isotope pattern generation method {value} is not valid. ipmethod must be one '
+                             f'of: {", ".join(VALID_IPMETHODS)}')
         self._ipmethod = value
+
+    @property
+    def dropmethod(self):
+        return self._dropmethod
+
+    @dropmethod.setter
+    def dropmethod(self, value):
+        if value not in VALID_DROPMETHODS:
+            raise ValueError(f'The intensity dropping method {value} is not valid. dropmethod must be one '
+                             f'of: {", ".join(VALID_DROPMETHODS)}')
+        self._dropmethod = value
 
     @property
     def estimated_exact_mass(self):
