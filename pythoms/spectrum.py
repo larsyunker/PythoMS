@@ -385,14 +385,15 @@ class Spectrum(object):
             self.x /= charge
         except TypeError:  # otherwise iterate over list
             for ind, val in enumerate(self.x):
-                self.x[ind] = val / charge
+                self.x[ind] = val / (charge / self._charge)
         # set new bounds
         self.start /= charge
         self.end /= charge
+        self._charge = charge
 
     @charge.deleter
     def charge(self):
-        self._charge = 1
+        setattr(self, 'charge', 1)
 
     def add_element(self, masses, abunds):
         """
