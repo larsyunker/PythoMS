@@ -16,6 +16,9 @@ KEYWORDS = ', '.join([
 with open('README.MD') as f:
     long_description = f.read()
 
+with open('requirements.txt') as f:
+    requires = f.read().split('\n')
+
 setup(
     name=NAME,
     version=VERSION,
@@ -35,6 +38,15 @@ setup(
         'Topic :: Scientific/Engineering :: Information Analysis',
         'Operating System :: OS Independent',
         'Natural Language :: English'
+    ],
+    install_requires=[
+        'numpy>=1.14.2',
+        'openpyxl>=2.5.2',
+        'matplotlib>=2.1.2',
+        'scipy>=1.1.0',
+        'sympy>=1.1.1',
+        'obonet',
+        'numpy',
     ],
     keywords=KEYWORDS,
 )
