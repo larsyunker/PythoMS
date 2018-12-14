@@ -194,6 +194,26 @@ def check_in_mass_dict(comp: dict):
                 )
 
 
+def element_intensity_list(element: str):
+    """
+    Returns the non-zero element intensity for the specified element.
+
+    :param element: element key
+    :return: mass, intensity lists
+    :rtype: list
+    """
+    if element not in mass_dict:
+        raise KeyError(f'The element {element} is not defined in the mass dictionary.')
+    ele_dict = mass_dict[element]
+    mass_out = []
+    intensity_out = []
+    for isotope in ele_dict:
+        if isotope != 0 and ele_dict[isotope][1] != 0.:
+            mass_out.append(ele_dict[isotope][0])
+            intensity_out.append(ele_dict[isotope][1])
+    return [mass_out, intensity_out]
+
+
 def chew_formula(formula: str):
     """
     Iterates through provided formula, extracting blocks, interpreting the blocks,
