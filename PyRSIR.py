@@ -416,7 +416,8 @@ def pyrsir(
     if verbose is True:
         if verbose is True:
             sys.stdout.write('Plotting traces')
-        plots()  # plots for quick review
+        if plot is True:
+            plots()  # plots for quick review
         if verbose is True:
             sys.stdout.write(' DONE\n')
     if verbose is True:

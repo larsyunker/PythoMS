@@ -3,7 +3,6 @@ a script for validating the functionality of the commonly used scripts
 """
 import unittest
 import os
-import sys
 import shutil
 from random import random
 from pythoms.mzml import mzML, branch_cvparams, branch_attributes
@@ -13,28 +12,29 @@ from pythoms.xlsx import XLSX
 from PyRSIR import pyrsir
 
 
+validation_file_path = os.path.join(os.getcwd(), 'validation_files')
+
+
 class TestPyRSIR(unittest.TestCase):
     def test(self):
-        sys.stdout.write('Testing PyRSIR...')
         shutil.copy(
-            cwd + '\\validation_files\\pyrsir_validation.xlsx',
-            cwd + '\\validation_files\\pyrsir_validation (backup).xlsx'
+            os.path.join(validation_file_path, 'pyrsir_validation.xlsx'),
+            os.path.join(validation_file_path, 'pyrsir_validation (backup).xlsx')
         )
         try:
             pyrsir(
-                cwd + '\\validation_files\\MultiTest',
-                cwd + '\\validation_files\\pyrsir_validation',
+                os.path.join(validation_file_path, 'MultiTest'),
+                os.path.join(validation_file_path, 'pyrsir_validation'),
                 3,
                 plot=False,
                 verbose=False
             )
         finally:
             shutil.copy(
-                cwd + '\\validation_files\\pyrsir_validation (backup).xlsx',
-                cwd + '\\validation_files\\pyrsir_validation.xlsx',
+                os.path.join(validation_file_path, 'pyrsir_validation (backup).xlsx'),
+                os.path.join(validation_file_path, 'pyrsir_validation.xlsx'),
             )
-            os.remove(cwd + '\\validation_files\\pyrsir_validation (backup).xlsx')
-        sys.stdout.write(' PASS\n')
+            os.remove(os.path.join(validation_file_path, 'pyrsir_validation (backup).xlsx'))
 
 
 class TestMolecule(unittest.TestCase):
@@ -97,9 +97,8 @@ class TestMolecule(unittest.TestCase):
 
 class TestmzML(unittest.TestCase):
     def test_mzml(self):
-        sys.stdout.write('Testing mzML class...')
         mzml = mzML(
-            cwd + '\\validation_files\\MultiTest',
+            os.path.join(validation_file_path, 'MultiTest'),
             verbose=False
         )
         self.assertEqual(  # check that the correct function keys were pulled
@@ -147,14 +146,14 @@ class TestmzML(unittest.TestCase):
 class TestXLSX(unittest.TestCase):
     def test_xlsx(self):
         xlfile = XLSX(
-            os.path.join(os.getcwd(), 'validation_files', 'xlsx_validation'),
+            os.path.join(validation_file_path, 'xlsx_validation'),
             verbose=False
         )
         spec, xunit, yunit = xlfile.pullspectrum('example MS spectrum')
         multispec = xlfile.pullmultispectrum('example multi-spectrum')
         rsimparams = xlfile.pullrsimparams()
         xlout = XLSX(
-            os.path.join(os.getcwd(), 'validation_files', 'xlsxtestout.xlsx'),
+            os.path.join(validation_file_path, 'xlsxtestout.xlsx'),
             create=True,
             verbose=False
         )
@@ -170,7 +169,7 @@ class TestXLSX(unittest.TestCase):
             )
         xlout.save()
         os.remove(
-            os.path.join(os.getcwd(), 'validation_files', 'xlsxtestout.xlsx')
+            os.path.join(validation_file_path, 'xlsxtestout.xlsx')
         )
 
 
@@ -273,7 +272,4 @@ class TestSpectrum(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if os.path.dirname(os.path.realpath(__file__)) not in sys.path:
-        sys.path.append(os.path.dirname(os.path.realpath(__file__)))
-        sys.path.append(os.path.dirname(os.path.realpath(__file__)) + '\\validation_files')
     unittest.main(verbosity=2)
