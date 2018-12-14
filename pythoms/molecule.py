@@ -83,7 +83,7 @@ VALID_IPMETHODS = [
     'combinatorics',
     'multiplicative',
     'hybrid',
-    'cuda',
+    # 'cuda',
 ]
 
 # valid dropping methods
@@ -472,9 +472,6 @@ def gaussian_isotope_pattern(
         ``[[m/z values],[intensity values]]``
     :rtype: list
     """
-    if verbose is True:
-        sys.stdout.write(f'Generating simulated isotope pattern using a resolution of %{self.res:g}')
-
     spec = Spectrum(  # generate Spectrum object to encompass the entire region
         autodec(fwhm),
         start=min(barip[0]) - fwhm * 2,
@@ -644,38 +641,6 @@ def cpu_list_product(iterable):
     for n in iterable:
         prod *= n
     return prod
-
-
-@guvectorize(
-    ['void(float64[:], float64[:])'],
-    '(m)->(m)',
-    target='cuda'
-)
-def cuda_list_product(a, out):
-    """
-    Creates a list whose value is the multiple of all values preceeding it. The product of the list is the last value
-    in the output list
-
-    :param a: list of values to multiply
-    :return: multiplied values
-    :rtype: array
-    """
-    for i in range(a.shape[0]):
-        if i == 0:
-            out[i] = a[i]
-        else:
-            out[i] = out[i - 1] * a[i]
-
-
-def list_product(iterable):
-    """
-    Returns the product of an iterable.
-
-    :param iterable:
-    :return:
-    """
-    # todo try GPU otherwise do CPU then implement across package
-    return cuda_list_product(iterable)[-1]
 
 
 @st.profilefn
@@ -1709,7 +1674,7 @@ class IPMolecule(Molecule):
         elif self.ipmethod == 'multiplicative':
             calculator = isotope_pattern_multiplicative
         elif self.ipmethod == 'hybrid':
-            calculator = hybrid_isotope_pattern
+            calculator = isotope_pattern_hybrid
         else:
             raise ValueError(f'The isotope pattern method {self.ipmethod} is not valid')
 
