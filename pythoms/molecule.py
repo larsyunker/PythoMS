@@ -605,7 +605,7 @@ def num_permu(lst, isos):
     denom = 1  # denominator is the product of the factorials of the counts of each isotope in the list
     for count in counts:
         denom *= sym.factorial(count)
-    return (num / denom).evalf()  # divide, evaluate, and return
+    return int((num / denom).evalf())  # divide, evaluate, and return integer
 
 
 @st.profilefn
