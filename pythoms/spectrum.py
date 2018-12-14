@@ -166,8 +166,10 @@ class Spectrum(object):
                              f'{self.__class__.__name__} instance. ')
 
         # set start and end values for the spectrum
-        self._start = start
-        self._end = end
+        if start is not None:
+            self._start = start
+        if end is not None:
+            self._end = end
 
         if self.empty is False:
             self.x, self.y = full_spectrum_list(  # m/z and intensity lists
@@ -341,10 +343,11 @@ class Spectrum(object):
         if value is None:
             value = -np.inf
         value = round(value, self.decpl)
-        index = self.index(value)  # find index
+        if value > self._start:  # if trimming is required
+            index = self.index(value)  # find index
+            del self.x[:index]  # trim spectra
+            del self.y[:index]
         self._start = value
-        del self.x[:index]  # trim spectra
-        del self.y[:index]
 
     @start.deleter
     def start(self):
@@ -359,10 +362,11 @@ class Spectrum(object):
         if value is None:
             value = np.inf
         value = round(value, self.decpl)
-        index = self.index(value)  # find index
+        if value < self._end:
+            index = self.index(value)  # find index
+            self.x = self.x[:index]  # trim lists
+            self.y = self.y[:index]
         self._end = value
-        self.x = self.x[:index]  # trim lists
-        self.y = self.y[:index]
 
     @end.deleter
     def end(self):
