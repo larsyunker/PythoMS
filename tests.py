@@ -129,7 +129,7 @@ class TestmzML(unittest.TestCase):
 
         self.assertEqual(  # test intensity summing
             sum(mzml.sum_scans()[1]),
-            162806964
+            162804754.0
         )
 
         self.assertEqual(  # test scan indexing
