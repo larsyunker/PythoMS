@@ -16,9 +16,6 @@ KEYWORDS = ', '.join([
 with open('README.MD') as f:
     long_description = f.read()
 
-with open('requirements.txt') as f:
-    requires = f.read().split('\n')
-
 setup(
     name=NAME,
     version=VERSION,
