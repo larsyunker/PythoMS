@@ -18,8 +18,8 @@ in the command line.
 
 PyPI installations do not include the scripts in this repository.
 If you wish to use these scripts, download the entire repository to a
-folder on your computer, run `pip install -r requirements.txt` with that
-folder as the current working directory (installs the dependencies),
+folder on your computer, run `python setup.py install` with that
+folder as the current working directory (this installs the dependencies),
 and execute the scripts as needed.
 
 * Python users interested in applying the scripts directly can edit the
