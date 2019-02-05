@@ -392,33 +392,23 @@ class XLSX(object):
         else:
             return data, time
 
-    def pullspectrum(self, sheet='spectrum', skiplines=0):
+    def pullspectrum(
+            self,
+            sheet='spectrum',
+            skiplines=0,
+            column_offset=0,
+    ):
         """
         Pulls an x,y set of paired values from the specified sheet.
 
-        **Parameters**
-
-        sheet: *string*
-            The sheet name from which to extract the data.
-            Default: 'spectrum'
-
-        skiplines: *integer*
-            If there are lines of data (e.g. acquisition parameters)
-            before the name of the x and y data sets.
+        :param str sheet: The sheet name from which to extract the data.
+        :param skiplines: If there are lines of data (e.g. acquisition parameters) before the name of the x and y data
+            sets.
             e.g. a value of 0 means that the x and y column headers are
             in row 1, 2 means the headers are in row 2, etc.
-
-
-        **Returns**
-
-        spectrum: *list*
-            A list of lists of the form ``[[x values],[yvalues]]``.
-
-        xunit: *string*
-            The value of the cell at the head of the x values.
-
-        yunit: *string*
-            The value of the cell at the head of the y values.
+        :param column_offset: If the data are not in columns 1 and 2, specify offset here
+        :return: spectrum, x unit, y unit
+        :rtype: ([[],[]], str, str)
 
 
         **Sheet data layout**
@@ -476,12 +466,12 @@ class XLSX(object):
                 specsheet.rows):  # for each row append the mz and int values to their respective lists
             if ind > skiplines:  # skip specified number of lines
                 if ind == skiplines + 1:  # header row
-                    xunit = row[0].value
-                    yunit = row[1].value
+                    xunit = row[0 + column_offset].value
+                    yunit = row[1 + column_offset].value
                     continue
-                if row[0].value is not None and row[1].value is not None:
-                    spectrum[0].append(tofloat(row[0].value, ind, 0))  # append values
-                    spectrum[1].append(tofloat(row[1].value, ind, 1))
+                if row[0 + column_offset].value is not None and row[1 + column_offset].value is not None:
+                    spectrum[0].append(tofloat(row[0 + column_offset].value, ind, 0))  # append values
+                    spectrum[1].append(tofloat(row[1 + column_offset].value, ind, 1))
         if self.verbose is True:
             sys.stdout.write(' DONE\n')
         return spectrum, xunit, yunit
