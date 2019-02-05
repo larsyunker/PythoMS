@@ -1746,7 +1746,8 @@ class IPMolecule(Molecule):
             for val in lst:
                 ss += val ** 2
             return ss
-
+        # TODO fix this method (worthwhile?)
+        #   - 2015-09-15 06 gives a bounds error
         yvals = []
         res = []
         maxy = float(max(exp[1]))
@@ -1759,7 +1760,7 @@ class IPMolecule(Molecule):
             if min(self.gausip[0]) < mz < max(self.gausip[0]):  # if within isotope pattern
                 nspind = self.spectrum_raw.index(mz)  # calculate index
                 if self.spectrum_raw.y[nspind] is not None:  # if the predicted intensity is not None
-                    # difference between observed and predited (residuals)
+                    # difference between observed and predicted (residuals)
                     res.append(yvals[ind] - self.spectrum_raw.y[nspind])
                     # tot.append(self.spec.y[nspind]-avgy) # difference between predicted and mean
         # rsqrd = 1-(sumsquare(res)/sumsquare(tot)) # r-squared value (apparently not applicable to non-linear fits)

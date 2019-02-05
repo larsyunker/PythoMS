@@ -27,6 +27,7 @@ spectrum = 'LY-2014-06-12 14.mzML.gz'
 # number of lines to skip in the excel file
 # (e.g. if there are spectrum details above the actual spectrum values)
 skiplines = 0
+column_offset = 1
 
 # sheet name in the excel file (if this is not specified, the script will use the first sheet in the file)
 sheetname = None

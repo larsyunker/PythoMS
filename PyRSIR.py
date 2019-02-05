@@ -31,16 +31,7 @@ Column #3: what spectrum to find this species in (+,-,UV)
 Column #4: start value (m/z or wavelength)
 Column #5: end value (m/z or wavelength)
 """
-
-# # input *.raw filename
-# filename = 'ND-04082014-HIYAMA.raw'
-#
-# # Excel file to read from and output to (in *.xlsx format)
-# xlsx = 'ND-04082014-HIYAMA.xlsx'
-#
-# # set number of scans to sum (integer or list of integers)
-# n = [3]
-
+import os
 import sys
 import pylab as pl
 
@@ -50,6 +41,15 @@ from pythoms.mzml import mzML
 from pythoms.spectrum import Spectrum
 from pythoms.molecule import IPMolecule
 from pythoms.xlsx import XLSX
+
+# input *.raw filename
+filename = 'C:\\Temp\\PythoMS example\\LY-2015-09-15 06.mzML.gz'
+
+# Excel file to read from and output to (in *.xlsx format)
+xlsx = 'C:\\Temp\\PythoMS example\\LY-2015-09-15 06 processing.xlsx'
+
+# set number of scans to sum (integer or list of integers)
+n = [3]
 
 
 def pyrsir(
@@ -340,8 +340,8 @@ def pyrsir(
             if mode not in rtime:  # if rtime and tic have not been pulled from that function
                 rtime[mode] = mzml.functions[func]['timepoints']
                 tic[mode] = mzml.functions[func]['tic']
-            if 'formula' in sp[key] and sp[key]['formula'] is not None:
-                sp[key]['match'] = sp[key]['mol'].compare(sp[key]['spectrum'])
+            # if 'formula' in sp[key] and sp[key]['formula'] is not None:
+            #     sp[key]['match'] = sp[key]['mol'].compare(sp[key]['spectrum'])
         if combine_spectra is True:
             for fn in sum_spectra:
                 sum_spectra[fn] = sum_spectra[fn].trim()  # convert Spectrum objects into x,y lists
@@ -435,8 +435,8 @@ def pyrsir(
 
 if __name__ == '__main__':
     curdir = input('Directory: ')  # cur
-    filename = input('Raw or mzML filename: ')  # input filename
-    xlsx = input('Excel file name: ')  # excel file name with summing parameters
+    filename = os.path.join(curdir, input('Raw or mzML filename: '))  # input filename
+    xlsx = os.path.join(curdir, input('Excel file name: '))  # excel file name with summing parameters
     try:
         n = [int(i) for i in input('Scans to bin (separate multiple values with commas): ').split(',')]  # scans to bin
     except ValueError:
