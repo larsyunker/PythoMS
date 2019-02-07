@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 NAME = 'pythoms'
-VERSION = '1.0.3.2'
+VERSION = '1.0.3.3'
 AUTHOR = 'Lars Yunker'
 
 PACKAGES = find_packages()

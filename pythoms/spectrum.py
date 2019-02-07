@@ -794,6 +794,9 @@ class Spectrum(object):
                 yout.append(self.y[ind])
 
         if zeros is True:  # if zeros was specified, check for and insert values as necessary
+            if len(xout) == 0:  # if there is no intensity in the spectrum
+                xout = [float(self.start), float(self.end)]
+                yout = [0., 0.]
             if xout[0] != self.start:
                 xout.insert(0, self.start)
                 yout.insert(0, 0.)
