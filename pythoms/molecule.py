@@ -1418,7 +1418,7 @@ class IPMolecule(Molecule):
                  dropmethod=None,
                  emptyspec=True,
                  groupmethod='weighted',
-                 ipmethod='multiplicative',
+                 ipmethod='hybrid',
                  keepall=False,
                  npeaks=5000,
                  resolution=5000,
