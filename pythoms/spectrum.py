@@ -654,6 +654,33 @@ class Spectrum(object):
                 )
             )
 
+    def nearest_x_index(self, xval):
+        """
+        Finds the index of the closest x value to the one provided. This method differs from `index()` in that this
+        finds the closest value and index finds the insertion point to maintain an ordered list.
+
+        :param xval: x value to find
+        :return: index of nearest value
+        """
+        if xval < self.start:
+            return 0
+        if xval > self.end:
+            return len(self.x) - 1
+        if self.empty is False:
+            return self.index(xval)
+        index = self.index(xval)
+        if index == len(self.x):
+            return len(self.x) - 1
+        potentials = [index]
+        if index + 1 != len(self.x):
+            potentials.append(index + 1)
+        if index != 0:
+            potentials.append(index - 1)
+        return min(
+            potentials,
+            key=lambda x: abs(xval - self.x[x])
+        )
+
     def keep_top_n(self, n=5000):
         """
         Keeps the top n peaks and sets the intensity of those below that value to be zero.
