@@ -764,22 +764,288 @@ def isotope_pattern_combinatoric(
             counter += 1
             # remaining = st.progress(counter,iterations,'combinations')
             prog.write(counter)
-        num = 1  # number of combinations counter
-        x = 0.  # mass value
-        y = 1.  # intensity value
-        for tup in comb:  # for each element combination
-            element = isos[tup[0]]  # associate isotope to element
-            # counts = [tup.count(x) for x in isosets[element]] # count the number of occurances of each isotope
-            # num *= num_permu(tup,counts) # determine the number of permutations of the set
-            # for ind,isotope in enumerate(isosets[element]):
-            #    x += self.md[element][isotope][0] * counts[ind]
-            #    y *= self.md[element][isotope][1] ** counts[ind]
-            num *= num_permu(tup, isosets[element])  # multiply the number by the possible permutations
-            for isotope in tup:  # for each isotope
-                x += mass_dict[element][isotope][0]  # shift x
-                y *= mass_dict[element][isotope][1]  # multiply intensity
-        # add the x and y combination factored by the number of times that combination will occur
-        spec.add_value(x, y * num)
+        x = sum([mass_dict[isos[tup[0]]][isotope][0] for tup in comb for isotope in tup])  # mass value
+        y = cpu_list_product([mass_dict[isos[tup[0]]][isotope][1] for tup in comb for isotope in tup])
+        num = np.asarray(  # calculate the number of times that combination occurs
+            [num_permu(tup, isosets[isos[tup[0]]]) for tup in comb]
+        ).prod()
+        spec.add_value(  # add the value to the spectrum object
+            x,
+            y * num
+        )
+
+    if speciso is True:  # if an isotope was specified
+        for element in comp:
+            if element not in mass_dict:  # if an isotope
+                ele, iso = string_to_isotope(element)  # determine element and isotope
+                spec.shift_x(mass_dict[ele][iso][0] * comp[element])  # shift the x values by the isotopic mass
+    spec.normalize()  # normalize the spectrum object
+    if verbose is True:
+        prog.fin()
+    return spec
+
+
+def chunk_iterable(iterable, size=CHUNK_SIZE):
+    """
+    Iterates an iterable in chunks of specified size.
+    https://stackoverflow.com/questions/24527006/split-a-generator-into-chunks-without-pre-walking-it
+
+    :param iterable: iterable to iterate over
+    :param size: list chunk size
+    :return: iterable
+    """
+    iterator = iter(iterable)
+    for first in iterator:
+        yield chain([first], islice(iterator, size - 1))
+
+
+def non_zero_isotopes(element):
+    """
+    Returns the non-zero intensity isotopes of an element.
+
+    :param element: element
+    :return: list of isotopes
+    """
+    out = []
+    for isotope in mass_dict[element]:
+        if isotope != 0 and mass_dict[element][isotope][1] != 0:  # if nonzero
+            out.append(isotope)
+    return out
+
+
+@cuda.jit(device=True)
+def cuda_factorial(value):
+    """CUDA accelerated device function to calculate a factorial"""
+    out = numba.float64(1.)
+    for i in range(value):
+        out *= value - i
+    return out
+
+
+def isotope_pattern_cuda(
+        comp: dict,
+        decpl: int,
+        verbose: bool = VERBOSE,
+        **kwargs,  # catch for extra keyword arguments
+):
+    """
+    Calculates the raw isotope pattern of a given molecular formula with mass defects preserved.
+    Uses a combinatorial method to generate isotope formulae
+
+    :param comp: composition dictionary
+    :param decpl: decimal places to track in the Spectrum object
+    :param verbose: chatty mode
+    :return: raw isotope pattern as a Spectrum object
+    :rtype: Spectrum
+    """
+
+    @cuda.jit
+    def jit_combinatoric_chunk(
+            chunk,
+            lookup_array,
+            x_results_array,
+            y_results_array,
+            count_array,
+            permutations_array
+    ):
+        """
+        Calculates the isotopic mass and intensity of an array of isotope combinations.
+
+        :param chunk: chunk of isotope combinations (this is limited primarily due to memory constraints on the CUDA
+            device).
+        :param lookup_array: Lookup array of mass,intensity values indexed internally
+        :param x_results_array: Array for x-values to be placed
+        :param y_results_array: array for y-values to be placed
+        :param count_array: array for combinatoric calculation placeholders
+        :param permutations_array: array for storing permutations
+        """
+        cuda_number_permutations_array(  # build permutations array
+            chunk,
+            count_array,
+            permutations_array,
+        )
+        for i in range(chunk.shape[0]):  # for each combination of isotopes
+            combinations = chunk[i]
+            mass = 0.
+            intensity = 1.
+            for k in range(combinations.shape[0]):  # for each isotope in the combination
+                mass += lookup_array[combinations[k]][0]
+                intensity *= lookup_array[combinations[k]][1]
+
+            x_results_array[i] = mass
+            y_results_array[i] = intensity * permutations_array[i]
+            # y_results_array[i] = intensity * cuda_number_permutations(i, combinations, count_array)
+
+    @cuda.jit(device=True)
+    def cuda_number_permutations(
+            index,
+            combination,
+            count_array,
+    ):
+        """
+        Calculates the number of permutations of a combination of indicies. This method is specific to the array types
+        which are handed to jit_combinatoric_chunk. The combination array is expected to consist of integers corresponding
+        to indicies corresponding to an isotope in the internal tracker of the method. The method will count the occurrences
+        of each "isotope" (index) and relate those to the number of that element. The number of permutations is then
+        calculated from the number of that element and the counts of each isotope.
+
+        :param index: base index (for referencing in the memory array)
+        :param combination: array of isotopes
+        :param count_array: on-device count array for value storage
+        :return: number of permutations of the provided combination
+        """
+        # count occurrences of each isotope
+        for i in range(combination.shape[0]):
+            count_array[index][combination[i]] += 1
+        total = 1
+        for i in range(d_element_slice.shape[0]):  # for each element
+            num = cuda_factorial(  # numerator is the factorial of the number of that element in total
+                d_element_count[i]
+            )
+            denom = 1  # denom is the product of the factorials of the counts
+            for j in range(  # relate to the appropriate indicies in the count array
+                    d_element_slice[i][0],
+                    d_element_slice[i][1],
+            ):
+                denom *= cuda_factorial(count_array[index][j])  # multiply by the count factorial
+            total *= num / denom  # scale the total
+        return total
+
+    @cuda.jit(device=True)
+    def cuda_number_permutations_array(
+            combination_array,
+            count_array,
+            permutations_array
+    ):
+        for i in range(combination_array.shape[0]):
+            for j in range(combination_array[i].shape[0]):  # iterate across the combination to build counters
+                count_array[i][combination_array[i][j]] += 1
+            total = 1.
+            for k in range(d_element_slice.shape[0]):  # for each element
+                num = cuda_factorial(  # numerator is the total count of the element
+                    d_element_count[k]
+                )
+                denom = 1.  # denom is the product of the factorials of the counts of the isotopes
+                for m in range(
+                        d_element_slice[k][0],
+                        d_element_slice[k][1],
+                ):
+                    denom = denom * cuda_factorial(count_array[i][m])
+                total = total * num / denom
+            # permutations_array[i] = numba.float64(42.)
+            permutations_array[i] = cuda_factorial(d_element_count[k])
+            # todo note that these numbers appear too larget for CUDA acceleration. A workaround needs to be found
+            # permutations_array[i] = total  # store number of permutations
+
+    # element/isotope -> lookup array index dictionary
+    element_index_associations = {}
+    # lookup array index -> element dictionary
+    index_element_associations = {}
+    # element -> index slice array
+    element_slice_array = np.zeros((len(comp), 2), dtype=np.int32)
+    # # element -> list of indicies dictionary
+    # element_indicies_dict = {}
+    index = 0  # index counter
+    speciso = False  # set state for specific isotope
+    iterators = []  # list of iterators
+    nk = []
+    element_count = np.zeros(len(comp), dtype=np.int32)
+    for ele_ind, element in enumerate(comp):
+        if element in mass_dict:
+            isotopes = non_zero_isotopes(element)
+            element_indicies = []
+            element_count[ele_ind] = comp[element]
+            element_slice_array[ele_ind][0] = index  # start slice
+            for isotope in isotopes:  # for each isotope, create an element/isotope association
+                element_index_associations[f'{element}{isotope}'] = index
+                index_element_associations[index] = element
+                element_indicies.append(index)
+                index += 1
+            # element_indicies_dict[element] = element_indicies
+            element_slice_array[ele_ind][1] = index  # end slice
+            iterators.append(
+                ReiterableCWR(  # create iterator instance
+                    element_indicies,  # lookup indicies
+                    comp[element]  # number of that element
+                )
+            )
+            if verbose is True:
+                nk.append([  # track n and k for list length output
+                    len(isotopes),
+                    comp[element]
+                ])
+        else:
+            speciso = True
+
+    # initialize array for lookup
+    lookup_array = np.zeros((index, 2))
+    for element in comp:  # populate lookup array with mass and intensity values
+        if element in mass_dict:
+            isotopes = non_zero_isotopes(element)
+            for isotope in isotopes:
+                lookup_array[element_index_associations[f'{element}{isotope}']][0] = mass_dict[element][isotope][0]
+                lookup_array[element_index_associations[f'{element}{isotope}']][1] = mass_dict[element][isotope][1]
+
+    # move lookup array to device
+    d_lookup_array = cuda.to_device(lookup_array)
+    d_element_count = cuda.to_device(element_count)
+    d_element_slice = cuda.to_device(element_slice_array)
+    # array for counting isotope occurrences
+    d_count_array = cuda.device_array((CHUNK_SIZE, len(index_element_associations)))
+    # array for storing number of permutations
+    d_permu_array = cuda.device_array((CHUNK_SIZE), dtype=np.float64)
+
+    # create results array and load to device
+    x_values = np.empty((CHUNK_SIZE), dtype=np.float64)
+    y_values = np.empty((CHUNK_SIZE), dtype=np.float64)
+    d_x_values = cuda.device_array((CHUNK_SIZE))
+    d_y_values = cuda.device_array((CHUNK_SIZE))
+
+    spec = Spectrum(  # initiate spectrum object
+        decpl,  # decimal places
+        start=None,  # no minimum mass
+        end=None,  # no maximum mass
+        empty=True,  # whether or not to use emptyspec
+        filler=0.,  # fill with zeros, not None
+    )
+
+    if verbose is True:
+        counter = 0  # create a counter
+        iterations = int(cpu_list_product([numberofcwr(n, k) for n, k in nk]))  # number of iterations
+        chunks = 1 + iterations // CHUNK_SIZE
+        prog = Progress(  # create a progress instance
+            string='Processing isotope chunk',
+            last=chunks,
+            percent=False,
+        )
+
+    for chunk in chunk_iterable(product(*iterators)):  # iterate over chunks
+        if verbose is True:
+            counter += 1
+            prog.write(counter)
+
+        # generate list from chunk
+        combinations = [[tup for tup in comb] for comb in chunk]
+        # # flatten
+        expanded = np.asarray([[val for tup in comb for val in tup] for comb in combinations])
+        # send expanded array to device
+        d_combinations = cuda.to_device(expanded)
+        # perform calculation
+        jit_combinatoric_chunk(
+            d_combinations,
+            d_lookup_array,
+            d_x_values,
+            d_y_values,
+            d_count_array,
+            d_permu_array,  # todo next accept permutation array and change method
+        )
+
+        # retrieve result from device
+        d_x_values.copy_to_host(x_values)
+        x_values = x_values.round(decpl)
+        d_y_values.copy_to_host(y_values)
+
+        spec.add_spectrum(x_values, y_values)
 
     if speciso is True:  # if an isotope was specified
         for element in comp:
