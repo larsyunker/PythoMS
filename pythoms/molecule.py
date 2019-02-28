@@ -37,6 +37,7 @@ from .spectrum import Spectrum, weighted_average
 from .progress import Progress
 from . import mass_dictionaries  # import mass dictionaries
 from itertools import combinations_with_replacement as cwr
+from IsoSpecPy.IsoSpecPy import IsoSpec
 
 # attempt to load abbreviation dictionary from current working directory
 from .mass_abbreviations import abbrvs
@@ -83,6 +84,7 @@ VALID_IPMETHODS = [
     'combinatorics',
     'multiplicative',
     'hybrid',
+    'isospec',  # use isospecpy package
     # 'cuda',
 ]
 
@@ -877,6 +879,52 @@ def isotope_pattern_multiplicative(
     return spec
 
 
+def isotope_pattern_isospec(
+        comp: dict,
+        decpl: int,
+        verbose: bool = VERBOSE,
+        threshold: float = THRESHOLD,
+        **kwargs,
+):
+    """
+    Generates a raw isotope pattern using the isospecpy package. http://matteolacki.github.io/IsoSpec/
+
+    :param comp:
+    :param decpl:
+    :param verbose:
+    :param threshold:
+    :param kwargs:
+    :return:
+    """
+    print('IsoSpecPy package was used, please cite https://dx.doi.org/10.1021/acs.analchem.6b01459')
+
+    # use IsoSpec algorithm to generate configurations
+    iso_spec = IsoSpec.IsoFromFormula(
+        "".join(f'{ele}{num}' for ele, num in comp.items()),
+        cutoff=threshold,
+    )
+    configurations = iso_spec.getConfs()
+    masses = configurations[0]
+    abundances = [np.exp(val) for val in configurations[1]]
+
+    spec = Spectrum(
+        decpl,  # decimal places
+        start=min(masses) - 10 ** -decpl,  # minimum mass
+        end=max(masses) + 10 ** -decpl,  # maximum mass
+        # supply masses and abundances as initialization spectrum
+        empty=True,
+        filler=0.  # fill with zeros, not None
+    )
+    # add values to Spectrum object
+    for mass, abund in zip(masses, abundances):
+        spec.add_value(
+            mass,
+            abund
+        )
+    spec.normalize()  # normalize values to 100.
+    return spec
+
+
 def pattern_molecular_weight(mzs: list, intensities: list, charge: int = 1):
     """
     Calculates the molecular weight given by an isotope pattern.
@@ -1434,6 +1482,7 @@ class IPMolecule(Molecule):
         :param bool verbose: Verbose output. Mostly useful when calculating for large molecules or while debugging.
 
         """
+        # todo implement apply_threshold method for trimming resulting spectrum
         self.ipmethod = ipmethod
         self._spectrum_raw = None  # spectrum object holder
         self._raw = None  # raw isotope pattern
@@ -1735,6 +1784,10 @@ class IPMolecule(Molecule):
             calculator = isotope_pattern_multiplicative
         elif self.ipmethod == 'hybrid':
             calculator = isotope_pattern_hybrid
+        # elif self.ipmethod == 'cuda':
+        #     calculator = isotope_pattern_cuda
+        elif self.ipmethod == 'isospec':
+            calculator = isotope_pattern_isospec
         else:
             raise ValueError(f'The isotope pattern method {self.ipmethod} is not valid')
 
