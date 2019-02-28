@@ -176,6 +176,33 @@ def string_to_isotope(string: str):
             f'your input')
 
 
+unicode_subscripts = {  # subscripts values for unit representations
+    0: f'\u2080',
+    1: f'\u2081',
+    2: f'\u2082',
+    3: f'\u2083',
+    4: f'\u2084',
+    5: f'\u2085',
+    6: f'\u2086',
+    7: f'\u2087',
+    8: f'\u2088',
+    9: f'\u2089',
+}
+
+
+def to_subscript(number):
+    """
+    Converts the value to subscript characters.
+
+    :param int number: number to convert
+    :return: subscript
+    :rtype: str
+    """
+    return ''.join(
+        [unicode_subscripts[int(val)] for val in str(abs(number))]
+    )
+
+
 def check_in_mass_dict(comp: dict):
     """
     Checks for the presence of the dictionary keys in the mass dictionary. Raises a ValueError if the key is not found.
@@ -1204,6 +1231,15 @@ class Molecule(object):
     def molecular_formula(self, formula):
         self.composition = composition_from_formula(formula)
         self._mf = formula
+
+    @property
+    def molecular_formula_formatted(self):
+        """returns the subscript-formatted molecular formula"""
+        return f''.join(
+            f'{element}'
+            f'{to_subscript(number) if number > 1 else ""}'
+            for element, number in self.composition.items()
+        )
 
     @property
     def sf(self):
