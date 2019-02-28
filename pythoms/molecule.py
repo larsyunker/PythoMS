@@ -846,6 +846,9 @@ def isotope_pattern_multiplicative(
                 elif dropmethod == 'npeaks':  # keep top n number of peaks
                     spec.keep_top_n(npeaks)
                 elif dropmethod == 'consolidate':  # consolidate values being dropped
+                    # todo figure out what's wrong here
+                    raise NotImplementedError("There are bugs here, for the time being don't use the 'consolidate' "
+                                              "dropmethod.")
                     spec.consolidate(
                         threshold,
                         3 * 10 ** -consolidate
