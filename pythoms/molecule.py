@@ -664,6 +664,38 @@ def cpu_list_product(iterable):
     return prod
 
 
+@guvectorize(
+    ['void(float64[:], float64[:])'],
+    '(m)->(m)',
+    target='cuda'
+)
+def cuda_list_product(a, out):
+    """
+    Creates a list whose value is the multiple of all values preceeding it. The product of the list is the last value
+    in the output list
+
+    :param a: list of values to multiply
+    :return: multiplied values
+    :rtype: array
+    """
+    for i in range(a.shape[0]):
+        if i == 0:
+            out[i] = a[i]
+        else:
+            out[i] = out[i - 1] * a[i]
+
+
+def list_product(iterable):
+    """
+    Returns the product of an iterable.
+
+    :param iterable:
+    :return:
+    """
+    # todo try GPU otherwise do CPU then implement across package
+    return cuda_list_product(iterable)[-1]
+
+
 @st.profilefn
 def isotope_pattern_combinatoric(
         comp: dict,
