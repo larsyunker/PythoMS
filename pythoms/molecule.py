@@ -625,10 +625,10 @@ def isotope_pattern_hybrid(
     return spec
 
 
-class Reiterable(object):
+class ReiterableCWR(object):
     def __init__(self, isos, number):
-        """a reiterable version of combinations with replacments iterator"""
-        self.isos = isos  # isotopoes group
+        """a reiterable version of combinations with replacements iterator"""
+        self.isos = isos  # isotopes group
         self.number = number  # number of atoms of the element
 
     def __iter__(self):
@@ -721,7 +721,7 @@ def isotope_pattern_combinatoric(
                     isosets[element].append(isotope)  # track set of isotopes
                     isos[isotope] = element  # create isotope,element association for reference
             iterators.append(
-                Reiterable(  # create iterator instance
+                ReiterableCWR(  # create iterator instance
                     isosets[element],
                     comp[element]
                 )
