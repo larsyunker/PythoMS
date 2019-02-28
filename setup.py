@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 NAME = 'pythoms'
-VERSION = '1.0.3.3'
+VERSION = '1.0.3.4'
 AUTHOR = 'Lars Yunker'
 
 PACKAGES = find_packages()
@@ -44,6 +44,7 @@ setup(
         'sympy>=1.1.1',
         'obonet',
         'numpy',
+        'isospecpy',
     ],
     keywords=KEYWORDS,
 )

@@ -1024,31 +1024,35 @@ class mzML(object):
             raise ValueError(f'An unexpected scan type was handed to the scan_index function ("{scan}", '
                              f'type: {type(scan)})')
 
-    def sum_scans(self, start=None, end=None, fn=1, dec=3, mute=False):
+    def sum_scans(self,
+                  start=None,
+                  end=None,
+                  fn=None,
+                  dec=3,
+                  mute=False
+                  ):
         """
-        sums the specified scans together
-        if the scan range moves into another function, an error is raised
-        this function has a lower memory overhead than retrieve_scans()
+        Sums the specified scans together. If the scan range moves into another function, an error is raised.
+        This method has a lower memory overhead than retrieve_scans().
 
-        start: integer or float
-            start point to begin summing
-            integer is treated as scan number
-            float is treated as a time point
-        end: integer or float
-            end point to finish summing
-            as with start
-        fn: function to look at
-            default 1
-        dec: int
-            number of decimal places to track in the spectrum (lower values lower memory overhead)
-            this is only relevant when summing spectra together
-        mute: bool
-            override for verbose toggle of mzml instance
-
-        output: [xlist,ylist]
+        :param float, int start: start point to begin summing. ``int`` is interpreted as a scan number, ``float`` is
+            interpreted as a time point in the acquisition.
+        :param float, int end: end point to finish summing. Parameters are the same as with start.
+        :param int fn: mzML function to sum. If this is not provided, the first function will be used.
+        :param int dec: number of decimal places to track in the spectrum (lower values lower memory overhead).
+        :param bool mute: override chatty mode of mzML object
+        :return: summed spectrum in the format ``[[m/z values], [intensity values]]``
+        :rtype: list
         """
+        # if no function is specified, use the first function
+        if fn is None:
+            fn = min(self.functions.keys())
+        elif fn not in self.functions:  # if fn is not defined
+            raise KeyError(f'The function {fn} is not defined in the mzML object. Available options: '
+                           f'{", ".join([str(key) for key in self.functions.keys()])}')
         if self.functions[fn]['type'] != 'MS':
-            raise ValueError('The sum_scans function does not have the functionality to sum non-mass spec scans.')
+            raise ValueError(f'The sum_scans function does not have the functionality to sum non-mass spec scans.'
+                             f'The specified function {fn} is of type {self.functions[fn]["type"]}')
         start = self.scan_index(start, fn, 'greater')
         end = self.scan_index(end, fn, 'lesser')
 

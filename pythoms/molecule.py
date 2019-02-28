@@ -40,6 +40,7 @@ from .spectrum import Spectrum, weighted_average
 from .progress import Progress
 from . import mass_dictionaries  # import mass dictionaries
 from itertools import combinations_with_replacement as cwr
+from IsoSpecPy.IsoSpecPy import IsoSpec
 
 # attempt to load abbreviation dictionary from current working directory
 from .mass_abbreviations import abbrvs
@@ -86,6 +87,7 @@ VALID_IPMETHODS = [
     'combinatorics',
     'multiplicative',
     'hybrid',
+    'isospec',  # use isospecpy package
     # 'cuda',
 ]
 
@@ -179,6 +181,33 @@ def string_to_isotope(string: str):
         raise ValueError(
             f'The string "{string}" could not be interpreted as an element, isotope combination, please check'
             f'your input')
+
+
+unicode_subscripts = {  # subscripts values for unit representations
+    0: f'\u2080',
+    1: f'\u2081',
+    2: f'\u2082',
+    3: f'\u2083',
+    4: f'\u2084',
+    5: f'\u2085',
+    6: f'\u2086',
+    7: f'\u2087',
+    8: f'\u2088',
+    9: f'\u2089',
+}
+
+
+def to_subscript(number):
+    """
+    Converts the value to subscript characters.
+
+    :param int number: number to convert
+    :return: subscript
+    :rtype: str
+    """
+    return ''.join(
+        [unicode_subscripts[int(val)] for val in str(abs(number))]
+    )
 
 
 def check_in_mass_dict(comp: dict):
@@ -603,10 +632,10 @@ def isotope_pattern_hybrid(
     return spec
 
 
-class Reiterable(object):
+class ReiterableCWR(object):
     def __init__(self, isos, number):
-        """a reiterable version of combinations with replacments iterator"""
-        self.isos = isos  # isotopoes group
+        """a reiterable version of combinations with replacements iterator"""
+        self.isos = isos  # isotopes group
         self.number = number  # number of atoms of the element
 
     def __iter__(self):
@@ -731,7 +760,7 @@ def isotope_pattern_combinatoric(
                     isosets[element].append(isotope)  # track set of isotopes
                     isos[isotope] = element  # create isotope,element association for reference
             iterators.append(
-                Reiterable(  # create iterator instance
+                ReiterableCWR(  # create iterator instance
                     isosets[element],
                     comp[element]
                 )
@@ -1122,6 +1151,9 @@ def isotope_pattern_multiplicative(
                 elif dropmethod == 'npeaks':  # keep top n number of peaks
                     spec.keep_top_n(npeaks)
                 elif dropmethod == 'consolidate':  # consolidate values being dropped
+                    # todo figure out what's wrong here
+                    raise NotImplementedError("There are bugs here, for the time being don't use the 'consolidate' "
+                                              "dropmethod.")
                     spec.consolidate(
                         threshold,
                         3 * 10 ** -consolidate
@@ -1147,6 +1179,52 @@ def isotope_pattern_multiplicative(
     spec.normalize()
     if verbose is True:
         sys.stdout.write('DONE\n')
+    return spec
+
+
+def isotope_pattern_isospec(
+        comp: dict,
+        decpl: int,
+        verbose: bool = VERBOSE,
+        threshold: float = THRESHOLD,
+        **kwargs,
+):
+    """
+    Generates a raw isotope pattern using the isospecpy package. http://matteolacki.github.io/IsoSpec/
+
+    :param comp:
+    :param decpl:
+    :param verbose:
+    :param threshold:
+    :param kwargs:
+    :return:
+    """
+    print('IsoSpecPy package was used, please cite https://dx.doi.org/10.1021/acs.analchem.6b01459')
+
+    # use IsoSpec algorithm to generate configurations
+    iso_spec = IsoSpec.IsoFromFormula(
+        "".join(f'{ele}{num}' for ele, num in comp.items()),
+        cutoff=threshold,
+    )
+    configurations = iso_spec.getConfs()
+    masses = configurations[0]
+    abundances = [np.exp(val) for val in configurations[1]]
+
+    spec = Spectrum(
+        decpl,  # decimal places
+        start=min(masses) - 10 ** -decpl,  # minimum mass
+        end=max(masses) + 10 ** -decpl,  # maximum mass
+        # supply masses and abundances as initialization spectrum
+        empty=True,
+        filler=0.  # fill with zeros, not None
+    )
+    # add values to Spectrum object
+    for mass, abund in zip(masses, abundances):
+        spec.add_value(
+            mass,
+            abund
+        )
+    spec.normalize()  # normalize values to 100.
     return spec
 
 
@@ -1509,6 +1587,15 @@ class Molecule(object):
         self._mf = formula
 
     @property
+    def molecular_formula_formatted(self):
+        """returns the subscript-formatted molecular formula"""
+        return f''.join(
+            f'{element}'
+            f'{to_subscript(number) if number > 1 else ""}'
+            for element, number in self.composition.items()
+        )
+
+    @property
     def sf(self):
         """legacy catch for shorthand 'string formula' attribute"""
         return self.molecular_formula
@@ -1634,7 +1721,7 @@ class IPMolecule(Molecule):
                  dropmethod=None,
                  emptyspec=True,
                  groupmethod='weighted',
-                 ipmethod='multiplicative',
+                 ipmethod='hybrid',
                  keepall=False,
                  npeaks=5000,
                  resolution=5000,
@@ -1698,6 +1785,7 @@ class IPMolecule(Molecule):
         :param bool verbose: Verbose output. Mostly useful when calculating for large molecules or while debugging.
 
         """
+        # todo implement apply_threshold method for trimming resulting spectrum
         self.ipmethod = ipmethod
         self._spectrum_raw = None  # spectrum object holder
         self._raw = None  # raw isotope pattern
@@ -1947,13 +2035,13 @@ class IPMolecule(Molecule):
         ::
 
             >>> mol = IPMolecule('C61H51IP3Pd')
-            >>> mol.bounds(0.95)
+            >>> mol.calculate_bounds(0.95)
             [1104.9458115053008, 1116.3249999321531]
 
-            >>> mol.bounds(0.99)
+            >>> mol.calculate_bounds(0.99)
             [1104.8877964620444, 1116.3830149754094]
 
-            >>> mol.bounds(0.95,True)
+            >>> mol.calculate_bounds(0.95, True)
             {'1105.1304418': {'bounds': (1104.9458115053008, 1105.3150720946992)},
             '1106.13382235': {'bounds': (1105.9491920547823, 1106.3184526441808)},
             '1107.12903188': {'bounds': (1106.9444015896975, 1107.3136621790959)},
@@ -1999,6 +2087,10 @@ class IPMolecule(Molecule):
             calculator = isotope_pattern_multiplicative
         elif self.ipmethod == 'hybrid':
             calculator = isotope_pattern_hybrid
+        # elif self.ipmethod == 'cuda':
+        #     calculator = isotope_pattern_cuda
+        elif self.ipmethod == 'isospec':
+            calculator = isotope_pattern_isospec
         else:
             raise ValueError(f'The isotope pattern method {self.ipmethod} is not valid')
 
