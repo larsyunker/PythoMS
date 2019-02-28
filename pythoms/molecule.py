@@ -30,6 +30,9 @@ from scipy import stats
 from datetime import datetime
 import matplotlib.mlab as mlab
 import sympy as sym
+import numba
+from numba import cuda, guvectorize
+from itertools import islice, chain
 import pylab as pl
 import copy
 from .scripttime import ScriptTime
@@ -100,6 +103,8 @@ THRESHOLD = 0.01
 NPEAKS = 5000
 # consolidation threshold for low-intensity peak combination
 CONSOLIDATE = 3
+# list chunk size for CUDA acceleration
+CHUNK_SIZE = 10 ** 5
 
 
 def interpret(block: str):
