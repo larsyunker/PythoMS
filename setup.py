@@ -44,6 +44,7 @@ setup(
         'sympy>=1.1.1',
         'obonet',
         'numpy',
+        'isospecpy',
     ],
     keywords=KEYWORDS,
 )
