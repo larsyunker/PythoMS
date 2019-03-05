@@ -1264,6 +1264,7 @@ class Molecule(object):
     def molecular_formula(self):
         """Molecular formula of the molecule"""
         out = ''
+        # todo catch carbon and hydrogen isotopes first
         if 'C' in self.composition:  # carbon and hydrogen first according to hill formula
             out += f'C{self.composition["C"]}' if self.composition['C'] > 1 else 'C'
         if 'H' in self.composition:
