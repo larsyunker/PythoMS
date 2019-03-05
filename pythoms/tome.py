@@ -785,7 +785,6 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
         if settings['simtype'] == 'bar':
             simdict[species]['x'], simdict[species]['y'] = simdict[species]['mol'].barip
         if settings['simtype'] == 'gaussian':
-            simdict[species]['mol'].gaussian_isotope_pattern(simdict[species]['mol'].rawip)
             simdict[species]['x'], simdict[species]['y'] = simdict[species]['mol'].gausip
 
     if settings['mz'] == 'auto':  # automatically determine m/z range
