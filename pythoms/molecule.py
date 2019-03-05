@@ -1274,7 +1274,7 @@ class Molecule(object):
                     out += f'{key}{self.composition[key]}' if self.composition[key] > 1 else f'{key}'
                 else:  # if an isotope
                     ele, iso = string_to_isotope(key)
-                    out += f'{iso}{ele}'
+                    out += f'({iso}{ele})'
                     out += f'{self.composition[key]}' if self.composition[key] > 1 else ''
         return out
 
