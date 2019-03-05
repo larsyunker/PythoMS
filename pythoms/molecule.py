@@ -190,6 +190,18 @@ unicode_subscripts = {  # subscripts values for unit representations
     8: f'\u2088',
     9: f'\u2089',
 }
+unicode_superscripts = {  # superscript values for unit representations
+    0: f'\u2070',
+    1: f'\u00b9',
+    2: f'\u00b2',
+    3: f'\u00b3',
+    4: f'\u2074',
+    5: f'\u2075',
+    6: f'\u2076',
+    7: f'\u2077',
+    8: f'\u2078',
+    9: f'\u2079',
+}
 
 
 def to_subscript(number):
@@ -202,6 +214,19 @@ def to_subscript(number):
     """
     return ''.join(
         [unicode_subscripts[int(val)] for val in str(abs(number))]
+    )
+
+
+def to_superscript(val):
+    """
+    Returns the integer value represented as a superscript string.
+
+    :param int val: value to represent
+    :return: superscript string
+    :rtype: str
+    """
+    return ''.join(
+        [unicode_superscripts[int(val)] for val in str(abs(val))]
     )
 
 
