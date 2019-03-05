@@ -39,6 +39,9 @@ from . import mass_dictionaries  # import mass dictionaries
 from itertools import combinations_with_replacement as cwr
 from IsoSpecPy.IsoSpecPy import IsoSpec
 
+# flag for reminding folk to cite people
+_CITATION_REMINDER = False
+
 # attempt to load abbreviation dictionary from current working directory
 from .mass_abbreviations import abbrvs
 
@@ -896,7 +899,10 @@ def isotope_pattern_isospec(
     :param kwargs:
     :return:
     """
-    print('IsoSpecPy package was used, please cite https://dx.doi.org/10.1021/acs.analchem.6b01459')
+    global _CITATION_REMINDER
+    if _CITATION_REMINDER is False:  # remind the user on the first use
+        print('IsoSpecPy package was used, please cite https://dx.doi.org/10.1021/acs.analchem.6b01459')
+        _CITATION_REMINDER = True
 
     # use IsoSpec algorithm to generate configurations
     iso_spec = IsoSpec.IsoFromFormula(
@@ -911,8 +917,7 @@ def isotope_pattern_isospec(
         decpl,  # decimal places
         start=min(masses) - 10 ** -decpl,  # minimum mass
         end=max(masses) + 10 ** -decpl,  # maximum mass
-        # supply masses and abundances as initialization spectrum
-        empty=True,
+       empty=True,
         filler=0.  # fill with zeros, not None
     )
     # add values to Spectrum object
@@ -1410,7 +1415,7 @@ class IPMolecule(Molecule):
     _dropmethod = None
 
     def __init__(self,
-                 string,
+                 string: (str, dict),
                  charge=1,
                  consolidate=3,
                  criticalerror=3 * 10 ** -6,
