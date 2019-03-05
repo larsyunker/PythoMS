@@ -151,6 +151,8 @@ def interpret_charge(string: str):
             sign = val
         else:  # number
             value += val
+    if value == '':  # if no number was specified (e.g. "+")
+        value = 1
     return int(value), sign
 
 
