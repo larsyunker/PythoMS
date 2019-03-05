@@ -166,6 +166,8 @@ def string_to_isotope(string: str):
     :rtype: (str, int)
     """
     iso = string[0]
+    if iso.isdigit() is False:
+        raise TypeError(f'The isotope "{string}" is not a valid format. Use isotope/element format e.g. "12C"')
     ele = ''
     i = 1
     try:
