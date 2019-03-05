@@ -1330,7 +1330,7 @@ class Molecule(object):
         if 'C' in self.composition:
             out += f'C{to_subscript(self.composition["C"]) if self.composition["C"] > 1 else "C"}'
         if 'H' in self.composition:
-            out += f'H{to_subscript(self.composition["C"]) if self.composition["H"] > 1 else "H"}'
+            out += f'H{to_subscript(self.composition["H"]) if self.composition["H"] > 1 else "H"}'
         for key, val in sorted(self.composition.items()):
             if key not in ['C', 'H']:
                 if key in mass_dict:
@@ -1338,7 +1338,7 @@ class Molecule(object):
                 else:
                     ele, iso = string_to_isotope(key)
                     out += f'{to_superscript(iso)}{ele}'
-                    out += f'{to_superscript(self.composition[key])}' if self.composition[key] > 1 else ''
+                    out += f'{to_subscript(self.composition[key])}' if self.composition[key] > 1 else ''
         return out
 
     @property
