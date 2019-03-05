@@ -908,6 +908,11 @@ def isotope_pattern_isospec(
         print('IsoSpecPy package was used, please cite https://dx.doi.org/10.1021/acs.analchem.6b01459')
         _CITATION_REMINDER = True
 
+    if any([key not in mass_dict for key in comp]):
+        # todo see if there's a workaround for isotope specification
+        raise KeyError(f'Isotope specification is not supported in IsoSpec calling. Please use a different isotope '
+                       f'pattern generation method for isotopes. ')
+
     # use IsoSpec algorithm to generate configurations
     iso_spec = IsoSpec.IsoFromFormula(
         "".join(f'{ele}{num}' for ele, num in comp.items()),
