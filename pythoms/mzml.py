@@ -857,9 +857,9 @@ class mzML(object):
         """
         if sumspec is True:
             spec = {}
-            for fn in self.functions:  # create spectrum objects for all MS species
-                if self.functions[fn]['type'] == 'MS':
-                    spec[fn] = Spectrum(3)
+            for function in self.functions:  # create spectrum objects for all MS species
+                if self.functions[function]['type'] == 'MS':
+                    spec[function] = Spectrum(3)
         for species in sp:  # look for and assign function affinity
             sp[species]['function'] = self.associate_to_function(
                 dct=sp[species])  # associate each species in the spectrum with a function
@@ -875,20 +875,20 @@ class mzML(object):
                 writeevery=5
             )
         for spectrum in self.tree.getElementsByTagName('spectrum'):
-            func, proc, scan = fps(spectrum)  # pull function, process, and scan numbers
+            function, proc, scan = fps(spectrum)  # pull function, process, and scan numbers
             attr = branch_attributes(spectrum)  # get attributes
             if self.verbose is True:
                 prog.write(attr['index'] + 1)  # outtput progress
                 # self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
             x, y = extract_spectrum(spectrum)  # generate spectrum
-            if sumspec is True and func == 1:
-                spec[func].add_spectrum(x, y)
+            if sumspec is True and function == 1:
+                spec[function].add_spectrum(x, y)
             for key in sp:  # integrate each peak
-                if sp[key]['function'] == func:  # if species is related to this function
-                    if self.functions[func]['type'] == 'MS':
+                if sp[key]['function'] == function:  # if species is related to this function
+                    if self.functions[function]['type'] == 'MS':
                         sp[key]['raw'].append(
                             self.integrate(key, sp[key]['bounds'][0], sp[key]['bounds'][1], x, y))  # integrate
-                    if self.functions[func]['type'] == 'UV':
+                    if self.functions[function]['type'] == 'UV':
                         sp[key]['raw'].append(self.integrate(key, sp[key]['bounds'][0], sp[key]['bounds'][1], x,
                                                              y) / 1000000.)  # integrates and divides by 1 million bring it into au
         if self.verbose is True:
@@ -899,9 +899,9 @@ class mzML(object):
             return sp, spec
         return sp, None
 
-    def retrieve_scans(self, start=None, end=None, mzstart=None, mzend=None, fn=1, mute=False, outside=False):
+    def retrieve_scans(self, start=None, end=None, mzstart=None, mzend=None, function=None, mute=False, outside=False):
         """
-        retrieves the specified scans or time range from the specified function
+        Retrieves the specified scans or time range from the specified function
 
         start: integer or float
             the point to start retrieving scans
@@ -925,11 +925,13 @@ class mzML(object):
 
         returns a list with each index corresponding to a scan, with two sublists for x and y data
         """
+        if function is None:  # if not specified, retrieve first function
+            function = self.associate_to_function()
         # find spectrum indicies to extract between
-        if fn not in self.functions:
-            raise ValueError('The function "%d" is not in this mzml file.' % fn)
-        start = self.scan_index(start, fn, bias='greater')
-        end = self.scan_index(end, fn, bias='lesser')
+        if function not in self.functions:
+            raise ValueError('The function "%d" is not in this mzml file.' % function)
+        start = self.scan_index(start, function, bias='greater')
+        end = self.scan_index(end, function, bias='lesser')
         if self.ftt is False:  # extract the timepoints and etc from the mzml
             self.function_timetic()
         if self.verbose is True and mute is False:
@@ -962,7 +964,7 @@ class mzML(object):
             return out[0]
         return out
 
-    def scan_index(self, scan=None, fn=1, bias='lesser'):
+    def scan_index(self, scan=None, function=1, bias='lesser'):
         """
         determines the index for a scan or timepoint in a given function
         scan: integer or float
@@ -972,26 +974,26 @@ class mzML(object):
         bias: options dictated by locate_in_list()
             bias of index finding
         """
-        if fn not in self.functions:
-            raise KeyError('The function %d is not in this mzML file.' % fn)
+        if function not in self.functions:
+            raise KeyError('The function %d is not in this mzML file.' % function)
         if scan is None:  # if no scan number is specified
             if bias == 'greater':  # used for start point
-                return self.functions[fn]['sr'][0]
+                return self.functions[function]['sr'][0]
             if bias == 'lesser':  # used for end point
-                return self.functions[fn]['sr'][1]
+                return self.functions[function]['sr'][1]
         if type(scan) is float:  # timepoint
             if self.ftt is False:
                 self.function_timetic()
             # return located index plus start of the scan range
-            return locate_in_list(self.functions[fn]['timepoints'], scan, bias=bias) + self.functions[fn]['sr'][0]
+            return locate_in_list(self.functions[function]['timepoints'], scan, bias=bias) + self.functions[function]['sr'][0]
         elif type(scan) is int:  # scan number
             if scan < 1:
                 raise ValueError('The scan number must be greater or equal to 1 (specified: %d)' % scan)
-            if scan > self.functions[fn]['nscans']:
-                raise ValueError(f'The scan number {scan} exceeds the number of scans in function {fn} '
-                                 f'({self.functions[fn]["nscans"]})')
+            if scan > self.functions[function]['nscans']:
+                raise ValueError(f'The scan number {scan} exceeds the number of scans in function {function} '
+                                 f'({self.functions[function]["nscans"]})')
             # return scan minus 1 (to shift into index domain) plus the start location index
-            return scan - 1 + self.functions[fn]['sr'][0]
+            return scan - 1 + self.functions[function]['sr'][0]
         else:
             raise ValueError(f'An unexpected scan type was handed to the scan_index function ("{scan}", '
                              f'type: {type(scan)})')
