@@ -650,9 +650,12 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
         This allows the user to specify the subplot padding of the output figure.
         Options: 'auto' or list of the form ``[left,right,bottom,top]`` scalars.
 
-    res: False
+    res_label: False
         Whether to output the resolution of the spectrum onto the figure. Options: bool.
-    
+
+    resolution:
+        Override the auto-resolution calculation with a specified instrument resolution
+
     showx: True
         Whether to show the x-axis line. Options: bool.
 
