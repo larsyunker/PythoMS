@@ -646,43 +646,13 @@ class mzML(object):
         calculate the resolution of each of those samples and return the
         average resolution.
 
-        **Parameters**
-
-        n: *integer*
-            The number of psuedo-random samples of the spectrum to determine
+        :param int n: The number of psuedo-random samples of the spectrum to determine
             the resolution of. Default 10.
-
-        fn: *integer*
-            The mzML function number to calculate the resolution of. Default 1.
-
-
-        **Returns**
-
-        return item: *type*
-            description
-
-
-        **Examples**
-
-        ::
-
-            code line 1
-            code line 2
-
-
-        **Method**
-
-        This function uses the following method to estimate the resolution:
-        * find n pseudo-random samples using a random number generator
-        *
-
+        :param int function: The mzML function number to calculate the resolution of. Default 1.
+        :param int npeaks: number of peaks to to try to find
+        :return: Estimated resolution of the spectrum
+        :rtype: float
         """
-        """
-        automatically determines the resolution of the spectrometer that recorded the mzml file
-        resolution is based on the average resolution of 10 pseudo-random samples
-        each sample spectrum is split into 4 sections and 4 peaks are found to calculate the resolution
-        """
-
         def findsomepeaks(y):
             """roughly locates 4 peaks by maximum values in the spectrum and returns their index"""
             split = int(len(y) / npeaks)
