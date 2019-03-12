@@ -638,7 +638,7 @@ class mzML(object):
         else:  # if some other affinity
             raise ValueError('The specified affinity "%s" is not supported.' % affin)
 
-    def auto_resolution(self, n=10, fn=1, npeaks=4):
+    def auto_resolution(self, n=10, function=1, npeaks=4):
         """
         Attempts to automatically determine the resolution of the spectrometer
         that the provided mzML data file was recorded on.
@@ -700,18 +700,18 @@ class mzML(object):
                     out.append(sci.where(section == maxy)[0][0] + split * ind)
             return out
 
-        if self.functions[fn]['type'] != 'MS':
+        if self.functions[function]['type'] != 'MS':
             raise ValueError(
                 'The auto_resolution function only operates on mass spectrum functions. '
-                'Type of specified function %d: %s' % (fn, self.functions[fn]['type']))
+                'Type of specified function %d: %s' % (function, self.functions[function]['type']))
         ranges = []  # list of scan intervals
 
-        if self.functions[fn]['nscans'] <= 20:  # if the number of scans is less than 20
-            ranges = [[1, self.functions[fn]['nscans']]]
+        if self.functions[function]['nscans'] <= 20:  # if the number of scans is less than 20
+            ranges = [[1, self.functions[function]['nscans']]]
         else:
             while len(ranges) < n:  # generate 10 pseudo-random intervals to sample
-                ran = int(random() * self.functions[fn]['nscans']) + self.functions[fn]['sr'][0]
-                if ran - 10 >= self.functions[fn]['sr'][0] and ran + 10 <= self.functions[fn]['sr'][1]:
+                ran = int(random() * self.functions[function]['nscans']) + self.functions[function]['sr'][0]
+                if ran - 10 >= self.functions[function]['sr'][0] and ran + 10 <= self.functions[function]['sr'][1]:
                     ranges.append([ran - 10, ran + 10])
         if self.verbose is True:
             prog = Progress(string='Estimating resolution of the instrument', fraction=False, last=n)
@@ -719,7 +719,7 @@ class mzML(object):
         for ind, rng in enumerate(ranges):
             if self.verbose is True:
                 prog.write(ind + 1)
-            summed.append(self.sum_scans(rng[0], rng[1], fn, 2, True))  # sum those scans and append output
+            summed.append(self.sum_scans(rng[0], rng[1], function, 2, True))  # sum those scans and append output
         res = []
         for spec in summed:  # calculate resolution for each scan range
             inds = findsomepeaks(spec[1])  # find some peaks
