@@ -41,7 +41,10 @@ def bin_spectra(filename, start=None, end=None, save=True, dec=3, function=None)
         if type(save) == str:  # if a filename was provided for the Excel file
             xlfile = XLSX(save, create=True)
         else:  # otherwise use the mzML filename
-            xlfile = XLSX(filename, create=True)
+            xlfile = XLSX(
+                f'{filename}.xlsx',
+                create=True
+            )
         xlfile.writespectrum(  # write the spectrum to file
             x,
             y,
