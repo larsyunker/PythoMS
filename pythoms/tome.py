@@ -650,9 +650,12 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
         This allows the user to specify the subplot padding of the output figure.
         Options: 'auto' or list of the form ``[left,right,bottom,top]`` scalars.
 
-    res: False
+    res_label: False
         Whether to output the resolution of the spectrum onto the figure. Options: bool.
-    
+
+    resolution:
+        Override the auto-resolution calculation with a specified instrument resolution
+
     showx: True
         Whether to show the x-axis line. Options: bool.
 
@@ -751,7 +754,8 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
         'size': [7.87, 4.87],  # size in inches for the figure
         'dpiout': 300,  # dpi for the output figure
         'exten': 'png',  # extension for the output figure
-        'res': False,  # output the resolution of the spectrum
+        'resolution': None,  # resolution to use for simulations (if not specified, automatically calculates)
+        'res_label': False,  # output the resolution of the spectrum
         'delta': False,  # output the mass delta between the spectrum and the isotope patterns
         'stats': False,  # output the goodness of match between the spectrum and the predicted isotope patterns,
         'speccolour': 'k',  # colour for the spectrum to be plotted
@@ -772,10 +776,13 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
 
     settings.update(kwargs)  # update settings from keyword arguments
 
-    if settings['spectype'] != 'centroid':
-        res = autoresolution(realspec[0], realspec[1])  # calculate resolution
+    if settings['resolution'] is None:
+        if settings['spectype'] != 'centroid':
+            res = autoresolution(realspec[0], realspec[1])  # calculate resolution
+        else:
+            res = 5000
     else:
-        res = 5000
+        res = settings['resolution']
 
     simdict = checksimdict(simdict)  # checks the simulation dictionary
     for species in simdict:  # generate Molecule object and set x and y lists
@@ -909,7 +916,7 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                             # used -ins+i-1 to fix an error, with any luck this won't break it next time
                             simdict[subsp]['zero'][i] += simdict[species]['y'][-ins + i]
     # include resolution if specified (and spectrum is not centroid)
-    if settings['res'] is True and settings['spectype'] != 'centroid':
+    if settings['res_label'] is True and settings['spectype'] != 'centroid':
         ax.text(
             mz[1],
             top * 0.95,

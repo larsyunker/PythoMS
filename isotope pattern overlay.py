@@ -150,10 +150,12 @@ def presets(typ):
         default: 'auto'
         can be handed [L,R,B,T] padding values
     
-    res: show calculated resolution
+    res_label: show calculated resolution
         default: False
         True/False
-    
+
+    resolution: override automatic resolution calculation for the spectrometer (int)
+
     showy: show y axis line
         default: True
     
@@ -219,7 +221,7 @@ def presets(typ):
         'inset': {'ylabel': False, 'yvalues': False, 'showy': False, 'fs': 12, 'size': [2.8, 2.8]},
         'insetsvg': {'ylabel': False, 'yvalues': False, 'showy': False, 'fs': 12, 'size': [2.8, 2.8], 'exten': 'svg'},
         'thesis': {'size': [6.5, 4.0]},
-        'detailed': {'norm': False, 'fs': 10, 'simlabels': True, 'res': True, 'size': [6.5, 4.0], 'delta': True,
+        'detailed': {'norm': False, 'fs': 10, 'simlabels': True, 'res_label': True, 'size': [6.5, 4.0], 'delta': True,
                      'stats': True},
     }
     try:
