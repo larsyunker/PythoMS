@@ -750,21 +750,21 @@ class mzML(object):
         """
         if self.verbose is True:
             prog = Progress(string='Extracting timepoints and total ion current values from mzML', fraction=False)
-        for func in self.functions:  # add timepoint and tic lists
-            self.functions[func]['timepoints'] = []  # list for timepoints
-            self.functions[func]['tic'] = []  # list for total ion current values
-            if 'level' in self.functions[func] and self.functions[func]['level'] > 1:
-                self.functions[func]['ce'] = []  # list for collision energies
+        for function in self.functions:  # add timepoint and tic lists
+            self.functions[function]['timepoints'] = []  # list for timepoints
+            self.functions[function]['tic'] = []  # list for total ion current values
+            if 'level' in self.functions[function] and self.functions[function]['level'] > 1:
+                self.functions[function]['ce'] = []  # list for collision energies
         for spectrum in self.tree.getElementsByTagName('spectrum'):
             attr = branch_attributes(spectrum)
-            func, proc, scan = fps(spectrum)  # determine function, process, and scan numbers
+            function, proc, scan = fps(spectrum)  # determine function, process, and scan numbers
             if self.verbose is True:
                 prog.write(attr['index'] + 1)
             p = branch_cvparams(spectrum)  # pull spectrum's cvparameters
-            self.functions[func]['timepoints'].append(p['MS:1000016'].value)  # start scan time
-            self.functions[func]['tic'].append(p['MS:1000285'].value)  # total ion current
+            self.functions[function]['timepoints'].append(p['MS:1000016'].value)  # start scan time
+            self.functions[function]['tic'].append(p['MS:1000285'].value)  # total ion current
             if 'MS:1000045' in p:
-                self.functions[func]['ce'].append(p['MS:1000045'].value)  # collision energy
+                self.functions[function]['ce'].append(p['MS:1000045'].value)  # collision energy
         self.ftt = True
         if self.verbose is True:
             prog.fin()
