@@ -966,13 +966,13 @@ class mzML(object):
 
     def scan_index(self, scan=None, function=1, bias='lesser'):
         """
-        determines the index for a scan or timepoint in a given function
-        scan: integer or float
-            the scan number or time point to find
-        fn: integer
-            the function to look in
-        bias: options dictated by locate_in_list()
-            bias of index finding
+        Determines the index for a scan or timepoint in a given function
+
+        :param int, float scan: The scan number (int) or time point (float) to find.
+        :param int function: The mzml function to look in
+        :param str bias: Bias of index finding (options dictacted by locate_in_list() )
+        :return: scan index
+        :rtype: int
         """
         if function not in self.functions:
             raise KeyError('The function %d is not in this mzML file.' % function)
