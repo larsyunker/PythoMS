@@ -609,7 +609,7 @@ class mzML(object):
                 level = dct['level']
 
         if affin is None and level is None:
-            return 1  # assume first function
+            return min(self.functions.keys())  # assume first function
 
         elif affin == 'UV':  # if UV-Vis affinity
             for fn in self.functions:  # determine which function is UV-Vis
