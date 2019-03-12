@@ -1027,7 +1027,7 @@ class mzML(object):
     def sum_scans(self,
                   start=None,
                   end=None,
-                  fn=None,
+                  function=None,
                   dec=3,
                   mute=False
                   ):
@@ -1038,26 +1038,26 @@ class mzML(object):
         :param float, int start: start point to begin summing. ``int`` is interpreted as a scan number, ``float`` is
             interpreted as a time point in the acquisition.
         :param float, int end: end point to finish summing. Parameters are the same as with start.
-        :param int fn: mzML function to sum. If this is not provided, the first function will be used.
+        :param int function: mzML function to sum. If this is not provided, the first function will be used.
         :param int dec: number of decimal places to track in the spectrum (lower values lower memory overhead).
         :param bool mute: override chatty mode of mzML object
         :return: summed spectrum in the format ``[[m/z values], [intensity values]]``
         :rtype: list
         """
         # if no function is specified, use the first function
-        if fn is None:
-            fn = min(self.functions.keys())
-        elif fn not in self.functions:  # if fn is not defined
-            raise KeyError(f'The function {fn} is not defined in the mzML object. Available options: '
+        if function is None:
+            function = min(self.functions.keys())
+        elif function not in self.functions:  # if fn is not defined
+            raise KeyError(f'The function {function} is not defined in the mzML object. Available options: '
                            f'{", ".join([str(key) for key in self.functions.keys()])}')
-        if self.functions[fn]['type'] != 'MS':
+        if self.functions[function]['type'] != 'MS':
             raise ValueError(f'The sum_scans function does not have the functionality to sum non-mass spec scans.'
-                             f'The specified function {fn} is of type {self.functions[fn]["type"]}')
-        start = self.scan_index(start, fn, 'greater')
-        end = self.scan_index(end, fn, 'lesser')
+                             f'The specified function {function} is of type {self.functions[function]["type"]}')
+        start = self.scan_index(start, function, 'greater')
+        end = self.scan_index(end, function, 'lesser')
 
-        spec = Spectrum(dec, start=self.functions[fn]['window'][0],
-                        end=self.functions[fn]['window'][1])  # create Spectrum object
+        spec = Spectrum(dec, start=self.functions[function]['window'][0],
+                        end=self.functions[function]['window'][1])  # create Spectrum object
 
         if self.verbose is True and mute is False:
             prog = Progress(string='Combining spectrum', fraction=False, first=start, last=end)
