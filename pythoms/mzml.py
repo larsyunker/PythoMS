@@ -638,7 +638,7 @@ class mzML(object):
         else:  # if some other affinity
             raise ValueError('The specified affinity "%s" is not supported.' % affin)
 
-    def auto_resolution(self, n=10, function=1, npeaks=4):
+    def auto_resolution(self, n=10, function=None, npeaks=4):
         """
         Attempts to automatically determine the resolution of the spectrometer
         that the provided mzML data file was recorded on.
@@ -670,6 +670,8 @@ class mzML(object):
                     out.append(sci.where(section == maxy)[0][0] + split * ind)
             return out
 
+        if function is None:  # if no function is provided, use first
+            function = self.associate_to_function()
         if self.functions[function]['type'] != 'MS':
             raise ValueError(
                 'The auto_resolution function only operates on mass spectrum functions. '
