@@ -235,7 +235,7 @@ else:
     fn = msmsfns[0]
 
 # pull time list, each spectrum at those time points, the scan range, and the mz range
-msms = mzml.retrieve_scans(fn=fn)  # retrieve scans
+msms = mzml.retrieve_scans(function=fn)  # retrieve scans
 celist = mzml.functions[fn]['ce']  # collision energy list for the scans that were pulled
 limits = mzml.functions[fn]['window']  # m/z window
 zvals = []  # intensity matrix

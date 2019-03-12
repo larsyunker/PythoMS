@@ -9,7 +9,7 @@ from pythoms.xlsx import XLSX
 from pythoms.scripttime import ScriptTime
 
 
-def bin_spectra(filename, start=None, end=None, save=True, dec=3):
+def bin_spectra(filename, start=None, end=None, save=True, dec=3, function=None):
     """
     Sums spectra from raw file and outputs to excel file
 
@@ -18,26 +18,33 @@ def bin_spectra(filename, start=None, end=None, save=True, dec=3):
     :param end: end scan (None will default to the last scan)
     :param save: whether to save into an excel document (if a string is provided, that filename will be used)
     :param dec: decimal places to track when binning the spectrum
+    :param function: mzml function number to sum (usually this is 1)
     :return: paired x, summed y lists
     """
 
     st = ScriptTime()
     st.printstart()
     mzml = mzML(filename)  # create mzML object
+    if function is None:
+        function = mzml.associate_to_function()
     if start is None:
-        start = mzml.functions[1]['sr'][0] + 1
+        start = mzml.functions[function]['sr'][0] + 1
     if end is None:
-        end = mzml.functions[1]['sr'][1] + 1
+        end = mzml.functions[function]['sr'][1] + 1
     x, y = mzml.sum_scans(
         start=start,
         end=end,
+        function=function,
         dec=dec,
     )
     if save is not False:
         if type(save) == str:  # if a filename was provided for the Excel file
             xlfile = XLSX(save, create=True)
         else:  # otherwise use the mzML filename
-            xlfile = XLSX(filename, create=True)
+            xlfile = XLSX(
+                f'{filename}.xlsx',
+                create=True
+            )
         xlfile.writespectrum(  # write the spectrum to file
             x,
             y,
@@ -58,7 +65,7 @@ if __name__ == '__main__':
     #     endcan = None
     startscan=None
     endscan=None
-    fn = 'E:\\1Files\\Mass Spec Data\\LY-2016-08-02 08'
+    fn = 'C:\\Temp\\A2.new.MS2.1406.mzML.gz'
     bin_spectra(
         fn,  # raw filename to use
         start=startscan,  # start scan number

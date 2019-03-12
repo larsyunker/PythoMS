@@ -609,7 +609,7 @@ class mzML(object):
                 level = dct['level']
 
         if affin is None and level is None:
-            return 1  # assume first function
+            return min(self.functions.keys())  # assume first function
 
         elif affin == 'UV':  # if UV-Vis affinity
             for fn in self.functions:  # determine which function is UV-Vis
@@ -638,7 +638,7 @@ class mzML(object):
         else:  # if some other affinity
             raise ValueError('The specified affinity "%s" is not supported.' % affin)
 
-    def auto_resolution(self, n=10, fn=1, npeaks=4):
+    def auto_resolution(self, n=10, function=None, npeaks=4):
         """
         Attempts to automatically determine the resolution of the spectrometer
         that the provided mzML data file was recorded on.
@@ -646,43 +646,13 @@ class mzML(object):
         calculate the resolution of each of those samples and return the
         average resolution.
 
-        **Parameters**
-
-        n: *integer*
-            The number of psuedo-random samples of the spectrum to determine
+        :param int n: The number of psuedo-random samples of the spectrum to determine
             the resolution of. Default 10.
-
-        fn: *integer*
-            The mzML function number to calculate the resolution of. Default 1.
-
-
-        **Returns**
-
-        return item: *type*
-            description
-
-
-        **Examples**
-
-        ::
-
-            code line 1
-            code line 2
-
-
-        **Method**
-
-        This function uses the following method to estimate the resolution:
-        * find n pseudo-random samples using a random number generator
-        *
-
+        :param int function: The mzML function number to calculate the resolution of. Default 1.
+        :param int npeaks: number of peaks to to try to find
+        :return: Estimated resolution of the spectrum
+        :rtype: float
         """
-        """
-        automatically determines the resolution of the spectrometer that recorded the mzml file
-        resolution is based on the average resolution of 10 pseudo-random samples
-        each sample spectrum is split into 4 sections and 4 peaks are found to calculate the resolution
-        """
-
         def findsomepeaks(y):
             """roughly locates 4 peaks by maximum values in the spectrum and returns their index"""
             split = int(len(y) / npeaks)
@@ -700,18 +670,20 @@ class mzML(object):
                     out.append(sci.where(section == maxy)[0][0] + split * ind)
             return out
 
-        if self.functions[fn]['type'] != 'MS':
+        if function is None:  # if no function is provided, use first
+            function = self.associate_to_function()
+        if self.functions[function]['type'] != 'MS':
             raise ValueError(
                 'The auto_resolution function only operates on mass spectrum functions. '
-                'Type of specified function %d: %s' % (fn, self.functions[fn]['type']))
+                'Type of specified function %d: %s' % (function, self.functions[function]['type']))
         ranges = []  # list of scan intervals
 
-        if self.functions[fn]['nscans'] <= 20:  # if the number of scans is less than 20
-            ranges = [[1, self.functions[fn]['nscans']]]
+        if self.functions[function]['nscans'] <= 20:  # if the number of scans is less than 20
+            ranges = [[1, self.functions[function]['nscans']]]
         else:
             while len(ranges) < n:  # generate 10 pseudo-random intervals to sample
-                ran = int(random() * self.functions[fn]['nscans']) + self.functions[fn]['sr'][0]
-                if ran - 10 >= self.functions[fn]['sr'][0] and ran + 10 <= self.functions[fn]['sr'][1]:
+                ran = int(random() * self.functions[function]['nscans']) + self.functions[function]['sr'][0]
+                if ran - 10 >= self.functions[function]['sr'][0] and ran + 10 <= self.functions[function]['sr'][1]:
                     ranges.append([ran - 10, ran + 10])
         if self.verbose is True:
             prog = Progress(string='Estimating resolution of the instrument', fraction=False, last=n)
@@ -719,7 +691,7 @@ class mzML(object):
         for ind, rng in enumerate(ranges):
             if self.verbose is True:
                 prog.write(ind + 1)
-            summed.append(self.sum_scans(rng[0], rng[1], fn, 2, True))  # sum those scans and append output
+            summed.append(self.sum_scans(rng[0], rng[1], function, 2, True))  # sum those scans and append output
         res = []
         for spec in summed:  # calculate resolution for each scan range
             inds = findsomepeaks(spec[1])  # find some peaks
@@ -778,21 +750,21 @@ class mzML(object):
         """
         if self.verbose is True:
             prog = Progress(string='Extracting timepoints and total ion current values from mzML', fraction=False)
-        for func in self.functions:  # add timepoint and tic lists
-            self.functions[func]['timepoints'] = []  # list for timepoints
-            self.functions[func]['tic'] = []  # list for total ion current values
-            if 'level' in self.functions[func] and self.functions[func]['level'] > 1:
-                self.functions[func]['ce'] = []  # list for collision energies
+        for function in self.functions:  # add timepoint and tic lists
+            self.functions[function]['timepoints'] = []  # list for timepoints
+            self.functions[function]['tic'] = []  # list for total ion current values
+            if 'level' in self.functions[function] and self.functions[function]['level'] > 1:
+                self.functions[function]['ce'] = []  # list for collision energies
         for spectrum in self.tree.getElementsByTagName('spectrum'):
             attr = branch_attributes(spectrum)
-            func, proc, scan = fps(spectrum)  # determine function, process, and scan numbers
+            function, proc, scan = fps(spectrum)  # determine function, process, and scan numbers
             if self.verbose is True:
                 prog.write(attr['index'] + 1)
             p = branch_cvparams(spectrum)  # pull spectrum's cvparameters
-            self.functions[func]['timepoints'].append(p['MS:1000016'].value)  # start scan time
-            self.functions[func]['tic'].append(p['MS:1000285'].value)  # total ion current
+            self.functions[function]['timepoints'].append(p['MS:1000016'].value)  # start scan time
+            self.functions[function]['tic'].append(p['MS:1000285'].value)  # total ion current
             if 'MS:1000045' in p:
-                self.functions[func]['ce'].append(p['MS:1000045'].value)  # collision energy
+                self.functions[function]['ce'].append(p['MS:1000045'].value)  # collision energy
         self.ftt = True
         if self.verbose is True:
             prog.fin()
@@ -885,9 +857,9 @@ class mzML(object):
         """
         if sumspec is True:
             spec = {}
-            for fn in self.functions:  # create spectrum objects for all MS species
-                if self.functions[fn]['type'] == 'MS':
-                    spec[fn] = Spectrum(3)
+            for function in self.functions:  # create spectrum objects for all MS species
+                if self.functions[function]['type'] == 'MS':
+                    spec[function] = Spectrum(3)
         for species in sp:  # look for and assign function affinity
             sp[species]['function'] = self.associate_to_function(
                 dct=sp[species])  # associate each species in the spectrum with a function
@@ -903,20 +875,20 @@ class mzML(object):
                 writeevery=5
             )
         for spectrum in self.tree.getElementsByTagName('spectrum'):
-            func, proc, scan = fps(spectrum)  # pull function, process, and scan numbers
+            function, proc, scan = fps(spectrum)  # pull function, process, and scan numbers
             attr = branch_attributes(spectrum)  # get attributes
             if self.verbose is True:
                 prog.write(attr['index'] + 1)  # outtput progress
                 # self.sys.stdout.write('\rExtracting species data from spectrum #%d/%d  %.1f%%' %(attr['index']+1,self.nscans,float(attr['index']+1)/float(self.nscans)*100.))
             x, y = extract_spectrum(spectrum)  # generate spectrum
-            if sumspec is True and func == 1:
-                spec[func].add_spectrum(x, y)
+            if sumspec is True and function == 1:
+                spec[function].add_spectrum(x, y)
             for key in sp:  # integrate each peak
-                if sp[key]['function'] == func:  # if species is related to this function
-                    if self.functions[func]['type'] == 'MS':
+                if sp[key]['function'] == function:  # if species is related to this function
+                    if self.functions[function]['type'] == 'MS':
                         sp[key]['raw'].append(
                             self.integrate(key, sp[key]['bounds'][0], sp[key]['bounds'][1], x, y))  # integrate
-                    if self.functions[func]['type'] == 'UV':
+                    if self.functions[function]['type'] == 'UV':
                         sp[key]['raw'].append(self.integrate(key, sp[key]['bounds'][0], sp[key]['bounds'][1], x,
                                                              y) / 1000000.)  # integrates and divides by 1 million bring it into au
         if self.verbose is True:
@@ -927,9 +899,9 @@ class mzML(object):
             return sp, spec
         return sp, None
 
-    def retrieve_scans(self, start=None, end=None, mzstart=None, mzend=None, fn=1, mute=False, outside=False):
+    def retrieve_scans(self, start=None, end=None, mzstart=None, mzend=None, function=None, mute=False, outside=False):
         """
-        retrieves the specified scans or time range from the specified function
+        Retrieves the specified scans or time range from the specified function
 
         start: integer or float
             the point to start retrieving scans
@@ -953,11 +925,13 @@ class mzML(object):
 
         returns a list with each index corresponding to a scan, with two sublists for x and y data
         """
+        if function is None:  # if not specified, retrieve first function
+            function = self.associate_to_function()
         # find spectrum indicies to extract between
-        if fn not in self.functions:
-            raise ValueError('The function "%d" is not in this mzml file.' % fn)
-        start = self.scan_index(start, fn, bias='greater')
-        end = self.scan_index(end, fn, bias='lesser')
+        if function not in self.functions:
+            raise ValueError('The function "%d" is not in this mzml file.' % function)
+        start = self.scan_index(start, function, bias='greater')
+        end = self.scan_index(end, function, bias='lesser')
         if self.ftt is False:  # extract the timepoints and etc from the mzml
             self.function_timetic()
         if self.verbose is True and mute is False:
@@ -990,36 +964,36 @@ class mzML(object):
             return out[0]
         return out
 
-    def scan_index(self, scan=None, fn=1, bias='lesser'):
+    def scan_index(self, scan=None, function=1, bias='lesser'):
         """
-        determines the index for a scan or timepoint in a given function
-        scan: integer or float
-            the scan number or time point to find
-        fn: integer
-            the function to look in
-        bias: options dictated by locate_in_list()
-            bias of index finding
+        Determines the index for a scan or timepoint in a given function
+
+        :param int, float scan: The scan number (int) or time point (float) to find.
+        :param int function: The mzml function to look in
+        :param str bias: Bias of index finding (options dictacted by locate_in_list() )
+        :return: scan index
+        :rtype: int
         """
-        if fn not in self.functions:
-            raise KeyError('The function %d is not in this mzML file.' % fn)
+        if function not in self.functions:
+            raise KeyError('The function %d is not in this mzML file.' % function)
         if scan is None:  # if no scan number is specified
             if bias == 'greater':  # used for start point
-                return self.functions[fn]['sr'][0]
+                return self.functions[function]['sr'][0]
             if bias == 'lesser':  # used for end point
-                return self.functions[fn]['sr'][1]
+                return self.functions[function]['sr'][1]
         if type(scan) is float:  # timepoint
             if self.ftt is False:
                 self.function_timetic()
             # return located index plus start of the scan range
-            return locate_in_list(self.functions[fn]['timepoints'], scan, bias=bias) + self.functions[fn]['sr'][0]
+            return locate_in_list(self.functions[function]['timepoints'], scan, bias=bias) + self.functions[function]['sr'][0]
         elif type(scan) is int:  # scan number
             if scan < 1:
                 raise ValueError('The scan number must be greater or equal to 1 (specified: %d)' % scan)
-            if scan > self.functions[fn]['nscans']:
-                raise ValueError(f'The scan number {scan} exceeds the number of scans in function {fn} '
-                                 f'({self.functions[fn]["nscans"]})')
+            if scan > self.functions[function]['nscans']:
+                raise ValueError(f'The scan number {scan} exceeds the number of scans in function {function} '
+                                 f'({self.functions[function]["nscans"]})')
             # return scan minus 1 (to shift into index domain) plus the start location index
-            return scan - 1 + self.functions[fn]['sr'][0]
+            return scan - 1 + self.functions[function]['sr'][0]
         else:
             raise ValueError(f'An unexpected scan type was handed to the scan_index function ("{scan}", '
                              f'type: {type(scan)})')
@@ -1027,7 +1001,7 @@ class mzML(object):
     def sum_scans(self,
                   start=None,
                   end=None,
-                  fn=None,
+                  function=None,
                   dec=3,
                   mute=False
                   ):
@@ -1038,26 +1012,26 @@ class mzML(object):
         :param float, int start: start point to begin summing. ``int`` is interpreted as a scan number, ``float`` is
             interpreted as a time point in the acquisition.
         :param float, int end: end point to finish summing. Parameters are the same as with start.
-        :param int fn: mzML function to sum. If this is not provided, the first function will be used.
+        :param int function: mzML function to sum. If this is not provided, the first function will be used.
         :param int dec: number of decimal places to track in the spectrum (lower values lower memory overhead).
         :param bool mute: override chatty mode of mzML object
         :return: summed spectrum in the format ``[[m/z values], [intensity values]]``
         :rtype: list
         """
         # if no function is specified, use the first function
-        if fn is None:
-            fn = min(self.functions.keys())
-        elif fn not in self.functions:  # if fn is not defined
-            raise KeyError(f'The function {fn} is not defined in the mzML object. Available options: '
+        if function is None:
+            function = min(self.functions.keys())
+        elif function not in self.functions:  # if fn is not defined
+            raise KeyError(f'The function {function} is not defined in the mzML object. Available options: '
                            f'{", ".join([str(key) for key in self.functions.keys()])}')
-        if self.functions[fn]['type'] != 'MS':
+        if self.functions[function]['type'] != 'MS':
             raise ValueError(f'The sum_scans function does not have the functionality to sum non-mass spec scans.'
-                             f'The specified function {fn} is of type {self.functions[fn]["type"]}')
-        start = self.scan_index(start, fn, 'greater')
-        end = self.scan_index(end, fn, 'lesser')
+                             f'The specified function {function} is of type {self.functions[function]["type"]}')
+        start = self.scan_index(start, function, 'greater')
+        end = self.scan_index(end, function, 'lesser')
 
-        spec = Spectrum(dec, start=self.functions[fn]['window'][0],
-                        end=self.functions[fn]['window'][1])  # create Spectrum object
+        spec = Spectrum(dec, start=self.functions[function]['window'][0],
+                        end=self.functions[function]['window'][1])  # create Spectrum object
 
         if self.verbose is True and mute is False:
             prog = Progress(string='Combining spectrum', fraction=False, first=start, last=end)
