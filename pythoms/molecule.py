@@ -2102,8 +2102,6 @@ class IPMolecule(Molecule):
 if __name__ == '__main__':  # for testing and troubleshooting
     # st.printstart()
     mol = IPMolecule(
-        # 'C3900H4902N1500O2401P400',
-        # 'W100',
         'L2PdAr+I',
         # charge= 2, # specify charge (if not specified in formula)
         # res=1050000, # specify spectrometer resolution (default 5000)
