@@ -96,7 +96,7 @@ VALID_DROPMETHODS = [
     None,  # no dropping
     'threshold',  # drop values below threshold
     'npeaks',  # keep top n number of peaks
-    'consolidate',  # consolidate intensities
+    # 'consolidate',  # consolidate intensities
 ]
 
 # default threshold for low-intensity peak dropping
