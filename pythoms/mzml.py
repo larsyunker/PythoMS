@@ -419,9 +419,17 @@ class mzML(object):
             raise IOError(
                 'The mzML file "%s" could not be loaded. The file is either unsupported, corrupt, or incomplete.' % self.filename)
 
-        self.nscans = int(self.tree.getElementsByTagName('spectrumList')[0].getAttribute('count'))  # number of spectra
-        self.nchroms = int(
-            self.tree.getElementsByTagName('chromatogramList')[0].getAttribute('count'))  # number of chromatograms
+        try:  # number of spectra
+            self.nscans = int(self.tree.getElementsByTagName('spectrumList')[0].getAttribute('count'))
+        except IndexError:  # no spectra
+            self.nscans = 0
+        try:
+            self.nchroms = int(  # number of chromatograms
+                self.tree.getElementsByTagName('chromatogramList')[0].getAttribute('count')
+            )
+        except IndexError:
+            self.nchroms = 0
+
         self.functions = {}
         for spectrum in self.tree.getElementsByTagName('spectrum'):
             func, proc, scan = fps(spectrum)  # extract each value and convert to integer
