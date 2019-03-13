@@ -444,8 +444,12 @@ class mzML(object):
                 self.functions[func]['sr'][1] = int(
                     spectrum.getAttribute('index'))  # otherwise set the scan index range to the current index
                 self.functions[func]['nscans'] += 1
-        p = branch_cvparams(spectrum)  # pull properties of final spectrum
-        self.duration = p['MS:1000016'].value  # final start scan time
+        try:
+            p = branch_cvparams(spectrum)  # pull properties of final spectrum
+            self.duration = p['MS:1000016'].value  # final start scan time
+        except UnboundLocalError:  # if there are no spectra, set to None
+            # todo figure out a catch to retrieve time from other sources (e.g. TIC)
+            self.duration = None
 
         if self.verbose is True:
             sys.stdout.write(' DONE\n')
