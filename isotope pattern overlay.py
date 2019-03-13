@@ -36,24 +36,8 @@ sheetname = None
 # 'molecular formula':{'colour': ... ,'alpha':0-1}
 # colour can be (R,G,B), (C,M,Y,K), or 'hex'
 simdict = {
-    # 'Ar+I':{'colour':'1f78b4','alpha':0.5},
-    # 'L2PdAr+I':{'colour':'#6a3d9a','alpha':0.5},
-    # 'L2PdAr+Cl': {'colour': '#006838', 'alpha': 0.5},
-    # 'L2PdAr+(2+)':{'colour':'#e41a1c','alpha':0.5},
-    # 'Pd(PPh2)Ar+':{'colour':'696969','alpha':0.5},
-    # 'L2PdAr+C6H4CH3':{'colour':'#ff7f00','alpha':0.5},
-    # 'L2PdAr+IMeOH':{'colour':(146,102,194),'alpha':0.5},
-    # '(Ar+I)2PF6':{'colour':'#1f78b4','alpha':0.5},
-    # 'L2PdAr+CH3C6H4MeOH':{'colour':'#ff7f00','alpha':0.5}
-    'L2PdAr+OH':{'colour':'66c2a5','alpha':0.5},
-    # '[NBu4]3PF6I':{'colour':'k','alpha':0.5},
-    # 'L2Pd2(Ar+)2(OH)2(2+)':{'colour':'b','alpha':0.5},
-    # 'L2Pd2(Ar+)2OHOMe(2+)':{'colour':'r','alpha':0.5},
-    # 'L2Pd2(Ar+)2(OMe)2(2+)':{'colour':'g','alpha':0.5},
-    # 'L2PdAr+OMe':{'colour':'b','alpha':0.5},
-    # 'C54H57O5P2Ru':{'colour':'b','alpha':0.5},
-    # 'C27H33N2O4':{'colour':'696969','alpha':0.5},
-    # 'TiCp2MeCNOMe':{'colour':'b','alpha':0.5}
+    'Ar+I': {'colour': '1f78b4', 'alpha': 0.5},
+    'L2PdAr+I': {'colour': '#6a3d9a', 'alpha': 0.5},
 }
 
 # choose a figure type for auto settings
@@ -72,18 +56,19 @@ override = {
     # 'size':[10,4],  # change the size of the image [width,height]
     # 'specfont': 'Calibri', # change the font of the labels
     'stats': False,
+    'resolution': 5000,
     # 'xlabel': False,
     # 'ylabel': False,
     # 'yvalues': False,
     # 'showy': False,
     # 'norm': False,
     # 'maxy': 120,
-    # 'simnorm': 120,
+    # 'simnorm': 100,
     # 'spectype': 'centroid',
     # 'normwindow': 1.,
     # 'fs': 8,
     # 'output':'show',
-    'ipmol_kwargs': {'dropmethod': 'threshold'}
+    'ipmol_kwargs': {'dropmethod': 'threshold'},
 }
 
 
@@ -91,138 +76,101 @@ def presets(typ):
     """
     Returns a preset modification to the default settings in plotms()
     Supported keyword arguments:
-    
-    axwidth: linewidth for the axes
-        default: 1.5
-        integer or float value (recommend setting the same as linewidth)
-    
-    bw: predicted pattern bar width
-        default: 'auto'
-        'auto' makes the bars 2* the full width at half max
-        if a value is supplied, the bars will be that wide (in units of m/z)
-    
-    delta: show calculated mass delta between predicted and experimental mass
-        default: False
-        True/False
-    
-    dpiout: dots per inch for the output png
-        default: 300
-        integer
-    
-    exten: extension for the output file
-        default: 'png'
-        'png' for flat images
-        'svg' vector image
-    
-    fs: desired fontsize
-        default: 16
-        integer value in points
-    
-    maxy: the maximum y axis value
-        default: 'max'
-        'max': based on the maximum intensity of the supplied spectrum
-        value: a specified value
-    
-    lw: linewidth for the plotted spectrum
-        default: 1.5
-        integer or float value
-    
-    mz: the m/z bounds
-        default: 'auto'
-        specific bounds can be set in list or tuple form [m/z start,m/z end]
-    
-    norm: whether the script should normalize the supplied spectrum
-        default: True
-        True/False
-    
-    normwindow: what m/z window width should the autonormalization look
-        default 'fwhm' (look within the full width at half max)
-        otherwise, hand this an m/z value
-    
-    offsetx: offsets the x axis to better show low-intensity species
-        default: True
-        True/False
-    
-    outname: the name for the output file
-        default: 'spectrum'
-    
-    padding: the subplot padding for the spectrum
-        default: 'auto'
-        can be handed [L,R,B,T] padding values
-    
-    res_label: show calculated resolution
-        default: False
-        True/False
 
-    resolution: override automatic resolution calculation for the spectrometer (int)
-
-    showy: show y axis line
-        default: True
-    
-    showx: show x axis line
-        default: True
-    
-    simlabels: show simulation labels
-        default: False
-        True/False
-    
-    simnorm: how to normalize the isotope patterns
-        default: 'spec'
-        'spec': normalizes to the local maximum in the spectrum
-        'top': normalizes to the maximum y value
-        value: normalizes to that value
-    
-    simtype: the type of plot for isotope pattern overlays
-        default: 'bar'
-        'bar': a bar plot
-        'gaussian': a predicted gaussian distribution centered around the bar intensities
-    
-    size: figure size (in inches)
-        default: [7.87,4.87]
-        [width,height] (floating point values)
-    
-    speccolour: the colour that the plotted spectrum should be
-        default: 'k' (black)
-        can be handed an (R,G,B) or (C,M,Y,K) tuple or hex string
-    
-    specfont: specify font to be used
-        default: 'Arial'
-    
-    spectype: the type of spectrum being handed to the script
-        default: 'continuum'
-        'continuum' will connect each y value to the next
-        'centroid' will plot a bar for each y value
-    
-    stats: show the standard error of regression between the experimental and predicted isotope patterns
-        default: False
-        True/False
-    
-    verbose: chatty
-        bool
-    
-    xlabel: show x label
-        default: True
-    
-    xvalues: show x values
-        default: True
-    
-    ylabel: show y label
-        default: True
-    
-    yvalues: show y values
-        default: True
+    :param list realspec: A paired list of x and y values of the form ``[[x values],[y values]]``
+    :param dict simdict: This can either be a molecular formula to predict the isotope pattern of (string),
+        a list of formulae, or a dictionary of the form
+        ``simdict = {'formula1':{'colour':<hex or name or RGB tuple>, 'alpha':float}, ...}``.
+        If this is dictionary is left empty, no isotope patterns will be overlaid on the output
+        spectrum.
+    :param list mz: The *m/z* bounds for the output spectrum. Default: 'auto', but can be supplied
+        with a tuple or list of length 2 of the form ``[x start, x end]``.
+    :param str outname: Name of the file to be saved.
+    :param str output: Save ('save') or show ('show') the figure.
+    :param str simtype: The type for the isotope pattern simulation overlay. Options: 'bar' or 'gaussian'.
+    :param str spectype: The type of spectrum being handed to the function. Options: 'continuum' or 'centroid'.
+    :param float maxy: The maximum y value for the spectrum. Options: 'max' or specify a value
+    :param bool norm: Normalize the spectrum. Options: bool
+    :param str, float simnorm: Normalize the isotope pattern simulations to what value. Options: 'top', 'spec', or
+        specify a value. Top will normalize the patterns to ``maxy``, and will only function if maxy is not 'max'.
+        Spec will normalize the patterns to the maximum spectrum y value within the x bounds of the
+        simulated pattern.
+        Specifying a value will normalize all isotope patterns to that value.
+    :param bool xlabel: Whether to show the label for the *m/z* axis.
+    :param bool ylabel: Whether to show the y-axis label.
+    :param bool xvalues: Whether to show the values of the x-axis.
+    :param bool yvalues: Whether to show the values of the y-axis.
+    :param bool showx: Whether to show the x-axis line.
+    :param bool showy: Whether to show the y-axis line.
+    :param bool offsetx: Whether to offset the x-axis slightly.
+        Enabling this shows makes it easier to see low intensity peaks.
+    :param int fs: Font size to use for labels.
+    :param float lw: Line width for the plotted spectrum.
+    :param float axwidth: Line width for the axes and tick marks. Default 1.5
+    :param bool simlabels: Whether to show the names of the simulated isotope patterns.
+        The names will be exactly as supplied in ``simdict``.
+    :param float bw: The width of the bar in *m/z* for bar isotope patterns. Options: 'auto' or float.
+        This only has an affect if *simtype* is 'bar'.
+        Auto make the bars equal to 2 times the full width at half max of the peak they are simulating.
+    :param str specfont: The font to use for text in the plot. The specified font must be accepted by matplotlib.
+    :param list size: The size in inches for the output figure. This must be a list of length 2 of the form
+        ``[width,height]``.
+    :param int dpiout: The dots per inch for the output figure.
+    :param str exten: The file extension for the output figure. Options: 'png', 'svg', or other supported by matplotlib.
+    :param float resolution: Override the auto-resolution calculation with a specified instrument resolution
+    :param bool res_label: Whether to output the resolution of the spectrum onto the figure.
+    :param bool delta: Whether to calculate and output the mass delta between the exact mass predicted by the isotope
+        pattern simulation and the location of the maximum intensity within the bounds specified by *normwindow*.
+    :param bool stats: Whether to calculate and output the goodness of fit between the predicted isotope pattern and
+        the supplied spectrum. This functionality is still a work in progress.
+    :param speccolour: The colour for the real spectrum , # colour for the spectrum to be plotted
+    :param list padding: This allows the user to specify the subplot padding of the output figure.
+        Options: 'auto' or list of the form ``[left,right,bottom,top]`` scalars.
+    :param bool verbose: Verbose option for the script. Options: bool.
+    :param float normwindow: The *m/z* window width within with too look for a maximum intensity value.
+        This will only have an effect if *delta* is ``True``.
+        Options: 'fwhm' for full width at half max or float.
+    :param dict annotations: Annotations for the spectrum in dictionary form: ``{'thing to print':[x,y],}``.
+    :param normrel: The maximum value for normalization. This can be used to globally set the top value for normalizing
+        simulated isotope patterns. This is used most often to show the lack of an isotope pattern in the shown area.
+    :param ipmol_kwargs: Keyword arguments to use for IPMolecule calls. See IPMolecule for more details.
+    :param kwargs: catch for unused kwargs
     
     
     Additional presets can be added in dictionary form with whatever setting changes are desired
     """
     ipsetting = {
         'pub': {},
-        'pubsvg': {'exten': 'svg'},
-        'inset': {'ylabel': False, 'yvalues': False, 'showy': False, 'fs': 12, 'size': [2.8, 2.8]},
-        'insetsvg': {'ylabel': False, 'yvalues': False, 'showy': False, 'fs': 12, 'size': [2.8, 2.8], 'exten': 'svg'},
-        'thesis': {'size': [6.5, 4.0]},
-        'detailed': {'norm': False, 'fs': 10, 'simlabels': True, 'res_label': True, 'size': [6.5, 4.0], 'delta': True,
-                     'stats': True},
+        'pubsvg': {  # formatted for publishing
+            'exten': 'svg',
+        },
+        'inset': {  # sized for an inset in another figure
+            'ylabel': False,
+            'yvalues': False,
+            'showy': False,
+            'fs': 12,
+            'size': [2.8, 2.8],
+        },
+        'insetsvg': {  # inset in svg format
+            'ylabel': False,
+            'yvalues': False,
+            'showy': False,
+            'fs': 12,
+            'size': [2.8, 2.8],
+            'exten': 'svg',
+        },
+        'thesis': {  # sized to fit the width of a standard word document
+            'size': [6.5, 4.0],
+        },
+        'detailed': {  # for detailed analysis with additional stats outputs
+            'norm': False,
+            'fs': 10,
+            'simlabels': True,
+            'res_label': True,
+            'size': [6.5, 4.0],
+            'delta': True,
+            'stats': True,
+        },
     }
     try:
         sys.stdout.write('Using figure preset "%s"\n' % (setting))
@@ -238,7 +186,7 @@ if __name__ == '__main__':
     keywords = presets(setting)  # pull preset kwargs
 
     if spectrum.lower().endswith('.mzml.gz') or spectrum.lower().endswith('.raw'):  # if supplied with a mass spec file
-        mzml = mzML(spectrum, verbose=False)
+        mzml = mzML(spectrum)
         exp = mzml.sum_scans()
         keywords.update({'outname': mzml.filename.split('.')[0]})  # set default output filename
 
