@@ -1030,8 +1030,12 @@ class mzML(object):
         :return: summed spectrum in the format ``[[m/z values], [intensity values]]``
         :rtype: list
         """
+
         # if no function is specified, use the first function
         if function is None:
+            if len(self.functions) == 0:
+                raise IndexError('The sum_scans method requires functions to be associated with the mzML file. There '
+                                 'are none associated with this file. ')
             function = min(self.functions.keys())
         elif function not in self.functions:  # if fn is not defined
             raise KeyError(f'The function {function} is not defined in the mzML object. Available options: '
