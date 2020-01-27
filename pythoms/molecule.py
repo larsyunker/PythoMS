@@ -36,7 +36,7 @@ from .spectrum import Spectrum, weighted_average
 from .progress import Progress
 from . import mass_dictionaries  # import mass dictionaries
 from itertools import combinations_with_replacement as cwr
-from IsoSpecPy.IsoSpecPyOld import IsoSpec  # todo update import and function to support new IsoSpecPy structure
+from IsoSpecPy import IsoThreshold
 
 # flag for reminding folk to cite people
 _CITATION_REMINDER = False
@@ -937,24 +937,22 @@ def isotope_pattern_isospec(
         raise KeyError(f'Isotope specification is not supported in IsoSpec calling. Please use a different isotope '
                        f'pattern generation method for isotopes. ')
 
+    # todo see if there's a way to use IsoThresholdGenerator instead
     # use IsoSpec algorithm to generate configurations
-    iso_spec = IsoSpec.IsoFromFormula(
-        "".join(f'{ele}{num}' for ele, num in comp.items()),
-        cutoff=threshold,
+    iso_spec = IsoThreshold(
+        formula="".join(f'{ele}{num}' for ele, num in comp.items()),
+        threshold=threshold,
     )
-    configurations = iso_spec.getConfs()
-    masses = configurations[0]
-    abundances = [np.exp(val) for val in configurations[1]]
 
     spec = Spectrum(
         decpl,  # decimal places
-        start=min(masses) - 10 ** -decpl,  # minimum mass
-        end=max(masses) + 10 ** -decpl,  # maximum mass
+        start=min(iso_spec.masses) - 10 ** -decpl,  # minimum mass
+        end=max(iso_spec.masses) + 10 ** -decpl,  # maximum mass
         empty=True,
         filler=0.  # fill with zeros, not None
     )
     # add values to Spectrum object
-    for mass, abund in zip(masses, abundances):
+    for mass, abund in zip(iso_spec.masses, iso_spec.probs):
         spec.add_value(
             mass,
             abund
