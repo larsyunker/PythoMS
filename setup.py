@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
+import pythoms
 
 NAME = 'pythoms'
-VERSION = '1.0.4.6'
 AUTHOR = 'Lars Yunker'
 
 PACKAGES = find_packages()
@@ -18,7 +18,7 @@ with open('README.MD') as f:
 
 setup(
     name=NAME,
-    version=VERSION,
+    version=pythoms.__version__,
     description='A Python library to aid in the processing and interpretation of mass spectrometric data.',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -42,9 +42,9 @@ setup(
         'matplotlib>=2.1.2',
         'scipy>=1.1.0',
         'sympy>=1.1.1',
-        'obonet',
+        'obonet==0.2.5',  # they changed attribute names without deprecationwarnings, so only this version is verified
         'numpy',
-        'isospecpy',
+        'isospecpy>=2.0.2',
     ],
     keywords=KEYWORDS,
 )

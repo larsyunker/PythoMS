@@ -185,9 +185,9 @@ def pw_convert(filename, bit=64, compression=True, gzip=True, verbose=True):
     to download
 
     This script assumes that the ProteoWizard is installed under either
-    c:\program files\proteowizard
+    c:\\program files\\proteowizard
     or
-    c:\program files (x86)\proteowizard
+    c:\\program files (x86)\\proteowizard
 
     If you use this python script to convert to mzML, you should cite the paper of the folks who wrote the program
     Chambers, M.C. Nature Biotechnology 2012, 30, 918-920
@@ -419,9 +419,17 @@ class mzML(object):
             raise IOError(
                 'The mzML file "%s" could not be loaded. The file is either unsupported, corrupt, or incomplete.' % self.filename)
 
-        self.nscans = int(self.tree.getElementsByTagName('spectrumList')[0].getAttribute('count'))  # number of spectra
-        self.nchroms = int(
-            self.tree.getElementsByTagName('chromatogramList')[0].getAttribute('count'))  # number of chromatograms
+        try:  # number of spectra
+            self.nscans = int(self.tree.getElementsByTagName('spectrumList')[0].getAttribute('count'))
+        except IndexError:  # no spectra
+            self.nscans = 0
+        try:
+            self.nchroms = int(  # number of chromatograms
+                self.tree.getElementsByTagName('chromatogramList')[0].getAttribute('count')
+            )
+        except IndexError:
+            self.nchroms = 0
+
         self.functions = {}
         for spectrum in self.tree.getElementsByTagName('spectrum'):
             func, proc, scan = fps(spectrum)  # extract each value and convert to integer
@@ -436,13 +444,17 @@ class mzML(object):
                 self.functions[func]['sr'][1] = int(
                     spectrum.getAttribute('index'))  # otherwise set the scan index range to the current index
                 self.functions[func]['nscans'] += 1
-        p = branch_cvparams(spectrum)  # pull properties of final spectrum
-        self.duration = p['MS:1000016'].value  # final start scan time
+        try:
+            p = branch_cvparams(spectrum)  # pull properties of final spectrum
+            self.duration = p['MS:1000016'].value  # final start scan time
+        except UnboundLocalError:  # if there are no spectra, set to None
+            # todo figure out a catch to retrieve time from other sources (e.g. TIC)
+            self.duration = None
 
         if self.verbose is True:
             sys.stdout.write(' DONE\n')
 
-        self.BE = BoundsError()  # load warning instance for integration
+        self._BE = BoundsError()  # load warning instance for integration
         self.ftt = False
         if ftt is True:
             self.function_timetic()
@@ -785,14 +797,14 @@ class mzML(object):
         returns: integral
         """
         if start > max(x) or start < min(x):  # check that start is within the m/z bounds
-            self.BE.warn(name, start, end, min(x), max(x))
+            self._BE.warn(name, start, end, min(x), max(x))
         if end is None:  # if only a start value is supplied, return closest to that value
             try:  # try to find the value in the list
                 return y[locate_in_list(x, start)]
             except TypeError:  # if the value is not in the list, return 0
                 return 0
         if end > max(x):  # check that end is within the m/z bounds
-            self.BE.warn(name, start, end, min(x), max(x))
+            self._BE.warn(name, start, end, min(x), max(x))
         else:
             l = locate_in_list(x, start, 'greater')
             r = locate_in_list(x, end, 'lesser')
@@ -894,7 +906,7 @@ class mzML(object):
         if self.verbose is True:
             prog.fin()  # write done
             # self.sys.stdout.write(' DONE\n')
-        self.BE.printwarns()  # print bounds warnings (if any)
+        self._BE.printwarns()  # print bounds warnings (if any)
         if sumspec is True:
             return sp, spec
         return sp, None
@@ -1018,8 +1030,12 @@ class mzML(object):
         :return: summed spectrum in the format ``[[m/z values], [intensity values]]``
         :rtype: list
         """
+
         # if no function is specified, use the first function
         if function is None:
+            if len(self.functions) == 0:
+                raise IndexError('The sum_scans method requires functions to be associated with the mzML file. There '
+                                 'are none associated with this file. ')
             function = min(self.functions.keys())
         elif function not in self.functions:  # if fn is not defined
             raise KeyError(f'The function {function} is not defined in the mzML object. Available options: '

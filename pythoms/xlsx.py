@@ -3,6 +3,7 @@ Class for opening and handling excel files with commonly used data formats
 """
 import sys
 import openpyxl as op
+from openpyxl.utils.exceptions import InvalidFileException
 
 
 class XLSX(object):
@@ -249,7 +250,7 @@ class XLSX(object):
             sys.stdout.write('\rLoading workbook "%s" into memory' % bookname)
         try:
             wb = op.load_workbook(bookname)  # try loading specified excel workbook
-        except IOError:
+        except (IOError, InvalidFileException):
             bookname = self.correctextension(bookname)  # attempts to correct the extension of the provided workbook
             if self.verbose is True:
                 sys.stdout.write('\rLoading workbook "%s" into memory' % bookname)

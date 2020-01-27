@@ -568,146 +568,107 @@ def estimated_exact_mass(
 
 
 # TODO change simdict to be nonmutable
-def plot_mass_spectrum(realspec, simdict={}, **kwargs):
+def plot_mass_spectrum(
+        realspec,
+        simdict={},
+        mz='auto',  # m/z bounds for the output spectrum
+        outname='spectrum',  # name for the output file
+        output='save',  # 'save' or 'show' the figure
+        simtype='bar',  # simulation overlay type ('bar' or 'gaussian')
+        spectype='continuum',  # spectrum type ('continuum' or 'centroid')
+        maxy='max',  # max or value
+        norm=True,  # True or False
+        simnorm='spec',  # top, spec, or value
+        xlabel=True,  # show x label
+        ylabel=True,  # show y label
+        xvalues=True,  # show x values
+        yvalues=True,  # show y values
+        showx=True,  # show x axis
+        showy=True,  # how y axis
+        offsetx=True,  # offset x axis (shows low intensity species better)
+        fs=16,  # font size
+        lw=1.5,  # line width for the plotted spectrum
+        axwidth=1.5,  # axis width
+        simlabels=False,  # show labels isotope for patterns
+        bw='auto',  # bar width for isotope patterns (auto does 2*fwhm)
+        specfont='Arial',  # the font for text in the plot
+        size=[7.87, 4.87],  # size in inches for the figure
+        dpiout=300,  # dpi for the output figure
+        exten='png',  # extension for the output figure
+        resolution=None,  # resolution to use for simulations (if not specified, automatically calculates)
+        res_label=False,  # output the resolution of the spectrum
+        delta=False,  # output the mass delta between the spectrum and the isotope patterns
+        stats=False,  # output the goodness of match between the spectrum and the predicted isotope patterns,
+        speccolour='k',  # colour for the spectrum to be plotted
+        padding='auto',  # padding for the output plot
+        verbose=True,  # verbose setting
+        normwindow='fwhm',  # the width of the window to look for a maximal value around the expected exact mass for a peak
+        annotations=None,  # annotations for the spectrum in dictionary form {'thing to print':[x,y],}
+        normrel=100.,  # the maximum value for normalization
+        ipmol_kwargs={},  # IPMolecule keyword arguments
+        **kwargs
+):
     """
     Plots and saves a publication quality mass spectrum with optional overlaid isotope patterns
 
-    **Parameters**
-
-    realspec: *list*
-        A paired list of x and y values of the form ``[[x values],[y values]]``
-
-    simdict: *dictionary* or *list* or *string*, optional
-        This can either be a molecular formula to predict the isotope pattern of (string),
+    :param list realspec: A paired list of x and y values of the form ``[[x values],[y values]]``
+    :param dict simdict: This can either be a molecular formula to predict the isotope pattern of (string),
         a list of formulae, or a dictionary of the form
         ``simdict = {'formula1':{'colour':<hex or name or RGB tuple>, 'alpha':float}, ...}``.
         If this is dictionary is left empty, no isotope patterns will be overlaid on the output
         spectrum.
-
-
-    **Returns**
-
-    returns: ``None``
-        This function has not pythonic output.
-
-
-    **\*\*kwargs**
-
-    annotations: None
-        Annotations for the spectrum in dictionary form: ``{'thing to print':[x,y],}``. Options: dictionary or ``None``
-
-    axwidth: 1.5
-        Line width for the axes and tick marks. Options: float.
-
-    bw: 'auto'
-        The width of the bar in *m/z* for bar isotope patterns. Options: 'auto' or float
-        This only has an affect if *simtype* is 'bar'.
-        Auto make the bars equal to 2 times the full width at half max of the peak they are simulating.
-
-    delta: False
-        Whether to calculate and output the mass delta between the exact mass predicted by the isotope pattern
-        simulation and the location of the maximum intensity within the bounds specified by *normwindow*.
-        Options: bool.
-
-    dpiout: 300
-        The dots per inch for the output figure. Options: integer.
-
-    exten: 'png'
-        The file extension for the output figure. Options: 'png', 'svg', or other supported by matplotlib.
-
-    fs: 16
-        Font size to use for labels. Options: integer or float.
-
-    lw: 1.5
-        Line width for the plotted spectrum. Options: float.
-
-    maxy: 'max'
-        The maximum y value for the spectrum. Options: 'max' or specify a value
-
-    mz: 'auto'
-        The *m/z* bounds for the output spectrum. Default: 'auto', but can be supplied
+    :param list mz: The *m/z* bounds for the output spectrum. Default: 'auto', but can be supplied
         with a tuple or list of length 2 of the form ``[x start, x end]``.
-
-    norm: True
-        Normalize the spectrum. Options: bool
-
-    normwindow: 'fwhm'
-        The *m/z* window width within with too look for a maximum intensity value.
-        This will only have an effect if *delta* is ``True``.
-        Options: 'fwhm' for full width at half max or float.
-
-    offsetx: True
-        Whether to offset the x-axis slightly. Options: bool.
-        Enabling this shows makes it easier to see low intensity peaks.
-
-    outname: 'spectrum'
-        Name of the file to be saved.
-
-    output: 'save'
-        Save ('save') or show ('show') the figure.
-
-    padding: 'auto'
-        This allows the user to specify the subplot padding of the output figure.
-        Options: 'auto' or list of the form ``[left,right,bottom,top]`` scalars.
-
-    res_label: False
-        Whether to output the resolution of the spectrum onto the figure. Options: bool.
-
-    resolution:
-        Override the auto-resolution calculation with a specified instrument resolution
-
-    showx: True
-        Whether to show the x-axis line. Options: bool.
-
-    showy: True
-        Whether to show the y-axis line. Options: bool.
-
-    simlabels: False
-        Whether to show the names of the simulated isotope patterns. Options: bool.
-        The names will be exactly as supplied in ``simdict``.
-
-    simnorm: 'spec'
-        Normalize the isotope pattern simulations to what value. Options: 'top', 'spec', or specify a value.
-        Top will normalize the patterns to ``maxy``, and will only function if maxy is not 'max'.
+    :param str outname: Name of the file to be saved.
+    :param str output: Save ('save') or show ('show') the figure.
+    :param str simtype: The type for the isotope pattern simulation overlay. Options: 'bar' or 'gaussian'.
+    :param str spectype: The type of spectrum being handed to the function. Options: 'continuum' or 'centroid'.
+    :param float maxy: The maximum y value for the spectrum. Options: 'max' or specify a value
+    :param bool norm: Normalize the spectrum. Options: bool
+    :param str, float simnorm: Normalize the isotope pattern simulations to what value. Options: 'top', 'spec', or
+        specify a value. Top will normalize the patterns to ``maxy``, and will only function if maxy is not 'max'.
         Spec will normalize the patterns to the maximum spectrum y value within the x bounds of the
         simulated pattern.
         Specifying a value will normalize all isotope patterns to that value.
-    
-    simtype: 'bar'
-        The type for the isotope pattern simulation overlay. Options: 'bar' or 'gaussian'.
-    
-    size: [7.87,4.87]
-        The size in inches for the output figure. This must be a list of length 2 of the form
+    :param bool xlabel: Whether to show the label for the *m/z* axis.
+    :param bool ylabel: Whether to show the y-axis label.
+    :param bool xvalues: Whether to show the values of the x-axis.
+    :param bool yvalues: Whether to show the values of the y-axis.
+    :param bool showx: Whether to show the x-axis line.
+    :param bool showy: Whether to show the y-axis line.
+    :param bool offsetx: Whether to offset the x-axis slightly.
+        Enabling this shows makes it easier to see low intensity peaks.
+    :param int fs: Font size to use for labels.
+    :param float lw: Line width for the plotted spectrum.
+    :param float axwidth: Line width for the axes and tick marks. Default 1.5
+    :param bool simlabels: Whether to show the names of the simulated isotope patterns.
+        The names will be exactly as supplied in ``simdict``.
+    :param float bw: The width of the bar in *m/z* for bar isotope patterns. Options: 'auto' or float.
+        This only has an affect if *simtype* is 'bar'.
+        Auto make the bars equal to 2 times the full width at half max of the peak they are simulating.
+    :param str specfont: The font to use for text in the plot. The specified font must be accepted by matplotlib.
+    :param list size: The size in inches for the output figure. This must be a list of length 2 of the form
         ``[width,height]``.
-
-    speccolour: 'k'
-        The colour for the real spectrum , # colour for the spectrum to be plotted
-
-    specfont: 'Arial'
-        The font to use for text in the plot. The specified font must be accepted by matplotlib.
-
-    spectype: 'continuum'
-        The type of spectrum being handed to the function. Options: 'continuum' or 'centroid'.
-
-    stats: False
-        Whether to calculate and output the goodness of fit between the predicted isotope pattern and
-        the supplied spectrum. This functionality is still a work in progress. Options: bool.
-
-    verbose: True
-        Verbose option for the script. Options: bool.
-
-    xlabel: True
-        Whether to show the label for the *m/z* axis. Options: bool.
-
-    xvalues: True
-        Whether to show the values of the x-axis. Options: bool.
-
-    ylabel: True
-        Whether to show the y-axis label. Options: bool.
-
-    yvalues: True
-        Whether to show the values of the y-axis. Options: bool.
-
+    :param int dpiout: The dots per inch for the output figure.
+    :param str exten: The file extension for the output figure. Options: 'png', 'svg', or other supported by matplotlib.
+    :param float resolution: Override the auto-resolution calculation with a specified instrument resolution
+    :param bool res_label: Whether to output the resolution of the spectrum onto the figure.
+    :param bool delta: Whether to calculate and output the mass delta between the exact mass predicted by the isotope
+        pattern simulation and the location of the maximum intensity within the bounds specified by *normwindow*.
+    :param bool stats: Whether to calculate and output the goodness of fit between the predicted isotope pattern and
+        the supplied spectrum. This functionality is still a work in progress.
+    :param speccolour: The colour for the real spectrum , # colour for the spectrum to be plotted
+    :param list padding: This allows the user to specify the subplot padding of the output figure.
+        Options: 'auto' or list of the form ``[left,right,bottom,top]`` scalars.
+    :param bool verbose: Verbose option for the script. Options: bool.
+    :param float normwindow: The *m/z* window width within with too look for a maximum intensity value.
+        This will only have an effect if *delta* is ``True``.
+        Options: 'fwhm' for full width at half max or float.
+    :param dict annotations: Annotations for the spectrum in dictionary form: ``{'thing to print':[x,y],}``.
+    :param normrel: The maximum value for normalization. This can be used to globally set the top value for normalizing
+        simulated isotope patterns. This is used most often to show the lack of an isotope pattern in the shown area.
+    :param ipmol_kwargs: Keyword arguments to use for IPMolecule calls. See IPMolecule for more details.
+    :param kwargs: catch for unused kwargs
     """
     def checksimdict(dct):
         """
@@ -729,73 +690,28 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                 dct[species]['alpha'] = 0.5
         return dct
 
-    settings = {  # default settings
-        'mz': 'auto',  # m/z bounds for the output spectrum
-        'outname': 'spectrum',  # name for the output file
-        'output': 'save',  # 'save' or 'show' the figure
-        'simtype': 'bar',  # simulation overlay type ('bar' or 'gaussian')
-        'spectype': 'continuum',  # spectrum type ('continuum' or 'centroid')
-        'maxy': 'max',  # max or value
-        'norm': True,  # True or False
-        'simnorm': 'spec',  # top, spec, or value
-        'xlabel': True,  # show x label
-        'ylabel': True,  # show y label
-        'xvalues': True,  # show x values
-        'yvalues': True,  # show y values
-        'showx': True,  # show x axis
-        'showy': True,  # how y axis
-        'offsetx': True,  # offset x axis (shows low intensity species better)
-        'fs': 16,  # font size
-        'lw': 1.5,  # line width for the plotted spectrum
-        'axwidth': 1.5,  # axis width
-        'simlabels': False,  # show labels isotope for patterns
-        'bw': 'auto',  # bar width for isotope patterns (auto does 2*fwhm)
-        'specfont': 'Arial',  # the font for text in the plot
-        'size': [7.87, 4.87],  # size in inches for the figure
-        'dpiout': 300,  # dpi for the output figure
-        'exten': 'png',  # extension for the output figure
-        'resolution': None,  # resolution to use for simulations (if not specified, automatically calculates)
-        'res_label': False,  # output the resolution of the spectrum
-        'delta': False,  # output the mass delta between the spectrum and the isotope patterns
-        'stats': False,  # output the goodness of match between the spectrum and the predicted isotope patterns,
-        'speccolour': 'k',  # colour for the spectrum to be plotted
-        'padding': 'auto',  # padding for the output plot
-        'verbose': True,  # verbose setting
-        'normwindow': 'fwhm',
-    # the width of the window to look for a maximal value around the expected exact mass for a peak
-        'annotations': None,  # annotations for the spectrum in dictionary form {'thing to print':[x,y],}
-        'normrel': 100.,  # the maximum value for normalization
-        'ipmol_kwargs': {},  # IPMolecule keyword arguments
-    }
-
-    if set(kwargs.keys()) - set(settings.keys()):  # check for invalid keyword arguments
-        string = ''
-        for i in set(kwargs.keys()) - set(settings.keys()):
-            string += ' %s' % i
-        raise KeyError('Unsupported keyword argument(s): %s' % string)
-
-    settings.update(kwargs)  # update settings from keyword arguments
-
-    if settings['resolution'] is None:
-        if settings['spectype'] != 'centroid':
-            res = autoresolution(realspec[0], realspec[1])  # calculate resolution
+    if resolution is None:
+        if spectype != 'centroid':
+            resolution = autoresolution(realspec[0], realspec[1])  # calculate resolution
         else:
-            res = 5000
-    else:
-        res = settings['resolution']
+            resolution = 5000
 
     simdict = checksimdict(simdict)  # checks the simulation dictionary
     for species in simdict:  # generate Molecule object and set x and y lists
         simdict[species]['colour'] = Colour(simdict[species]['colour'])
-        simdict[species]['mol'] = IPMolecule(species, resolution=res, **kwargs['ipmol_kwargs'])
+        simdict[species]['mol'] = IPMolecule(
+            species,
+            resolution=resolution,
+            **ipmol_kwargs,
+        )
         # simdict[species]['mol'] = Molecule(species, res=res, dropmethod='threshold')
-        if settings['simtype'] == 'bar':
+        if simtype == 'bar':
             simdict[species]['x'], simdict[species]['y'] = simdict[species]['mol'].barip
-        if settings['simtype'] == 'gaussian':
+        if simtype == 'gaussian':
             simdict[species]['x'], simdict[species]['y'] = simdict[species]['mol'].gausip
 
-    if settings['mz'] == 'auto':  # automatically determine m/z range
-        if settings['verbose'] is True:
+    if mz == 'auto':  # automatically determine m/z range
+        if verbose is True:
             sys.stdout.write('Automatically determining m/z window')
         mz = [10000000, 0]
         for species in simdict:
@@ -806,30 +722,31 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                 mz[1] = simdict[species]['bounds'][1] + 1
         if mz == [10000000, 0]:
             mz = [min(realspec[0]), max(realspec[0])]
-        settings['mz'] = mz
-        if settings['verbose'] is True:
+        if verbose is True:
             sys.stdout.write(': %i - %i\n' % (int(mz[0]), int(mz[1])))
             sys.stdout.flush()
-    else:  # catch for user specified m/z bounds
-        mz = settings['mz']
 
-    realspec[0], realspec[1] = trimspectrum(realspec[0], realspec[1], settings['mz'][0] - 1,
-                                            settings['mz'][1] + 1)  # trim real spectrum for efficiency
+    realspec[0], realspec[1] = trimspectrum(  # trim real spectrum for efficiency
+        realspec[0],
+        realspec[1],
+        mz[0] - 1,
+        mz[1] + 1
+    )
 
     if len(realspec[0]) == 0:  # catch for empty spectrum post-trim (usually user error)
         raise ValueError(f'There are no spectral values in the specified m/z bounds ({mz[0]}-{mz[1]}). Common causes: '
                          f'no values in the loaded spectrum within the window of interest, an error in specifying the '
                          f'molecule(s) to simulate')
 
-    if settings['norm'] is True:  # normalize spectrum
-        realspec[1] = normalize(realspec[1], settings['normrel'])
+    if norm is True:  # normalize spectrum
+        realspec[1] = normalize(realspec[1], normrel)
 
     for species in simdict:  # normalize simulations
-        if settings['simnorm'] == 'spec':  # normalize to maximum around exact mass
-            if settings['normwindow'] == 'fwhm':  # if default, look within the full width at half max
+        if simnorm == 'spec':  # normalize to maximum around exact mass
+            if normwindow == 'fwhm':  # if default, look within the full width at half max
                 window = simdict[species]['mol'].fwhm
             else:  # otherwise look within the specified value
-                window = settings['normwindow']
+                window = normwindow
             simdict[species]['y'] = normalize(
                 simdict[species]['y'],
                 localmax(
@@ -839,18 +756,18 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                     window
                 )
             )
-        elif settings['simnorm'] == 'top':  # normalize to top of the y value
-            if settings['maxy'] == 'max':
+        elif simnorm == 'top':  # normalize to top of the y value
+            if maxy == 'max':
                 raise ValueError('Simulations con only be normalized to the top of the spectrum when the maxy setting '
                                  'is a specific value')
-            simdict[species]['y'] = normalize(simdict[species]['y'], settings['maxy'])
-        elif type(settings['simnorm']) is int or type(settings['simnorm']) is float:  # normalize to specified value
-            simdict[species]['y'] = normalize(simdict[species]['y'], settings['simnorm'])
-        if settings['delta'] is True:
-            if settings['normwindow'] == 'fwhm':  # if default, look within the full width at half max
+            simdict[species]['y'] = normalize(simdict[species]['y'], maxy)
+        elif type(simnorm) is int or type(simnorm) is float:  # normalize to specified value
+            simdict[species]['y'] = normalize(simdict[species]['y'], simnorm)
+        if delta is True:
+            if normwindow == 'fwhm':  # if default, look within the full width at half max
                 window = simdict[species]['mol'].fwhm
             else:  # otherwise look within the specified value
-                window = settings['normwindow']
+                window = normwindow
             est = estimated_exact_mass(  # try to calculate exact mass
                 realspec[0],
                 realspec[1],
@@ -869,40 +786,39 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
 
     pl.clf()  # clear and close figure if open
     pl.close()
-    fig = pl.figure(figsize=tuple(settings['size']))
+    fig = pl.figure(figsize=tuple(size))
     ax = fig.add_subplot(111)
 
     ax.spines["right"].set_visible(False)  # hide right and top spines
     ax.spines["top"].set_visible(False)
 
-    if settings['showx'] is False:
+    if showx is False:
         ax.spines["bottom"].set_visible(False)  # hide bottom axis
-    if settings['showy'] is False:
+    if showy is False:
         ax.spines["left"].set_visible(False)  # hide left axis
 
     for axis in ["top", "bottom", "left", "right"]:
-        ax.spines[axis].set_linewidth(settings['axwidth'])
+        ax.spines[axis].set_linewidth(axwidth)
 
-    if settings['offsetx'] is True:  # offset x axis
+    if offsetx is True:  # offset x axis
         ax.spines["bottom"].set_position(('axes', -0.01))
 
-    font = {'fontname': settings['specfont'], 'fontsize': settings['fs']}  # font parameters for axis/text labels
+    font = {'fontname': specfont, 'fontsize': fs}  # font parameters for axis/text labels
     tickfont = pl.matplotlib.font_manager.FontProperties(  # font parameters for axis ticks
-        family=settings['specfont'],
-        size=settings['fs']
+        family=specfont,
+        size=fs
     )
 
-    ax.set_xlim(settings['mz'])  # set x bounds
+    ax.set_xlim(mz)  # set x bounds
 
-    if settings['maxy'] == 'max':  # set y bounds
+    if maxy == 'max':  # set y bounds
         ax.set_ylim(0., max(realspec[1]))
         top = max(realspec[1])
-    elif type(settings['maxy']) is int or type(settings['maxy']) is float:
-        ax.set_ylim(0., settings['maxy'])
-        top = settings['maxy']
+    elif type(maxy) is int or type(maxy) is float:
+        ax.set_ylim(0., maxy)
+        top = maxy
 
-    if settings[
-        'simtype'] == 'bar':  # generates zeros for bottom of bars (assumes m/z spacing is equal between patterns)
+    if simtype == 'bar':  # generates zeros for bottom of bars (assumes m/z spacing is equal between patterns)
         for species in simdict:
             simdict[species]['zero'] = []
             for i in simdict[species]['x']:
@@ -916,21 +832,21 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                             # used -ins+i-1 to fix an error, with any luck this won't break it next time
                             simdict[subsp]['zero'][i] += simdict[species]['y'][-ins + i]
     # include resolution if specified (and spectrum is not centroid)
-    if settings['res_label'] is True and settings['spectype'] != 'centroid':
+    if res_label is True and spectype != 'centroid':
         ax.text(
             mz[1],
             top * 0.95,
-            f'resolution: {str(round(res))}',
+            f'resolution: {str(round(resolution))}',
             horizontalalignment='right',
             **font
         )
 
     for species in simdict:  # plot and label bars
-        if settings['simtype'] == 'bar':
-            if settings['bw'] == 'auto':
+        if simtype == 'bar':
+            if bw == 'auto':
                 bw = simdict[species]['mol'].fwhm * 2
             else:
-                bw = settings['bw']
+                bw = bw
             ax.bar(
                 simdict[species]['x'],
                 simdict[species]['y'],
@@ -941,13 +857,13 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                 align='center',
                 bottom=simdict[species]['zero']
             )
-        elif settings['simtype'] == 'gaussian':
+        elif simtype == 'gaussian':
             ax.plot(
                 simdict[species]['x'],
                 simdict[species]['y'],
                 alpha=simdict[species]['alpha'],
                 color=simdict[species]['colour'].mpl,
-                linewidth=settings['lw']
+                linewidth=lw
             )
             ax.fill_between(
                 simdict[species]['x'],
@@ -958,16 +874,16 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                 linewidth=0
             )
         # if any labels are to be shown
-        if settings['simlabels'] is True or settings['stats'] is True or settings['delta'] is True:
+        if simlabels is True or stats is True or delta is True:
             string = ''
             bpi = simdict[species]['y'].index(max(simdict[species]['y']))  # index of base peak
-            if settings['simlabels'] is True:  # species name
+            if simlabels is True:  # species name
                 string += species
-                if settings['stats'] is True or settings['delta'] is True:  # add return if SER or delta is called for
+                if stats is True or delta is True:  # add return if SER or delta is called for
                     string += '\n'
-            if settings['stats'] is True:  # standard error of regression
+            if stats is True:  # standard error of regression
                 string += f'SER: {simdict[species]["mol"].compare(realspec)} '
-            if settings['delta'] is True:  # mass delta
+            if delta is True:  # mass delta
                 string += f'mass delta: {simdict[species]["delta"]}'
             ax.text(
                 simdict[species]['x'][bpi],
@@ -978,14 +894,14 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
                 **font
             )
 
-    if settings['spectype'] == 'continuum':
+    if spectype == 'continuum':
         ax.plot(
             realspec[0],
             realspec[1],
-            linewidth=settings['lw'],
-            color=Colour(settings['speccolour']).mpl
+            linewidth=lw,
+            color=Colour(speccolour).mpl
         )
-    elif settings['spectype'] == 'centroid':
+    elif spectype == 'centroid':
         dist = []
         for ind, val in enumerate(realspec[0]):  # find distance between all adjacent m/z values
             if ind == 0:
@@ -997,83 +913,83 @@ def plot_mass_spectrum(realspec, simdict={}, **kwargs):
             realspec[1],
             dist * 0.75,
             linewidth=0,
-            color=Colour(settings['speccolour']).mpl,
+            color=Colour(speccolour).mpl,
             align='center',
             alpha=0.8
         )
 
-    if settings['annotations'] is not None:
-        for label in settings['annotations']:
+    if annotations is not None:
+        for label in annotations:
             ax.text(
-                settings['annotations'][label][0],
-                settings['annotations'][label][1],
+                annotations[label][0],
+                annotations[label][1],
                 label,
                 horizontalalignment='center',
                 **font
             )
 
             # show or hide axis values/labels as specified
-    if settings['yvalues'] is False:  # y tick marks and values
+    if yvalues is False:  # y tick marks and values
         ax.tick_params(axis='y', labelleft='off', length=0)
-    if settings['yvalues'] is True:  # y value labels
+    if yvalues is True:  # y value labels
         ax.tick_params(
             axis='y',
-            length=settings['axwidth'] * 3,
-            width=settings['axwidth'],
+            length=axwidth * 3,
+            width=axwidth,
             direction='out',
             right='off'
         )
         for label in ax.get_yticklabels():
             label.set_fontproperties(tickfont)
-    if settings['ylabel'] is True:  # y unit
+    if ylabel is True:  # y unit
         if top == 100:  # normalized
             ax.set_ylabel('relative intensity', **font)
         else:  # set to counts
             ax.set_ylabel('intensity (counts)', **font)
 
-    if settings['xvalues'] is False:  # x tick marks and values
+    if xvalues is False:  # x tick marks and values
         ax.tick_params(axis='x', labelbottom='off', length=0)
-    if settings['xvalues'] is True:  # x value labels
+    if xvalues is True:  # x value labels
         ax.tick_params(
             axis='x',
-            length=settings['axwidth'] * 3,
-            width=settings['axwidth'],
+            length=axwidth * 3,
+            width=axwidth,
             direction='out',
             top='off'
         )
         for label in ax.get_xticklabels():
             label.set_fontproperties(tickfont)
-    if settings['xlabel'] is True:  # x unit
+    if xlabel is True:  # x unit
         ax.set_xlabel('m/z', style='italic', **font)
 
     pl.ticklabel_format(useOffset=False)  # don't use the stupid shorthand thing
-    if settings['padding'] == 'auto':
+    if padding == 'auto':
         pl.tight_layout(pad=0.5)  # adjust subplots
-        if settings['simlabels'] is True or settings['stats'] is True or settings['delta'] is True:
+        if simlabels is True or stats is True or delta is True:
             pl.subplots_adjust(top=0.90)  # lower top if details are called for
-    elif type(settings['padding']) is list and len(settings['padding']) == 4:
+    elif type(padding) is list and len(padding) == 4:
         pl.subplots_adjust(
-            left=settings['padding'][0],
-            right=settings['padding'][1],
-            bottom=settings['padding'][2],
-            top=settings['padding'][3]
+            left=padding[0],
+            right=padding[1],
+            bottom=padding[2],
+            top=padding[3]
         )
 
-    if settings['output'] == 'save':  # save figure
+    if output == 'save':  # save figure
         outname = ''  # generate tag for filenaming
         for species in simdict:
             outname += ' ' + species
-        outname = settings['outname'] + outname + '.' + settings['exten']
+        outname = outname + outname + '.' + exten
         pl.savefig(
             outname,
-            dpi=settings['dpiout'],
-            format=settings['exten'],
+            dpi=dpiout,
+            format=exten,
             transparent=True
         )
-        if settings['verbose'] is True:
+        if verbose is True:
             sys.stdout.write('Saved figure as:\n"%s"\nin the working directory' % outname)
 
-    elif settings['output'] == 'show':  # show figure
+    elif output == 'show':  # show figure
         pl.show()
 
 

@@ -28,7 +28,6 @@ import importlib.util
 import numpy as np
 from scipy import stats
 from datetime import datetime
-import matplotlib.mlab as mlab
 import sympy as sym
 import pylab as pl
 import copy
@@ -37,7 +36,7 @@ from .spectrum import Spectrum, weighted_average
 from .progress import Progress
 from . import mass_dictionaries  # import mass dictionaries
 from itertools import combinations_with_replacement as cwr
-from IsoSpecPy.IsoSpecPy import IsoSpec
+from IsoSpecPy.IsoSpecPyOld import IsoSpec  # todo update import and function to support new IsoSpecPy structure
 
 # flag for reminding folk to cite people
 _CITATION_REMINDER = False
@@ -96,7 +95,7 @@ VALID_DROPMETHODS = [
     None,  # no dropping
     'threshold',  # drop values below threshold
     'npeaks',  # keep top n number of peaks
-    'consolidate',  # consolidate intensities
+    # 'consolidate',  # consolidate intensities
 ]
 
 # default threshold for low-intensity peak dropping
@@ -510,7 +509,7 @@ def normal_distribution(center, fwhm, height):
         10 ** -autodec(fwhm),
         dtype=np.float64,
     )
-    y = mlab.normpdf(  # generate normal distribution
+    y = stats.norm.pdf(  # generate normal distribution
         x,
         float(center),  # type-convert from sympy Float
         standard_deviation(fwhm),
@@ -951,7 +950,7 @@ def isotope_pattern_isospec(
         decpl,  # decimal places
         start=min(masses) - 10 ** -decpl,  # minimum mass
         end=max(masses) + 10 ** -decpl,  # maximum mass
-       empty=True,
+        empty=True,
         filler=0.  # fill with zeros, not None
     )
     # add values to Spectrum object
@@ -2102,8 +2101,6 @@ class IPMolecule(Molecule):
 if __name__ == '__main__':  # for testing and troubleshooting
     # st.printstart()
     mol = IPMolecule(
-        # 'C3900H4902N1500O2401P400',
-        # 'W100',
         'L2PdAr+I',
         # charge= 2, # specify charge (if not specified in formula)
         # res=1050000, # specify spectrometer resolution (default 5000)
