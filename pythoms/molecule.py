@@ -37,7 +37,7 @@ from .spectrum import Spectrum, weighted_average
 from .progress import Progress
 from . import mass_dictionaries  # import mass dictionaries
 from itertools import combinations_with_replacement as cwr
-from IsoSpecPy.IsoSpecPy import IsoSpec
+from IsoSpecPy.IsoSpecPyOld import IsoSpec  # todo update import and function to support new IsoSpecPy structure
 
 # flag for reminding folk to cite people
 _CITATION_REMINDER = False
