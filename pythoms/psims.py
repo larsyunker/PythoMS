@@ -380,7 +380,7 @@ class CVParameterDefinitions(CVParameterSet):
         self.format_version = self.obo_file.graph['format-version']
         self.data_version = self.obo_file.graph['data-version']
         for acc in self.obo_file:
-            dct = self.obo_file.node[acc]
+            dct = self.obo_file.nodes[acc]
             if 'def' in dct:  # if the invalid key def is in the dictionary, convert and remove
                 dct['definition'] = dct['def']
                 del dct['def']
