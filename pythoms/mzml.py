@@ -185,9 +185,9 @@ def pw_convert(filename, bit=64, compression=True, gzip=True, verbose=True):
     to download
 
     This script assumes that the ProteoWizard is installed under either
-    c:\program files\proteowizard
+    c:\\program files\\proteowizard
     or
-    c:\program files (x86)\proteowizard
+    c:\\program files (x86)\\proteowizard
 
     If you use this python script to convert to mzML, you should cite the paper of the folks who wrote the program
     Chambers, M.C. Nature Biotechnology 2012, 30, 918-920
