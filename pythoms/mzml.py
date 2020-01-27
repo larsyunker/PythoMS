@@ -454,7 +454,7 @@ class mzML(object):
         if self.verbose is True:
             sys.stdout.write(' DONE\n')
 
-        self.BE = BoundsError()  # load warning instance for integration
+        self._BE = BoundsError()  # load warning instance for integration
         self.ftt = False
         if ftt is True:
             self.function_timetic()
@@ -797,14 +797,14 @@ class mzML(object):
         returns: integral
         """
         if start > max(x) or start < min(x):  # check that start is within the m/z bounds
-            self.BE.warn(name, start, end, min(x), max(x))
+            self._BE.warn(name, start, end, min(x), max(x))
         if end is None:  # if only a start value is supplied, return closest to that value
             try:  # try to find the value in the list
                 return y[locate_in_list(x, start)]
             except TypeError:  # if the value is not in the list, return 0
                 return 0
         if end > max(x):  # check that end is within the m/z bounds
-            self.BE.warn(name, start, end, min(x), max(x))
+            self._BE.warn(name, start, end, min(x), max(x))
         else:
             l = locate_in_list(x, start, 'greater')
             r = locate_in_list(x, end, 'lesser')
@@ -906,7 +906,7 @@ class mzML(object):
         if self.verbose is True:
             prog.fin()  # write done
             # self.sys.stdout.write(' DONE\n')
-        self.BE.printwarns()  # print bounds warnings (if any)
+        self._BE.printwarns()  # print bounds warnings (if any)
         if sumspec is True:
             return sp, spec
         return sp, None
