@@ -28,7 +28,6 @@ import importlib.util
 import numpy as np
 from scipy import stats
 from datetime import datetime
-import matplotlib.mlab as mlab
 import sympy as sym
 import pylab as pl
 import copy
@@ -510,7 +509,7 @@ def normal_distribution(center, fwhm, height):
         10 ** -autodec(fwhm),
         dtype=np.float64,
     )
-    y = mlab.normpdf(  # generate normal distribution
+    y = stats.norm.pdf(  # generate normal distribution
         x,
         float(center),  # type-convert from sympy Float
         standard_deviation(fwhm),
@@ -951,7 +950,7 @@ def isotope_pattern_isospec(
         decpl,  # decimal places
         start=min(masses) - 10 ** -decpl,  # minimum mass
         end=max(masses) + 10 ** -decpl,  # maximum mass
-       empty=True,
+        empty=True,
         filler=0.  # fill with zeros, not None
     )
     # add values to Spectrum object
