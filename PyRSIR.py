@@ -227,6 +227,8 @@ def pyrsir(
         for species in dct:
             if 'affin' not in dct[species]:  # set affinity if not specified
                 fn = dct[species]['function']
+                if fn not in mzml.functions:
+                    raise KeyError(f'The function {fn} is not in the mzML file, please check your configuration')
                 if mzml.functions[fn]['type'] == 'MS':
                     dct[species]['affin'] = mzml.functions[fn]['mode']
                 if mzml.functions[fn]['type'] == 'UV':
