@@ -3,6 +3,7 @@ a script for validating the functionality of the commonly used scripts
 """
 import unittest
 import os
+import pathlib
 import shutil
 from random import random
 from pythoms.mzml import mzML, branch_cvparams, branch_attributes
@@ -12,7 +13,7 @@ from pythoms.xlsx import XLSX
 from PyRSIR import pyrsir
 
 
-validation_file_path = os.path.join(os.getcwd(), 'validation_files')
+validation_path = pathlib.Path(os.getcwd()) / 'validation_files'
 
 
 class TestPyRSIR(unittest.TestCase):
@@ -98,7 +99,7 @@ class TestMolecule(unittest.TestCase):
 class TestmzML(unittest.TestCase):
     def test_mzml(self):
         mzml = mzML(
-            os.path.join(validation_file_path, 'MultiTest'),
+            validation_path / 'MultiTest',
             verbose=False
         )
         self.assertEqual(  # check that the correct function keys were pulled
@@ -146,14 +147,14 @@ class TestmzML(unittest.TestCase):
 class TestXLSX(unittest.TestCase):
     def test_xlsx(self):
         xlfile = XLSX(
-            os.path.join(validation_file_path, 'xlsx_validation'),
+            validation_path / 'xlsx_validation',
             verbose=False
         )
         spec, xunit, yunit = xlfile.pullspectrum('example MS spectrum')
         multispec = xlfile.pullmultispectrum('example multi-spectrum')
         rsimparams = xlfile.pullrsimparams()
         xlout = XLSX(
-            os.path.join(validation_file_path, 'xlsxtestout.xlsx'),
+            validation_path / 'xlsxtestout.xlsx',
             create=True,
             verbose=False
         )
@@ -169,7 +170,7 @@ class TestXLSX(unittest.TestCase):
             )
         xlout.save()
         os.remove(
-            os.path.join(validation_file_path, 'xlsxtestout.xlsx')
+            validation_path / 'xlsxtestout.xlsx'
         )
 
 
