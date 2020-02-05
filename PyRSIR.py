@@ -43,10 +43,10 @@ from pythoms.molecule import IPMolecule
 from pythoms.xlsx import XLSX
 
 # input *.raw filename
-filename = 'C:\\Temp\\PythoMS example\\LY-2015-09-15 06.mzML.gz'
+filename = 'validation_files\\LY-2015-09-15 06.mzML.gz'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = 'C:\\Temp\\PythoMS example\\LY-2015-09-15 06 processing.xlsx'
+xlsx = 'validation_files\\LY-2015-09-15 06 processing.xlsx'
 
 # set number of scans to sum (integer or list of integers)
 n = [3]
