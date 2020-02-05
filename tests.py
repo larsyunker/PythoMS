@@ -17,25 +17,42 @@ validation_path = pathlib.Path(os.getcwd()) / 'validation_files'
 
 
 class TestPyRSIR(unittest.TestCase):
+    def setUp(self) -> None:
+        # target xlsx and mzml pairings
+        self.targets = [
+            [
+                'multitest_pyrsir_validation.xlsx',
+                'MultiTest'
+            ],
+            [
+                'LY-2015-09-15 06 pyrsir example.xlsx',
+                'LY-2015-09-15 06',
+            ]
+        ]
+        # create backups
+        for xlfile, _ in self.targets:
+            shutil.copy(
+                validation_path / xlfile,
+                validation_path / f'{xlfile}.bak'
+            )
+
     def test(self):
-        shutil.copy(
-            os.path.join(validation_file_path, 'pyrsir_validation.xlsx'),
-            os.path.join(validation_file_path, 'pyrsir_validation (backup).xlsx')
-        )
-        try:
+        for xlfile, msfile in self.targets:
             pyrsir(
-                os.path.join(validation_file_path, 'MultiTest'),
-                os.path.join(validation_file_path, 'pyrsir_validation'),
+                validation_path / msfile,
+                validation_path / xlfile,
                 3,
                 plot=False,
-                verbose=False
+                verbose=False,
             )
-        finally:
+
+    def tearDown(self) -> None:
+        for xlfile, _ in self.targets:
             shutil.copy(
-                os.path.join(validation_file_path, 'pyrsir_validation (backup).xlsx'),
-                os.path.join(validation_file_path, 'pyrsir_validation.xlsx'),
+                validation_path / f'{xlfile}.bak',
+                validation_path / xlfile,
             )
-            os.remove(os.path.join(validation_file_path, 'pyrsir_validation (backup).xlsx'))
+            os.remove(validation_path / f'{xlfile}.bak')
 
 
 class TestMolecule(unittest.TestCase):
