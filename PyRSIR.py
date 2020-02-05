@@ -43,10 +43,10 @@ from pythoms.molecule import IPMolecule
 from pythoms.xlsx import XLSX
 
 # input *.raw filename
-filename = 'C:\\Temp\\PythoMS example\\LY-2015-09-15 06.mzML.gz'
+filename = 'validation_files\\LY-2015-09-15 06.mzML.gz'
 
 # Excel file to read from and output to (in *.xlsx format)
-xlsx = 'C:\\Temp\\PythoMS example\\LY-2015-09-15 06 processing.xlsx'
+xlsx = 'validation_files\\LY-2015-09-15 06 processing.xlsx'
 
 # set number of scans to sum (integer or list of integers)
 n = [3]
@@ -176,7 +176,7 @@ def pyrsir(
                     sheetname = str(num) + ' Normalized (' + mode + ')'
                     xlfile.writersim(sp, rtime[sumkey + mode], normkey, sheetname, mode)  # write normalized data
 
-        for key, val in sorted(sp.items()):  # write isotope patterns
+        for key in sorted(sp.keys(), key=lambda x: str(x)):  # write isotope patterns
             if sp[key]['affin'] in mskeys:
                 xlfile.writemultispectrum(
                     sp[key]['spectrum'][0],  # x values
@@ -231,7 +231,7 @@ def pyrsir(
                     dct[species]['affin'] = mzml.functions[fn]['mode']
                 if mzml.functions[fn]['type'] == 'UV':
                     dct[species]['affin'] = 'UV'
-            if 'formula' in dct[species]and dct[species]['formula'] is not None:
+            if 'formula' in dct[species] and dct[species]['formula'] is not None:
                 try:
                     dct[species]['mol'].res = res  # sets resolution in Molecule object
                 except NameError:

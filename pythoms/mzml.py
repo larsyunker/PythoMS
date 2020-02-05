@@ -726,6 +726,10 @@ class mzML(object):
             else:
                 raise EnvironmentError('The version_input method encountered an unsupported version of python.')
 
+        # cast path-like to string to enable extension check
+        if type(fn) is not str:
+            fn = str(fn)
+
         valid = [  # supported extensions
             '.raw',
             '.mzml.gz',
