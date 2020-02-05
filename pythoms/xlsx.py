@@ -934,12 +934,13 @@ class XLSX(object):
                 if tic is not None:
                     cs.cell(row=(ind + 2), column=2).value = tic[ind]  # write TIC list
             col = 1 + offset
-            for species, dct in sorted(sp.items()):
-                if sp[species]['affin'] is mode:  # if the species' affinity is the mode
+            for species in sorted(sp.keys(), key=lambda x: str(x)):
+                dct = sp[species]
+                if dct['affin'] is mode:  # if the species' affinity is the mode
                     col += 1  # +1 from 0 to 1, +1 each to skip Time and TIC columns
                     cs.cell(row=1, column=col).value = str(species)  # write species names
-                    for ind, val in enumerate(sp[species][key]):
-                        cs.cell(row=(ind + 2), column=col).value = sp[species][key][ind]
+                    for ind, val in enumerate(dct[key]):
+                        cs.cell(row=(ind + 2), column=col).value = val
 
     def writespectrum(self, x, y, sheet='spectrum', xunit='m/z', yunit='counts', norm=True, chart=True):
         """
