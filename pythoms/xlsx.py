@@ -248,6 +248,9 @@ class XLSX(object):
         """loads specified workbook into class"""
         if self.verbose is True:
             sys.stdout.write('\rLoading workbook "%s" into memory' % bookname)
+        # cast path-like to string to enable extension check
+        if type(bookname) is not str:
+            bookname = str(bookname)
         try:
             wb = op.load_workbook(bookname)  # try loading specified excel workbook
         except (IOError, InvalidFileException):
