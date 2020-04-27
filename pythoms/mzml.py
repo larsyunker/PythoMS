@@ -15,6 +15,7 @@ import gzip
 import base64
 import struct
 import subprocess
+import logging
 import xml.dom.minidom
 import scipy as sci
 from random import random
@@ -33,6 +34,9 @@ decode_formats = {
 }
 
 
+logger = logging.getLogger(__name__)
+
+
 class BoundsError(Warning):
     """A warning class to handle bounds errors when integrating (used only by PyRSIR)"""
 
@@ -42,16 +46,18 @@ class BoundsError(Warning):
     def printwarns(self):
         """prints the number of warnings if merited"""
         if len(self.warned) > 0:
-            sys.stdout.write('The following peaks exceeded the bounds of the spectrum n number of times:\n')
-            for name in self.warned:
-                sys.stdout.write('"%s": %d\n' % (name, self.warned[name]))
+            logger.warning(
+                'The following peaks exceeded the bounds of the spectrum n number of times:\n'
+                f'{", ".join([f"{name}: {self.warned[name]}" for name in self.warned])}'
+            )
 
     def warn(self, name, intstart, intend, mzstart, mzend):
         """warns the user if there was a mismatch"""
         if name not in self.warned:
-            sys.stdout.write(
-                '\nThe peak "%s" (%s-%s) is outside of the bounds of the spectrum being summed m/z %.1f-%.1f\n' % (
-                    name, str(intstart), str(intend), mzstart, mzend))
+            logger.warning(
+                f'The peak "{name}" ({intstart}-{intend}) is outside of the bounds of the spectrum being summed '
+                f'm/z {mzstart:.1f}-{mzend:.1f}\n'
+            )
             self.warned[name] = 1
         else:
             self.warned[name] += 1
@@ -239,17 +245,12 @@ def pw_convert(filename, bit=64, compression=True, gzip=True, verbose=True):
         callstring += ' --gzip'
         outname += '.gz'
         exten += '.gz'
-    print('callstring', callstring)
 
     if verbose is True:
         callstring += ' --verbose'
-        sys.stdout.write('Generating %s file from %s' % (exten, filename))
-        sys.stdout.flush()
-        subprocess.call(callstring)
-        sys.stdout.write(' DONE\n')
-        sys.stdout.flush()
-    else:
-        subprocess.call(callstring)
+    logger.info(f'Generating {exten} file from {filename}')
+    subprocess.call(callstring)
+    logger.info('conversion DONE')
     return outname
 
 
@@ -407,8 +408,7 @@ class mzML(object):
         if self.verbose is True:
             # todo why is this not an instantiation
             self.Progress = Progress
-            sys.stdout.write('Loading %s into memory' % self.filename)
-            sys.stdout.flush()
+        logger.info(f'Loading {self.filename} into memory')
         if self.filename.lower().endswith('.mzml.gz'):  # if mzml is gzipped
             handle = gzip.open(self.filename)  # unzip the file
         else:
@@ -450,9 +450,6 @@ class mzML(object):
         except UnboundLocalError:  # if there are no spectra, set to None
             # todo figure out a catch to retrieve time from other sources (e.g. TIC)
             self.duration = None
-
-        if self.verbose is True:
-            sys.stdout.write(' DONE\n')
 
         self._BE = BoundsError()  # load warning instance for integration
         self.ftt = False
