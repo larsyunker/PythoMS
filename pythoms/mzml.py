@@ -16,6 +16,7 @@ import base64
 import struct
 import subprocess
 import logging
+import pathlib
 import xml.dom.minidom
 import scipy as sci
 from random import random
@@ -178,7 +179,13 @@ def extract_spectrum(spectrum: xml.dom.minidom.Element, units: bool = False):
     return out
 
 
-def pw_convert(filename, bit=64, compression=True, gzip=True, verbose=True):
+def pw_convert(filename,
+               bit=64,
+               compression=True,
+               gzip=True,
+               verbose=True,
+               out_directory=None
+               ):
     """
     Runs msconvert.exe from ProteoWizard to convert Waters .RAW format to .mzXML
     which can then be parsed by python.
@@ -198,6 +205,15 @@ def pw_convert(filename, bit=64, compression=True, gzip=True, verbose=True):
     If you use this python script to convert to mzML, you should cite the paper of the folks who wrote the program
     Chambers, M.C. Nature Biotechnology 2012, 30, 918-920
     doi 10.1038/nbt.2377
+
+    :param filename: file name to convert
+    :param bit: floating point bit precision (32 or 64)
+    :param compression: enable zlib compression of data in output file (saves space but increases processing time)
+    :param gzip: enable gzip compression of output file (saves disk space but increases processing time)
+    :param verbose: verbose for subprocess call
+    :param out_directory: optional output directory (if not specified, the file will be saved to the same directory as
+        the data)
+    :return: the file path for the generated file
     """
 
     def find_all(fname, path):
@@ -229,29 +245,29 @@ def pw_convert(filename, bit=64, compression=True, gzip=True, verbose=True):
             'Please ensure that ProteoWizard is installed in either:\n'
             'c:\\program files\\proteowizard\nor\nc:\\program files (x86)\\proteowizard')
 
-    outname = filename[:-4] + '.mzML'
-    callstring = locs[-1] + ' "' + filename + '" --mzML'
-    if bit in [32, 64]:
-        callstring += ' --' + str(bit)
-    else:
+    filename = pathlib.Path(filename)
+    if out_directory is None:
+        out_directory = filename.parent
+
+    if bit not in [32, 64]:
         raise ValueError(
-            'ProteoWizard conversion was called with an invalid floating point precision "%s".' % str(bit))
+            f'an invalid floating point precision was specified"{bit}".')
 
-    if compression is True:  # call for compression
-        callstring += ' --zlib'
+    callstring = " ".join([
+        f'{locs[-1]} "{filename}"',  # main call
+        f'-o "{out_directory}"',  # output directory
+        '--mzML',
+        '--gzip' if gzip else '',  # gzip compression
+        f'--{bit}',  # floating point precision
+        '--verbose' if verbose else '',  # verbose mode
+    ])
 
-    exten = '*.mzML'
-    if gzip is True:  # call to gzip entire mzml
-        callstring += ' --gzip'
-        outname += '.gz'
-        exten += '.gz'
+    out_exten = f'.mzML{".gz" if gzip else ""}'
 
-    if verbose is True:
-        callstring += ' --verbose'
-    logger.info(f'Generating {exten} file from {filename}')
+    logger.info(f'Generating mzML file from {filename}')
     subprocess.call(callstring)
     logger.info('conversion DONE')
-    return outname
+    filename.with_suffix(f'.mzML{".gz" if gzip else ""}')
 
 
 def fix_extension(fn):
