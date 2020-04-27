@@ -448,7 +448,12 @@ class mzML(object):
 
         self.functions = {}
         for spectrum in self.tree.getElementsByTagName('spectrum'):
-            func, proc, scan = fps(spectrum)  # extract each value and convert to integer
+            try:
+                # try to retrieve function, process, and scan from attributes
+                func, proc, scan = fps(spectrum)  # extract each value and convert to integer
+            except ValueError:
+                # if undefined, assume only one function
+                func = 1
             if func not in self.functions:  # if function is not defined yet
                 p = branch_cvparams(spectrum)  # pull spectrum's cvparameters
                 self.functions[func] = {
