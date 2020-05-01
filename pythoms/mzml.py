@@ -83,25 +83,6 @@ def branch_attributes(branch: xml.dom.minidom.Element):
     return {key: stringtodigit(val) for key, val in branch.attributes.items()}
 
 
-def branch_cvparams(branch):
-    """
-    Interprets an xml branch as CVParams
-
-    :param branch:
-    :return: controlled value parameter set with values
-    :rtype: CVParameterSet
-    """
-    out = {}
-    for cvParam in branch.getElementsByTagName('cvParam'):
-        acc = cvParam.getAttribute('accession')  # accession key
-        out[acc] = {}
-        for attribute, value in cvParam.attributes.items():  # pull all the attributes
-            if attribute != 'accession':
-                # attempt to convert to integer or float, keep as string otherwise
-                out[acc][attribute] = stringtodigit(value)
-    return CVParameterSet(**out)
-
-
 def file_present(filepath):
     """checks for the presence of the specified file or directory in the current working directory"""
     tf = os.path.isfile(filepath)  # look for file first
@@ -148,7 +129,7 @@ def extract_spectrum(spectrum: xml.dom.minidom.Element, units: bool = False):
     if units is True:
         units = []
     for binary in spectrum.getElementsByTagName('binaryDataArray'):
-        p = branch_cvparams(binary)  # grab cvparameters
+        p = CVParameterSet.create_from_branch(binary)  # grab cvparameters
 
         # determine whether the binary string is zlib compressed
         compressed = True if 'MS:1000574' in p else False
@@ -455,7 +436,7 @@ class mzML(object):
                 # if undefined, assume only one function
                 func = 1
             if func not in self.functions:  # if function is not defined yet
-                p = branch_cvparams(spectrum)  # pull spectrum's cvparameters
+                p = CVParameterSet.create_from_branch(spectrum)  # pull spectrum's cvparameters
                 self.functions[func] = {
                     'sr': [int(spectrum.getAttribute('index')), None],  # the scan index range that the function spans
                     'nscans': 1,  # number of scans
@@ -466,7 +447,7 @@ class mzML(object):
                     spectrum.getAttribute('index'))  # otherwise set the scan index range to the current index
                 self.functions[func]['nscans'] += 1
         try:
-            p = branch_cvparams(spectrum)  # pull properties of final spectrum
+            p = CVParameterSet.create_from_branch(spectrum)  # pull properties of final spectrum
             self.duration = p['MS:1000016'].value  # final start scan time
         except UnboundLocalError:  # if there are no spectra, set to None
             # todo figure out a catch to retrieve time from other sources (e.g. TIC)
@@ -794,7 +775,7 @@ class mzML(object):
             function, proc, scan = fps(spectrum)  # determine function, process, and scan numbers
             if self.verbose is True:
                 prog.write(attr['index'] + 1)
-            p = branch_cvparams(spectrum)  # pull spectrum's cvparameters
+            p = CVParameterSet.create_from_branch(spectrum)  # pull spectrum's cvparameters
             self.functions[function]['timepoints'].append(p['MS:1000016'].value)  # start scan time
             self.functions[function]['tic'].append(p['MS:1000285'].value)  # total ion current
             if 'MS:1000045' in p:

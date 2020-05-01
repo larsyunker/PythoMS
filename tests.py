@@ -6,10 +6,11 @@ import os
 import pathlib
 import shutil
 from random import random
-from pythoms.mzml import mzML, branch_cvparams, branch_attributes
+from pythoms.mzml import mzML, branch_attributes
 from pythoms.molecule import Molecule, IPMolecule, VALID_DROPMETHODS, VALID_IPMETHODS, element_intensity_list
 from pythoms.spectrum import Spectrum
 from pythoms.xlsx import XLSX
+from pythoms.psims import CVParameterSet
 from PyRSIR import pyrsir
 
 
@@ -136,7 +137,7 @@ class TestmzML(unittest.TestCase):
 
         @mzml.foreachscan
         def testperspec(spectrum):
-            p = branch_cvparams(spectrum)
+            p = CVParameterSet.create_from_branch(spectrum)
             return p["MS:1000016"].value
 
         self.assertEqual(  # test spectrum decorator

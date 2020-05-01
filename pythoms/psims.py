@@ -3,6 +3,7 @@ import os
 import obonet
 import textwrap
 import urllib
+from xml.dom.minidom import Element
 cv_param_def = None  # default state for loaded CV parameters
 
 
@@ -359,6 +360,24 @@ class CVParameterSet(object):
         cv_param_def.print_properties(key)  # print the detailed information
         if self.cv_values[key].value is not None:
             print(f'value: {self.cv_values[key].value}')  # followed by the value
+
+    @classmethod
+    def create_from_branch(cls, branch: Element) -> "CVParameterSet":
+        """
+        Creates a class instance from an XML branch
+
+        :param branch: XML branch to interpret
+        :return: cv parameter set associated with that branch
+        """
+        out = {}
+        for cvParam in branch.getElementsByTagName('cvParam'):
+            acc = cvParam.getAttribute('accession')  # accession key
+            out[acc] = {}
+            for attribute, value in cvParam.attributes.items():  # pull all the attributes
+                if attribute != 'accession':
+                    # attempt to convert to integer or float, keep as string otherwise
+                    out[acc][attribute] = stringtodigit(value)
+        return cls(**out)
 
 
 class CVParameterDefinitions(CVParameterSet):
