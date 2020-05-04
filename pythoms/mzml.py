@@ -10,6 +10,7 @@ IGNORE
 """
 import sys
 import os
+import re
 import zlib
 import gzip
 import base64
@@ -17,9 +18,12 @@ import struct
 import subprocess
 import logging
 import pathlib
-import xml.dom.minidom
+import warnings
+from xml.etree import ElementTree
+import numpy as np
 import scipy as sci
 from random import random
+from typing import Generator, Iterable, Union
 from .progress import Progress
 from .spectrum import Spectrum
 from .psims import CVParameterSet, stringtodigit
@@ -34,6 +38,8 @@ decode_formats = {
     'MS:1000523': ['<', 'd'],  # 64-bit precision little-endian floating point conforming to IEEE-754.
 }
 
+# prefix for xml elements
+_xml_element_prefix = '{http://psi.hupo.org/ms/mzml}'
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +70,7 @@ class BoundsError(Warning):
             self.warned[name] += 1
 
 
-def branch_attributes(branch: xml.dom.minidom.Element):
+def branch_attributes(branch: ElementTree.Element):
     """
     Pulls all the attributes of an xml.dom.minidom xml branch.
     These are generally things like index, id, etc.
@@ -80,7 +86,7 @@ def branch_attributes(branch: xml.dom.minidom.Element):
     integer in order to reduce TypeErrors when trying to use
     the extracted values.
     """
-    return {key: stringtodigit(val) for key, val in branch.attributes.items()}
+    return {key: stringtodigit(val) for key, val in branch.attrib.items()}
 
 
 def file_present(filepath):
@@ -104,6 +110,26 @@ def decodeformat(p: CVParameterSet, speclen: int):
         return f'{decode_formats[key][0]}{speclen}{decode_formats[key][1]}'  # create the decode format
 
 
+def associate_data_type(cv_params: CVParameterSet):
+    """
+    Associates a parameter set with a numpy data type
+
+    :param cv_params: set of cv parameters associated with a list of values
+    :return: numpy data type
+    """
+    param_map = {
+        '523': np.float64,
+        '521': np.float32,
+        '522': np.int64,
+        '519': np.int32,
+        '520': np.float16,
+    }
+    for key, dtype in param_map.items():
+        if f'MS:1000{key}' in cv_params:
+            return dtype
+    raise ValueError('a data type could not be determined from this parameter set')
+
+
 def gettext(nodelist):
     """gets text from a simple XML object"""
     rc = []
@@ -113,7 +139,58 @@ def gettext(nodelist):
     return ''.join(rc)
 
 
-def extract_spectrum(spectrum: xml.dom.minidom.Element, units: bool = False):
+def spectrum_array(spectrum: ElementTree.Element) -> np.ndarray:
+    """
+    Extracts and converts binary data to a numpy ndarray.
+
+    :param spectrum: A spectrum branch element. This element is expected to have two child nodes containing
+        binaryDataArrays.
+    """
+    # spectrum length (defined in the spectrum attributes)
+    speclen = int(spectrum.attrib.get('defaultArrayLength'))
+    out = np.ndarray((2, speclen))
+    # iterate over the binary data arrays
+    for ind, bda in enumerate(_findall_ele('binaryDataArrayList', 'binaryDataArray', parent=spectrum)):
+        p = CVParameterSet.create_from_branch(bda)  # grab cvparameters
+
+        # pull the binary string
+        binary_string = _find_ele('binary', parent=bda).text
+
+        # decode the string
+        decoded = base64.standard_b64decode(binary_string)
+
+        # if the string is compressed, decompress
+        if 'MS:1000574' in p:
+            decoded = zlib.decompress(decoded)
+
+        # retrieve the data from buffer with the associated format
+        out[ind] = np.frombuffer(
+            decoded,
+            associate_data_type(p)
+        )
+
+    return out
+
+
+def get_element_units(spectrum: ElementTree.Element):
+    """
+    Retrieves the units of the provided element. Assumes that the element has binaryDataArrayList and binaryDataArray
+    children which each have a unit-type controlled variable.
+
+    :param spectrum: XML spectrum Element
+    :return: x and y units corresponding to the spectrum
+    """
+    units = []
+    # iterate over the binary data arrays
+    for bda in _findall_ele('binaryDataArrayList', 'binaryDataArray', parent=spectrum):
+        p = CVParameterSet.create_from_branch(bda)  # grab cvparameters
+        for cv in p:
+            if cv.unit is not None:
+                units.append(cv.unit)
+    return units
+
+
+def extract_spectrum(spectrum: ElementTree.Element, units: bool = False) -> list:
     """
     Extracts and converts binary data to two lists.
 
@@ -122,41 +199,10 @@ def extract_spectrum(spectrum: xml.dom.minidom.Element, units: bool = False):
     :param units: whether to extract the units from the spectrum
     :return:
     """
-    """pulls and converts binary data to a list"""
-    # spectrum length (defined in the spectrum attricubes)
-    speclen = int(spectrum.getAttribute('defaultArrayLength'))
-    out = []
-    if units is True:
-        units = []
-    for binary in spectrum.getElementsByTagName('binaryDataArray'):
-        p = CVParameterSet.create_from_branch(binary)  # grab cvparameters
-
-        # determine whether the binary string is zlib compressed
-        compressed = True if 'MS:1000574' in p else False
-
-        # determine unpack format
-        unpack_format = decodeformat(p, speclen)
-
-        # pull the binary string
-        string = gettext(binary.getElementsByTagName('binary')[0].childNodes)
-
-        # decode the string
-        decoded = base64.standard_b64decode(string)
-
-        # if the string is compressed, decompress
-        if compressed is True:
-            decoded = zlib.decompress(decoded)
-
-        # unpack the string
-        out.append(list(struct.unpack(unpack_format, decoded)))
-
-        if units is not False:
-            for cv in p:
-                if cv.unit is not None:
-                    units.append(cv.unit)
-                    break
+    # todo go through all usages and refactor to array handling
+    out = spectrum_array(spectrum).tolist()
     if units is not False:  # extends the units onto out
-        out.extend(units)
+        out.extend(get_element_units(spectrum))
     return out
 
 
@@ -279,16 +325,43 @@ def fix_extension(fn):
     raise FileNotFoundError(f'The file {fn} could not be located in the current working directory')
 
 
-def fps(branch):
-    """
-    extracts function #, process #, and scan # from the idstring of a spectrum branch
-    returns function, process, scan as integers
-    """
-    idstring = branch.getAttribute('id').split()  # pull id string from scan attribute
-    return [int(x.split('=')[1]) for x in idstring]  # return each value after converting to integer
+_waters_id_re = re.compile('function=(?P<fn>\d+)\sprocess=(?P<proc>\d+)\sscan=(?P<scan>\d+)')
+_agilent_id_re = re.compile('scanId=(?P<scan>\d+)')
 
 
-def scan_properties(hand):
+def fps(element: ElementTree.Element):
+    """
+    Extracts function #, process #, and scan # from the idstring of a spectrum branch
+
+    :param element: XML element to retrieve from
+    :return:
+    """
+    # pull id string from scan attribute
+    idstring = element.attrib['id']
+    match = _waters_id_re.match(idstring)
+    if match is not None:
+        return (
+            int(match.group('fn')),
+            int(match.group('proc')),
+            int(match.group('scan')),
+        )
+    else:
+        # todo create generalized catch
+        match = _agilent_id_re.match(idstring)
+        return (
+            1,
+            None,
+            int(match.group('scan'))
+        )
+
+
+def scan_properties(parameters: Union[CVParameterSet, ElementTree.Element]):
+    """
+    Determines the scan properties of the provided spectrum.
+
+    :param parameters: CVParam parameters
+    :return:
+    """
     """determines the scan properties of the provided spectrum"""
     mstypes = {  # ms accession keys and their respective names (for spectrum identification)
         'MS:1000928': 'calibration spectrum',
@@ -312,10 +385,10 @@ def scan_properties(hand):
         'MS:1000806': 'absorption spectrum',
     }
     out = {}
-    if isinstance(hand, CVParameterSet):  # handed a cvparam class object (expected)
-        p = hand
+    if isinstance(parameters, CVParameterSet):  # handed a cvparam class object (expected)
+        p = parameters
     else:  # handed a tree or branch (generate the cvparam class object)
-        p = CVParameterSet(hand)
+        p = CVParameterSet.create_from_branch(parameters)
     for acc in p.keys() & mstypes.keys():  # check for ms spectrum
         out['acc'] = acc  # accession code
         out['name'] = mstypes[acc]  # name of spectrum
@@ -344,6 +417,40 @@ def scan_properties(hand):
                 'The script has not been coded to handle spectra types other than MS and UV-Vis. '
                 'Please contact the authors to get this functionality included.')
         return out
+
+
+def _find_ele(*paths, parent: ElementTree.Element = None) -> ElementTree.Element:
+    """
+    Performs a find on the element tree.
+
+    Each element name must be prefixed by "{http://psi.hupo.org/ms/mzml}", so this function saves that step.
+
+    :param paths: path names
+    :param parent: parent to search (if not provided, root will be used)
+    :return: element tree at location
+    """
+    return parent.find(
+        "/".join([
+            f'{_xml_element_prefix}{path}' for path in paths
+        ])
+    )
+
+
+def _findall_ele(*paths, parent: ElementTree.Element = None) -> Iterable[ElementTree.Element]:
+    """
+    Performs a findall on the element tree.
+
+    Each element name must be prefixed by "{http://psi.hupo.org/ms/mzml}", so this function saves that step.
+
+    :param paths: path names
+    :param parent: parent to search (if not provided, root will be used)
+    :return: element tree at location
+    """
+    return parent.findall(
+        "/".join([
+            f'{_xml_element_prefix}{path}' for path in paths
+        ])
+    )
 
 
 class mzML(object):
@@ -411,24 +518,25 @@ class mzML(object):
         else:
             handle = self.filename
         try:
-            self.tree = xml.dom.minidom.parse(handle)  # full mzML file
+            self.tree = ElementTree.parse(handle)  # full mzML file
+            self.root = self.tree.getroot()
         except:
             raise IOError(
                 'The mzML file "%s" could not be loaded. The file is either unsupported, corrupt, or incomplete.' % self.filename)
 
         try:  # number of spectra
-            self.nscans = int(self.tree.getElementsByTagName('spectrumList')[0].getAttribute('count'))
+            nscans = _find_ele('mzML', 'run', 'spectrumList', parent=self.root)
+            self.nscans = int(nscans.attrib['count'])
         except IndexError:  # no spectra
             self.nscans = 0
         try:
-            self.nchroms = int(  # number of chromatograms
-                self.tree.getElementsByTagName('chromatogramList')[0].getAttribute('count')
-            )
+            ncrhoms = _find_ele('mzML', 'run', 'chromatogramList', parent=self.root)
+            self.nchroms = int(ncrhoms.attrib['count'])
         except IndexError:
             self.nchroms = 0
 
         self.functions = {}
-        for spectrum in self.tree.getElementsByTagName('spectrum'):
+        for spectrum in self._spectra_elements:
             try:
                 # try to retrieve function, process, and scan from attributes
                 func, proc, scan = fps(spectrum)  # extract each value and convert to integer
@@ -438,18 +546,18 @@ class mzML(object):
             if func not in self.functions:  # if function is not defined yet
                 p = CVParameterSet.create_from_branch(spectrum)  # pull spectrum's cvparameters
                 self.functions[func] = {
-                    'sr': [int(spectrum.getAttribute('index')), None],  # the scan index range that the function spans
+                    'sr': [int(spectrum.attrib.get('index')), None],  # the scan index range that the function spans
                     'nscans': 1,  # number of scans
                 }
                 self.functions[func].update(scan_properties(p))  # update with scan properties
             else:
                 self.functions[func]['sr'][1] = int(
-                    spectrum.getAttribute('index'))  # otherwise set the scan index range to the current index
+                    spectrum.attrib.get('index'))  # otherwise set the scan index range to the current index
                 self.functions[func]['nscans'] += 1
         try:
             p = CVParameterSet.create_from_branch(spectrum)  # pull properties of final spectrum
             self.duration = p['MS:1000016'].value  # final start scan time
-        except UnboundLocalError:  # if there are no spectra, set to None
+        except (KeyError, UnboundLocalError):  # if there are no spectra, set to None
             # todo figure out a catch to retrieve time from other sources (e.g. TIC)
             self.duration = None
 
@@ -491,7 +599,7 @@ class mzML(object):
             if ind < 0 or ind > self.nscans:
                 raise IndexError("The scan index number #%d is outside of the mzML's scan index range (0-%d)" % (
                 ind, self.nscans - 1))
-            for spectrum in self.tree.getElementsByTagName('spectrum'):
+            for spectrum in self._spectra_elements:
                 attr = branch_attributes(spectrum)
                 if attr['index'] == ind:
                     return extract_spectrum(spectrum)
@@ -502,10 +610,22 @@ class mzML(object):
                 raise ValueError(
                     "The supplied time %.3f is outside of this file's time range (0 - %.3f)" % (ind, self.duration))
             ind = self.scan_index(ind)
-            for spectrum in self.tree.getElementsByTagName('spectrum'):
+            for spectrum in self._spectra_elements:
                 attr = branch_attributes(spectrum)
                 if attr['index'] == ind:
                     return extract_spectrum(spectrum)
+
+    @property
+    def _spectra_elements(self) -> Generator[ElementTree.Element, None, None]:
+        """generator of spectra elements"""
+        for element in _findall_ele('mzML', 'run', 'spectrumList', 'spectrum', parent=self.root):
+            yield element
+
+    @property
+    def _chromatogram_elements(self) -> Generator[ElementTree.Element, None, None]:
+        """generator of chromatogram elements"""
+        for element in _findall_ele('mzML', 'run', 'chromatogramList', 'chromatogram', parent=self.root):
+            yield element
 
     def foreachchrom(self, fn):
         """
@@ -530,9 +650,9 @@ class mzML(object):
             """decorates the supplied function to run for every scan"""
             prog = Progress(string='Applying function "%s" to chromatogram' % fn.__name__, last=self.nchroms)
             out = []
-            for chromatogram in self.tree.getElementsByTagName('chromatogram'):
+            for chromatogram in self._chromatogram_elements:
                 if self.verbose is True:
-                    prog.write(int(chromatogram.getAttribute('index')) + 1)
+                    prog.write(int(chromatogram.attrib.get('index')) + 1)
                 out.append(fn(chromatogram, *args, **kwargs))
             if self.verbose is True:
                 prog.fin()
@@ -565,9 +685,9 @@ class mzML(object):
             """decorates the supplied function to run for every scan"""
             prog = Progress(string='Applying function "%s" to scan' % fn.__name__, last=self.nscans)
             out = []
-            for spectrum in self.tree.getElementsByTagName('spectrum'):
+            for spectrum in self._spectra_elements:
                 if self.verbose is True:
-                    prog.write(int(spectrum.getAttribute('index')) + 1)
+                    prog.write(int(spectrum.attrib.get('index')) + 1)
                 out.append(fn(spectrum, *args, **kwargs))
             if self.verbose is True:
                 prog.fin()
@@ -715,16 +835,6 @@ class mzML(object):
 
     def check_for_file(self, fn):
         """checks for the mzML file in the working directory and converts it if necessary"""
-
-        def version_input(string):
-            """checks the python version and uses the appropriate version of user input"""
-            # if sys.version.startswith('2.7'):
-            #     return raw_input('%s' % string)
-            if sys.version.startswith('3.'):
-                return input('%s' % string)
-            else:
-                raise EnvironmentError('The version_input method encountered an unsupported version of python.')
-
         # cast path-like to string to enable extension check
         if type(fn) is not str:
             fn = str(fn)
@@ -746,7 +856,7 @@ class mzML(object):
                 if fn.lower().endswith(exten) is True:
                     return fn
             # otherwise asks user whether to continue
-            if version_input(
+            if input(
                     'The extension of the supplied filename "%s" is unexpected and may not be supported.\n'
                     'Do you wish to proceed with file loading? [Y/N] ' % fn).lower() in ['y', 'yes']:
                 return fn
@@ -770,7 +880,7 @@ class mzML(object):
             self.functions[function]['tic'] = []  # list for total ion current values
             if 'level' in self.functions[function] and self.functions[function]['level'] > 1:
                 self.functions[function]['ce'] = []  # list for collision energies
-        for spectrum in self.tree.getElementsByTagName('spectrum'):
+        for spectrum in self._spectra_elements:
             attr = branch_attributes(spectrum)
             function, proc, scan = fps(spectrum)  # determine function, process, and scan numbers
             if self.verbose is True:
@@ -832,7 +942,7 @@ class mzML(object):
         if self.verbose is True:
             prog = Progress(string='Extracting chromatogram', last=self.nchroms)
         chroms = {}  # dictionary of chromatograms
-        for chromatogram in self.tree.getElementsByTagName('chromatogram'):
+        for chromatogram in self._chromatogram_elements:
             attr = branch_attributes(chromatogram)  # pull attributes
             if self.verbose is True:
                 prog.write(attr['index'] + 1)
@@ -870,6 +980,11 @@ class mzML(object):
 
         explicitly interprets full scan mass spectra and UV species
         """
+        warnings.warn(
+            'This is a legacy method used with the older PyRSIR, please use the new RSIRTarget and and PyRSIR class.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if sumspec is True:
             spec = {}
             for function in self.functions:  # create spectrum objects for all MS species
@@ -889,7 +1004,7 @@ class mzML(object):
                 last=self.nscans,
                 writeevery=5
             )
-        for spectrum in self.tree.getElementsByTagName('spectrum'):
+        for spectrum in self._spectra_elements:
             function, proc, scan = fps(spectrum)  # pull function, process, and scan numbers
             attr = branch_attributes(spectrum)  # get attributes
             if self.verbose is True:
@@ -913,6 +1028,11 @@ class mzML(object):
         if sumspec is True:
             return sp, spec
         return sp, None
+
+    @property
+    def scans(self):
+        """a generator for scans in """
+        return 
 
     def retrieve_scans(self, start=None, end=None, mzstart=None, mzend=None, function=None, mute=False, outside=False):
         """
@@ -952,10 +1072,10 @@ class mzML(object):
         if self.verbose is True and mute is False:
             prog = Progress(string='Extracting scan data from spectrum', last=self.nscans)
         out = []
-        for spectrum in self.tree.getElementsByTagName('spectrum'):  # go through each spectrum
+        for spectrum in self._spectra_elements:  # go through each spectrum
             attr = branch_attributes(spectrum)
             # func,proc,scan = self.fps(spectrum) # determine function, process, and scan numbers
-            # p = self.cvparam(spectrum)
+            p = CVParameterSet.create_from_branch(spectrum)
             if attr['index'] > end:
                 break
             if self.verbose is True and mute is False:
@@ -972,10 +1092,12 @@ class mzML(object):
                     else:
                         r = mzend
                     spec = trimspectrum(x, y, l, r, outside)
-                out.append(spec)
+                    out.append(spec)
+                else:
+                    out.append([x, y])
         if self.verbose is True and mute is False:
             prog.fin()
-        if len(out) == 0:  # if only one scan, return that scan
+        if len(out) == 1:  # if only one scan, return that scan
             return out[0]
         return out
 
@@ -1049,13 +1171,16 @@ class mzML(object):
         start = self.scan_index(start, function, 'greater')
         end = self.scan_index(end, function, 'lesser')
 
-        spec = Spectrum(dec, start=self.functions[function]['window'][0],
-                        end=self.functions[function]['window'][1])  # create Spectrum object
+        spec = Spectrum(  # create Spectrum object
+            dec,
+            start=self.functions[function]['window'][0],
+            end=self.functions[function]['window'][1]
+        )
 
         if self.verbose is True and mute is False:
             prog = Progress(string='Combining spectrum', fraction=False, first=start, last=end)
 
-        for spectrum in self.tree.getElementsByTagName('spectrum'):  # go through each spectrum
+        for spectrum in self._spectra_elements:  # go through each spectrum
             attr = branch_attributes(spectrum)  # get attributes
             if attr['index'] > end:
                 break
