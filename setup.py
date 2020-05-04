@@ -44,6 +44,7 @@ setup(
         'sympy>=1.1.1',
         'obonet==0.2.5',  # they changed attribute names without deprecationwarnings, so only this version is verified
         'isospecpy>=2.0.2',
+        'tqdm>=4.46.0',
     ],
     keywords=KEYWORDS,
 )

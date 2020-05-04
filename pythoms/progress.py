@@ -1,4 +1,11 @@
 import sys
+import warnings
+
+warnings.warn(
+    'the pythoms.progress module as been deprecated, please switch to tqdm',
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class Progress(object):

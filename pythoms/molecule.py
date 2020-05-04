@@ -31,9 +31,9 @@ from datetime import datetime
 import sympy as sym
 import pylab as pl
 import copy
+from tqdm import tqdm
 from .scripttime import ScriptTime
 from .spectrum import Spectrum, weighted_average
-from .progress import Progress
 from . import mass_dictionaries  # import mass dictionaries
 from itertools import combinations_with_replacement as cwr
 from IsoSpecPy import IsoThreshold
@@ -617,18 +617,10 @@ def isotope_pattern_hybrid(
         ))
     sortlist = sorted(sortlist)  # sorted list of elements based on the length of their isotope patterns
     sortlist.reverse()
-    if verbose is True:
-        prog = Progress(
-            last=len(sortlist) - 1,
-            percent=False,
-            fraction=False,
-        )
 
     spec = None
-    for lenlist, element in sortlist:
-        if verbose is True:
-            prog.string = f'Adding element {element} to isotope pattern'
-            prog.write(1)
+    # todo convert to context tqdm (update string)
+    for lenlist, element in tqdm(sortlist, desc='adding element to isotope pattern', disable=not verbose):
         if spec is None:
             spec = Spectrum(
                 autodec(fwhm),  # decimal places
@@ -638,9 +630,6 @@ def isotope_pattern_hybrid(
                 filler=0.,  # fill with zeros, not None
                 specin=eleips[element],  # supply masses and abundances as initialization spectrum
             )
-            if verbose is True:
-                prog.fin()
-
             continue
         spec.add_element(eleips[element][0], eleips[element][1])
         spec.normalize(100.)  # normalize spectrum object
@@ -653,8 +642,6 @@ def isotope_pattern_hybrid(
                 threshold,
                 3 * 10 ** -consolidate
             )
-        if verbose is True:
-            sys.stdout.write(' DONE\n')
     return spec
 
 
@@ -774,19 +761,10 @@ def isotope_pattern_combinatoric(
         empty=True,  # whether or not to use emptyspec
         filler=0.,  # fill with zeros, not None
     )
-    if verbose is True:
-        counter = 0  # create a counter
-        iterations = int(cpu_list_product([numberofcwr(n, k) for n, k in nk]))  # number of iterations
-        prog = Progress(  # create a progress instance
-            string='Processing isotope combination',
-            last=iterations
-        )
 
-    for comb in product(*iterators):
-        if verbose is True:
-            counter += 1
-            # remaining = st.progress(counter,iterations,'combinations')
-            prog.write(counter)
+    iterations = int(cpu_list_product([numberofcwr(n, k) for n, k in nk]))  # number of iterations
+
+    for comb in tqdm(product(*iterators), desc='processing isotope combination', total=iterations, disable=not verbose):
         num = 1  # number of combinations counter
         x = 0.  # mass value
         y = 1.  # intensity value
@@ -810,8 +788,6 @@ def isotope_pattern_combinatoric(
                 ele, iso = string_to_isotope(element)  # determine element and isotope
                 spec.shift_x(mass_dict[ele][iso][0] * comp[element])  # shift the x values by the isotopic mass
     spec.normalize()  # normalize the spectrum object
-    if verbose is True:
-        prog.fin()
     return spec
 
 
@@ -850,8 +826,6 @@ def isotope_pattern_multiplicative(
 
     for key in comp:  # for each element
         if key in mass_dict:  # if not a single isotope
-            if verbose is True:
-                prog = Progress(string=f'Processing element {key}', last=comp[key])
             masses = []  # list for masses of each isotope
             abunds = []  # list for abundances
             for mass in mass_dict[key]:
@@ -859,9 +833,8 @@ def isotope_pattern_multiplicative(
                     if mass_dict[key][mass][1] > 0:  # if abundance is nonzero
                         masses.append(mass_dict[key][mass][0])
                         abunds.append(mass_dict[key][mass][1])
-            for n in range(comp[key]):  # for n number of each element
-                if verbose is True:
-                    prog.write(n + 1)
+            msg = f'Processing element {key}'
+            for n in tqdm(range(comp[key]), desc=msg, disable=not verbose):  # for n number of each element
                 if spec is None:  # if spectrum object has not been defined
                     spec = Spectrum(
                         decpl,  # decimal places
@@ -888,8 +861,6 @@ def isotope_pattern_multiplicative(
                     )
         else:  # if specific isotope
             ele, iso = string_to_isotope(key)  # find element and isotope
-            if verbose is True:
-                prog = Progress(string=f'Processing isotope {key}', fraction=False, percent=False)
             if spec is None:  # if spectrum object has not been defined
                 spec = Spectrum(
                     decpl,  # decimal places
@@ -901,9 +872,8 @@ def isotope_pattern_multiplicative(
                     filler=0.  # fill with zeros, not None
                 )
                 continue
+            # todo add tqdm progress bar
             spec.shift_x(mass_dict[ele][iso][0])  # offset spectrum object by the mass of that
-        if verbose is True:
-            prog.fin(' ')
     spec.normalize()
     if verbose is True:
         sys.stdout.write('DONE\n')

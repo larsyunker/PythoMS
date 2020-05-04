@@ -20,11 +20,11 @@ import logging
 import pathlib
 import warnings
 from xml.etree import ElementTree
+from tqdm import tqdm
 import numpy as np
 import scipy as sci
 from random import random
 from typing import Generator, Iterable, Union
-from .progress import Progress
 from .spectrum import Spectrum
 from .psims import CVParameterSet, stringtodigit
 from .tome import resolution, locate_in_list, trimspectrum
@@ -508,10 +508,6 @@ class mzML(object):
 
         self.filename = self.check_for_file(filename)
 
-        # load file and determine key properties
-        if self.verbose is True:
-            # todo why is this not an instantiation
-            self.Progress = Progress
         logger.info(f'Loading {self.filename} into memory')
         if self.filename.lower().endswith('.mzml.gz'):  # if mzml is gzipped
             handle = gzip.open(self.filename)  # unzip the file
@@ -627,6 +623,11 @@ class mzML(object):
         for element in _findall_ele('mzML', 'run', 'chromatogramList', 'chromatogram', parent=self.root):
             yield element
 
+    @property
+    def _mute_tqdm(self) -> bool:
+        """whether to mute tqdm"""
+        return not self.verbose
+
     def foreachchrom(self, fn):
         """
         a decorator function that will apply the supplied function to every chromatogram in the mzml file
@@ -648,14 +649,10 @@ class mzML(object):
 
         def foreachchrom(*args, **kwargs):
             """decorates the supplied function to run for every scan"""
-            prog = Progress(string='Applying function "%s" to chromatogram' % fn.__name__, last=self.nchroms)
             out = []
-            for chromatogram in self._chromatogram_elements:
-                if self.verbose is True:
-                    prog.write(int(chromatogram.attrib.get('index')) + 1)
+            msg = f'applying function to chromatogram'
+            for chromatogram in tqdm(self._chromatogram_elements, desc=msg, disable=self._mute_tqdm):
                 out.append(fn(chromatogram, *args, **kwargs))
-            if self.verbose is True:
-                prog.fin()
             return out
 
         return foreachchrom
@@ -683,14 +680,10 @@ class mzML(object):
 
         def foreachscan(*args, **kwargs):
             """decorates the supplied function to run for every scan"""
-            prog = Progress(string='Applying function "%s" to scan' % fn.__name__, last=self.nscans)
             out = []
-            for spectrum in self._spectra_elements:
-                if self.verbose is True:
-                    prog.write(int(spectrum.attrib.get('index')) + 1)
+            msg = 'applying function to spectrum'
+            for spectrum in tqdm(self._spectra_elements, desc=msg, disable=self._mute_tqdm):
                 out.append(fn(spectrum, *args, **kwargs))
-            if self.verbose is True:
-                prog.fin()
             return out
 
         return foreachscan
@@ -816,20 +809,22 @@ class mzML(object):
                 ran = int(random() * self.functions[function]['nscans']) + self.functions[function]['sr'][0]
                 if ran - 10 >= self.functions[function]['sr'][0] and ran + 10 <= self.functions[function]['sr'][1]:
                     ranges.append([ran - 10, ran + 10])
-        if self.verbose is True:
-            prog = Progress(string='Estimating resolution of the instrument', fraction=False, last=n)
         summed = []
-        for ind, rng in enumerate(ranges):
-            if self.verbose is True:
-                prog.write(ind + 1)
-            summed.append(self.sum_scans(rng[0], rng[1], function, 2, True))  # sum those scans and append output
+        msg = 'Estimating resolution of the instrument'
+        for ind, rng in enumerate(tqdm(ranges, desc=msg, disable=self._mute_tqdm)):
+            summed.append(  # sum those scans and append output
+                self.sum_scans(
+                    rng[0], rng[1],
+                    function,
+                    2,
+                    mute=True
+                )
+            )
         res = []
         for spec in summed:  # calculate resolution for each scan range
             inds = findsomepeaks(spec[1])  # find some peaks
             for ind in inds:  # for each of those peaks
                 res.append(resolution(spec[0], spec[1], ind, threshold=10))
-        if self.verbose is True:
-            prog.fin()
         res = [y for y in res if y is not None]  # removes None values (below S/N)
         return sum(res) / len(res)  # return average
 
@@ -873,26 +868,21 @@ class mzML(object):
         extracts timepoints and tic lists for each function
         this function is separate from mzml contents because it would increase load times significantly (~6x)
         """
-        if self.verbose is True:
-            prog = Progress(string='Extracting timepoints and total ion current values from mzML', fraction=False)
+        msg = 'extracting timepoints and total ion current values'
         for function in self.functions:  # add timepoint and tic lists
             self.functions[function]['timepoints'] = []  # list for timepoints
             self.functions[function]['tic'] = []  # list for total ion current values
             if 'level' in self.functions[function] and self.functions[function]['level'] > 1:
                 self.functions[function]['ce'] = []  # list for collision energies
-        for spectrum in self._spectra_elements:
+        for spectrum in tqdm(self._spectra_elements, desc=msg, disable=self._mute_tqdm):
             attr = branch_attributes(spectrum)
             function, proc, scan = fps(spectrum)  # determine function, process, and scan numbers
-            if self.verbose is True:
-                prog.write(attr['index'] + 1)
             p = CVParameterSet.create_from_branch(spectrum)  # pull spectrum's cvparameters
             self.functions[function]['timepoints'].append(p['MS:1000016'].value)  # start scan time
             self.functions[function]['tic'].append(p['MS:1000285'].value)  # total ion current
             if 'MS:1000045' in p:
                 self.functions[function]['ce'].append(p['MS:1000045'].value)  # collision energy
         self.ftt = True
-        if self.verbose is True:
-            prog.fin()
 
     def integrate(self, name, start, end, x, y):
         """
@@ -939,17 +929,12 @@ class mzML(object):
         'yunit': unit of the y values
         }
         """
-        if self.verbose is True:
-            prog = Progress(string='Extracting chromatogram', last=self.nchroms)
+        msg = 'extracting chromatogram'
         chroms = {}  # dictionary of chromatograms
-        for chromatogram in self._chromatogram_elements:
+        for chromatogram in tqdm(self._chromatogram_elements, desc=msg, disable=self._mute_tqdm):
             attr = branch_attributes(chromatogram)  # pull attributes
-            if self.verbose is True:
-                prog.write(attr['index'] + 1)
             x, y, xunit, yunit = extract_spectrum(chromatogram, True)  # extract x list, y list, and units
             chroms[attr['id']] = {'x': x, 'y': y, 'xunit': xunit, 'yunit': yunit}
-        if self.verbose is True:
-            prog.fin()
         return chroms
 
     def pull_species_data(self, sp, sumspec=False):
@@ -1069,17 +1054,14 @@ class mzML(object):
         end = self.scan_index(end, function, bias='lesser')
         if self.ftt is False:  # extract the timepoints and etc from the mzml
             self.function_timetic()
-        if self.verbose is True and mute is False:
-            prog = Progress(string='Extracting scan data from spectrum', last=self.nscans)
+        msg = 'retrieving scans'
         out = []
-        for spectrum in self._spectra_elements:  # go through each spectrum
+        for spectrum in tqdm(self._spectra_elements, desc=msg, disable=self._mute_tqdm, total=end-start):
             attr = branch_attributes(spectrum)
             # func,proc,scan = self.fps(spectrum) # determine function, process, and scan numbers
             p = CVParameterSet.create_from_branch(spectrum)
             if attr['index'] > end:
                 break
-            if self.verbose is True and mute is False:
-                prog.write(attr['index'] + 1)
             if start <= attr['index'] <= end:  # within the index bounds
                 x, y = extract_spectrum(spectrum)
                 if mzstart is not None or mzend is not None:
@@ -1095,8 +1077,6 @@ class mzML(object):
                     out.append(spec)
                 else:
                     out.append([x, y])
-        if self.verbose is True and mute is False:
-            prog.fin()
         if len(out) == 1:  # if only one scan, return that scan
             return out[0]
         return out
@@ -1177,21 +1157,15 @@ class mzML(object):
             end=self.functions[function]['window'][1]
         )
 
-        if self.verbose is True and mute is False:
-            prog = Progress(string='Combining spectrum', fraction=False, first=start, last=end)
-
-        for spectrum in self._spectra_elements:  # go through each spectrum
+        msg = 'combining spectra'
+        for spectrum in tqdm(self._spectra_elements, desc=msg, disable=self._mute_tqdm or mute, total=end-start):
             attr = branch_attributes(spectrum)  # get attributes
             if attr['index'] > end:
                 break
-            if self.verbose is True and mute is False:
-                prog.write(attr['index'] + 1)
             if start <= attr['index'] <= end:  # if within the specified bounds
                 x, y = extract_spectrum(spectrum)  # pull spectrum
                 spec.add_spectrum(x, y)  # add spectrum to Spectrum object
         out = spec.trim()
-        if self.verbose is True and mute is False:
-            prog.fin()
         return out
 
 
