@@ -1235,3 +1235,43 @@ def strtolist(string):
         except ValueError:
             out.append(float(temp))
     return out
+
+
+def check_integer(val, name):
+    """
+    This function checks that the supplied values are integers greater than 1
+
+    A integer value that is non-negative is required for the summing function.
+    Please check your input value.
+    """
+    if type(val) != list and type(val) != tuple:  # if only one value given for n
+        val = [val]
+    for num in val:
+        if type(num) != int:
+            raise ValueError(f'The {name} value ({num}) is not an integer.')
+        if num < 1:
+            raise ValueError(f'The {name} value ({num}) is less than 1.')
+    return val
+
+
+def integrate_numpy(value_array: np.ndarray,
+                    check_array: np.ndarray = True,
+                    lower_bound: float = None,
+                    upper_bound: float = None,
+                    ) -> float:
+    """
+    Integrates a value array with the provided conditions.
+
+    :param value_array: array of values to integrate
+    :param check_array: array of values to check against (the value of the check array must be between the lower and
+        upper bounds
+    :param lower_bound: lower bound for the check array
+    :param upper_bound: upper bound for the check array
+    :return: integral (sum)
+    """
+    # todo accept single condition
+    if lower_bound is not None:
+        truth_array = (lower_bound <= check_array) & (check_array <= upper_bound)
+    else:
+        truth_array = check_array
+    return value_array[truth_array].sum()
