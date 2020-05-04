@@ -3,7 +3,7 @@ import os
 import obonet
 import textwrap
 import urllib
-from xml.dom.minidom import Element
+from xml.etree import ElementTree
 cv_param_def = None  # default state for loaded CV parameters
 
 
@@ -362,22 +362,55 @@ class CVParameterSet(object):
             print(f'value: {self.cv_values[key].value}')  # followed by the value
 
     @classmethod
-    def create_from_branch(cls, branch: Element) -> "CVParameterSet":
+    def branch_to_dict(cls,
+                       branch: ElementTree.Element,
+                       search_children: bool = True,
+                       ) -> dict:
+        """
+        Searches through children of a branch and retrieves cvparameter values and details.
+
+        :param branch: branch to search
+        :param search_children: whether to search child branches for additional cvparameters
+        :return: dictionary of cv parameters
+        """
+        _cvparam_name = '{http://psi.hupo.org/ms/mzml}cvParam'
+        out = {}
+        for param_element in branch.findall(_cvparam_name):
+            acc = param_element.attrib.get('accession')  # accession key
+            out[acc] = {}
+            for attribute, value in param_element.attrib.items():  # pull all the attributes
+                if attribute != 'accession':
+                    # attempt to convert to integer or float, keep as string otherwise
+                    out[acc][attribute] = stringtodigit(value)
+        if search_children is True:
+            for child in branch:
+                if child.tag != _cvparam_name:
+                    out.update(
+                        cls.branch_to_dict(
+                            child,
+                            search_children=True,
+                        ),
+                    )
+        return out
+
+    @classmethod
+    def create_from_branch(cls,
+                           branch: ElementTree.Element,
+                           search_children: bool = True,
+                           ) -> "CVParameterSet":
         """
         Creates a class instance from an XML branch
 
         :param branch: XML branch to interpret
+        :param search_children: whether to search child branches for additional cvparameters
         :return: cv parameter set associated with that branch
         """
-        out = {}
-        for cvParam in branch.getElementsByTagName('cvParam'):
-            acc = cvParam.getAttribute('accession')  # accession key
-            out[acc] = {}
-            for attribute, value in cvParam.attributes.items():  # pull all the attributes
-                if attribute != 'accession':
-                    # attempt to convert to integer or float, keep as string otherwise
-                    out[acc][attribute] = stringtodigit(value)
-        return cls(**out)
+        return cls(
+            **cls.branch_to_dict(
+                branch=branch,
+                search_children=search_children,
+            )
+        )
 
 
 class CVParameterDefinitions(CVParameterSet):
