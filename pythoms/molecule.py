@@ -920,12 +920,12 @@ def isotope_pattern_isospec(
     """
     Generates a raw isotope pattern using the isospecpy package. http://matteolacki.github.io/IsoSpec/
 
-    :param comp:
-    :param decpl:
-    :param verbose:
-    :param threshold:
-    :param kwargs:
-    :return:
+    :param comp: composition dictionary
+    :param decpl: decimal places to track while converting from isospec to Spectrum
+    :param verbose: chatty mode
+    :param threshold: threshold level (relative, seems slightly buggy)
+    :param kwargs: catch for extra kwargs
+    :return: Spectrum object
     """
     global _CITATION_REMINDER
     if _CITATION_REMINDER is False:  # remind the user on the first use
