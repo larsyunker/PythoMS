@@ -941,7 +941,7 @@ def isotope_pattern_isospec(
     # use IsoSpec algorithm to generate configurations
     iso_spec = IsoThreshold(
         formula="".join(f'{ele}{num}' for ele, num in comp.items()),
-        threshold=threshold,
+        threshold=threshold * 0.1,
     )
 
     spec = Spectrum(
