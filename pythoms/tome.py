@@ -1254,6 +1254,33 @@ def check_integer(val, name):
     return val
 
 
+def slice_array(value_array: np.ndarray,
+                check_array: np.ndarray = True,
+                lower_bound: float = None,
+                upper_bound: float = None,
+                ) -> np.ndarray:
+    """
+    Slices a numpy ndarray with the provided conditions
+
+    :param value_array: array of values to integrate
+    :param check_array: array of values to check against (the value of the check array must be between the lower and
+        upper bounds
+    :param lower_bound: lower bound for the check array
+    :param upper_bound: upper bound for the check array
+    :return: sliced x,y array
+    """
+    # todo accept single condition
+    if lower_bound is not None:
+        truth_array = (lower_bound <= check_array) & (check_array <= upper_bound)
+    else:
+        truth_array = check_array
+    # todo see if there's a more efficient way to do this
+    out = np.ndarray((2, truth_array.sum()))
+    out[0] = check_array[truth_array]
+    out[1] = value_array[truth_array]
+    return out
+
+
 def integrate_numpy(value_array: np.ndarray,
                     check_array: np.ndarray = True,
                     lower_bound: float = None,
@@ -1269,9 +1296,5 @@ def integrate_numpy(value_array: np.ndarray,
     :param upper_bound: upper bound for the check array
     :return: integral (sum)
     """
-    # todo accept single condition
-    if lower_bound is not None:
-        truth_array = (lower_bound <= check_array) & (check_array <= upper_bound)
-    else:
-        truth_array = check_array
-    return value_array[truth_array].sum()
+    _, y = slice_array(value_array, check_array, lower_bound, upper_bound)
+    return y.sum()
