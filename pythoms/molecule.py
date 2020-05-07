@@ -124,6 +124,8 @@ def interpret(block: str):
             i += 1
             if block[i].isdigit() is True:  # add digits
                 num += block[i]
+            elif block[i] == ' ':  # ignore spaces
+                continue
             else:
                 ele += block[i]
         if num == '':
