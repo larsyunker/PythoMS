@@ -39,7 +39,7 @@ setup(
     install_requires=[
         'numpy>=1.14.2',
         'openpyxl>=2.5.2',
-        'matplotlib>=2.1.2',
+        'matplotlib>=3.2.1',
         'scipy>=1.1.0',
         'sympy>=1.1.1',
         'obonet==0.2.5',  # they changed attribute names without deprecationwarnings, so only this version is verified

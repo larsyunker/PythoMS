@@ -931,13 +931,13 @@ def plot_mass_spectrum(
             # show or hide axis values/labels as specified
     if yvalues is False:  # y tick marks and values
         ax.tick_params(axis='y', labelleft='off', length=0)
-    if yvalues is True:  # y value labels
+    else:  # y value labels
         ax.tick_params(
             axis='y',
             length=axwidth * 3,
             width=axwidth,
             direction='out',
-            right='off'
+            right=False,
         )
         for label in ax.get_yticklabels():
             label.set_fontproperties(tickfont)
@@ -949,13 +949,13 @@ def plot_mass_spectrum(
 
     if xvalues is False:  # x tick marks and values
         ax.tick_params(axis='x', labelbottom='off', length=0)
-    if xvalues is True:  # x value labels
+    else:  # x value labels
         ax.tick_params(
             axis='x',
             length=axwidth * 3,
             width=axwidth,
             direction='out',
-            top='off'
+            top=False,
         )
         for label in ax.get_xticklabels():
             label.set_fontproperties(tickfont)
