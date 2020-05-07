@@ -1,3 +1,8 @@
+# Project migration
+
+Note that this project [has been migrated to Gitlab](https://gitlab.com/larsyunker/PythoMS). Please submit 
+issues or feature requests on that website. 
+
 # mass-spec-python-tools: mass spec made easier
 
 ### What is it?
